@@ -3,22 +3,31 @@
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
 const COMMANDS_KEY = 'eahaCommands';
-const LIFELINE_KEY = 'eahaLifeline';
+const LIFELINES_KEY = 'eahaLifelines'; // Upgraded to store multiple lifelines
+const ACTIVE_CREA_KEY = 'eahaActiveCreature';
 
-// --- Default Data Initialization ---
+// --- Global State ---
+let db = { creatures: [] };
+let activeCreatureId = null;
+let isEditMode = false;
+let decayTimerInterval = null;
+let decayEndTime = null;
+
+// Default Quick Commands
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
 let commands = JSON.parse(localStorage.getItem(COMMANDS_KEY)) || defaultCommands;
 
-const defaultLifeline = {
+// Default Lifeline Template
+const generateDefaultLifeline = () => ({
   comfort: 100, hygiene: 100, satiation: 100,
   migrations: 0,
   rebirths: { 1: 'none', 2: 'none', 3: 'none' }
-};
-let lifeline = JSON.parse(localStorage.getItem(LIFELINE_KEY)) || { ...defaultLifeline };
+});
 
-let isEditMode = false;
+// Load all saved lifelines (keyed by creature ID)
+let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
 
-// --- Utility Functions ---
+// --- Utilities ---
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
@@ -26,20 +35,103 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-const saveLifeline = () => localStorage.setItem(LIFELINE_KEY, JSON.stringify(lifeline));
+const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
 const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
+
+// Get the currently active lifeline, or create one if it doesn't exist
+const getActiveLifeline = () => {
+  if (!activeCreatureId) return generateDefaultLifeline();
+  if (!lifelines[activeCreatureId]) {
+    lifelines[activeCreatureId] = generateDefaultLifeline();
+    saveLifelines();
+  }
+  return lifelines[activeCreatureId];
+};
+
+// --- Active Creature Management & Briefing Panel ---
+const populateCreatureDropdown = () => {
+  const select = document.getElementById('activeCreatureSelect');
+  select.innerHTML = '';
+  
+  if (!db.creatures || db.creatures.length === 0) {
+    select.appendChild(new Option("No Creatures in Database", "none"));
+    select.disabled = true;
+    updateBriefingPanel(null);
+    return;
+  }
+
+  select.disabled = false;
+  db.creatures.forEach(c => select.appendChild(new Option(c.name, c.id)));
+  
+  // Restore last active, or default to the first in the list
+  const savedActive = localStorage.getItem(ACTIVE_CREA_KEY);
+  if (savedActive && db.creatures.find(c => c.id === savedActive)) {
+    activeCreatureId = savedActive;
+  } else {
+    activeCreatureId = db.creatures[0].id;
+  }
+  
+  select.value = activeCreatureId;
+  
+  select.addEventListener('change', (e) => {
+    activeCreatureId = e.target.value;
+    localStorage.setItem(ACTIVE_CREA_KEY, activeCreatureId);
+    updateBriefingPanel();
+    updateVitalsUI();
+    updateElderingUI();
+    showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
+  });
+};
+
+const updateBriefingPanel = () => {
+  const nameEl = document.getElementById('briefingName');
+  const statsEl = document.getElementById('briefingStats');
+  const tasksEl = document.getElementById('briefingTasks');
+  
+  const creature = db.creatures.find(c => c.id === activeCreatureId);
+  
+  if (!creature) {
+    nameEl.textContent = "No Creature Selected";
+    statsEl.innerHTML = '<span class="muted">Select a creature from your database to load its stats and task commands.</span>';
+    tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. You MUST perform the physical task associated with your dinosaur.';
+    return;
+  }
+
+  nameEl.textContent = creature.name;
+  
+  // Safely extract stats if they exist in the creature object
+  const health = creature.stats?.base?.health || "N/A";
+  const weight = creature.stats?.base?.combatWeight || "N/A";
+  const speed = creature.stats?.base?.speed || "N/A";
+  
+  statsEl.innerHTML = `
+    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Health: ${health}</span>
+    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Weight: ${weight}</span>
+    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Speed: ${speed}</span>
+    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">${creature.tier || 'Unknown Tier'}</span>
+  `;
+
+  const upkeepText = creature.upkeep ? creature.upkeep : "No specific upkeep tasks documented for this creature. Perform standard shaking/mud rolling to avoid command abuse.";
+  tasksEl.innerHTML = `<strong style="color: var(--primary);">Required Tasks at 0%:</strong> ${upkeepText}`;
+};
 
 // --- Elysian Lifeline: Vitals Monitor ---
 const updateVitalsUI = () => {
-  document.getElementById('comfortValue').textContent = `${lifeline.comfort}%`;
-  document.getElementById('hygieneValue').textContent = `${lifeline.hygiene}%`;
-  document.getElementById('satiationValue').textContent = `${lifeline.satiation}%`;
+  const currentLife = getActiveLifeline();
+  
+  document.getElementById('comfortValue').textContent = `${currentLife.comfort}%`;
+  document.getElementById('hygieneValue').textContent = `${currentLife.hygiene}%`;
+  document.getElementById('satiationValue').textContent = `${currentLife.satiation}%`;
+  
+  document.getElementById('comfortSlider').value = currentLife.comfort;
+  document.getElementById('hygieneSlider').value = currentLife.hygiene;
+  document.getElementById('satiationSlider').value = currentLife.satiation;
 
   const comfortStatus = document.getElementById('comfortStatus');
-  if (lifeline.comfort <= 0) {
+  if (currentLife.comfort <= 0) {
     comfortStatus.textContent = '⚠️ Armor Nerf Active!';
     comfortStatus.style.color = 'var(--danger)';
-  } else if (lifeline.comfort > 70) {
+  } else if (currentLife.comfort > 70) {
     comfortStatus.textContent = '+ Health Regen Active';
     comfortStatus.style.color = 'var(--success)';
   } else {
@@ -48,82 +140,133 @@ const updateVitalsUI = () => {
   }
 };
 
+const setupLifelineListeners = () => {
+  ['comfort', 'hygiene', 'satiation'].forEach(vital => {
+    const slider = document.getElementById(`${vital}Slider`);
+    slider.addEventListener('input', (e) => {
+      const currentLife = getActiveLifeline();
+      currentLife[vital] = parseInt(e.target.value, 10);
+      updateVitalsUI();
+      saveLifelines();
+    });
+  });
+
+  document.getElementById('addMigrationBtn').addEventListener('click', () => {
+    const currentLife = getActiveLifeline();
+    currentLife.migrations++;
+    updateElderingUI();
+    saveLifelines();
+  });
+
+  document.getElementById('subMigrationBtn').addEventListener('click', () => {
+    const currentLife = getActiveLifeline();
+    if (currentLife.migrations > 0) {
+      currentLife.migrations--;
+      updateElderingUI();
+      saveLifelines();
+    }
+  });
+
+  document.querySelectorAll('.rebirth-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const currentLife = getActiveLifeline();
+      currentLife.rebirths[e.target.dataset.token] = e.target.value;
+      saveLifelines();
+    });
+  });
+
+  document.getElementById('resetLifelineBtn').addEventListener('click', () => {
+    if(!activeCreatureId) return;
+    if(confirm('Are you sure you want to reset the lifeline for THIS specific dinosaur?')) {
+      lifelines[activeCreatureId] = generateDefaultLifeline();
+      updateVitalsUI();
+      updateElderingUI();
+      saveLifelines();
+      showToast('Creature Lifeline reset to base values.');
+    }
+  });
+};
+
 // --- Elysian Lifeline: Eldering Tracker ---
 const updateElderingUI = () => {
-  document.getElementById('migrationCount').textContent = lifeline.migrations;
+  const currentLife = getActiveLifeline();
+  document.getElementById('migrationCount').textContent = currentLife.migrations;
   const stageDisplay = document.getElementById('elderingStageDisplay');
   const rebirthSelects = document.querySelectorAll('.rebirth-select');
   
   let stageHtml = '';
   let isWithering = false;
 
-  if (lifeline.migrations < 4) {
+  if (currentLife.migrations < 4) {
     stageHtml = `<strong style="color: var(--text);">Stage 0: Pre-Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Requires 4 migrations to reach Tier 1.</p>`;
-  } else if (lifeline.migrations >= 4 && lifeline.migrations < 8) {
+  } else if (currentLife.migrations >= 4 && currentLife.migrations < 8) {
     stageHtml = `<strong style="color: var(--success);">Stage 1: Young Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health, +350 Weight. Slight speed debuff.</p>`;
-  } else if (lifeline.migrations >= 8 && lifeline.migrations < 12) {
+  } else if (currentLife.migrations >= 8 && currentLife.migrations < 12) {
     stageHtml = `<strong style="color: var(--info);">Stage 2: Inexperienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">No extra buffs yet. Keep pushing.</p>`;
-  } else if (lifeline.migrations >= 12 && lifeline.migrations < 16) {
-    stageHtml = `<strong style="color: #9C27B0;">Stage 3: Experienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health (Stacks). Required: Dull skin, lead pack, eat first.</p>`;
-  } else if (lifeline.migrations >= 16) {
+  } else if (currentLife.migrations >= 12 && currentLife.migrations < 16) {
+    stageHtml = `<strong style="color: #a855f7;">Stage 3: Experienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health (Stacks). Required: Dull skin, lead pack, eat first.</p>`;
+  } else if (currentLife.migrations >= 16) {
     isWithering = true;
     stageHtml = `<strong style="color: var(--danger);">Stage 4: Withering Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Speed debuff stacks. Slow damage active until death. Rebirth unlocked.</p>`;
   }
 
   stageDisplay.innerHTML = stageHtml;
 
-  // Handle Rebirth Dropdown Unlocks
   rebirthSelects.forEach(select => {
     select.disabled = !isWithering;
-    select.value = lifeline.rebirths[select.dataset.token];
+    select.value = currentLife.rebirths[select.dataset.token];
   });
 };
 
-const setupLifelineListeners = () => {
-  ['comfort', 'hygiene', 'satiation'].forEach(vital => {
-    const slider = document.getElementById(`${vital}Slider`);
-    slider.value = lifeline[vital];
-    slider.addEventListener('input', (e) => {
-      lifeline[vital] = parseInt(e.target.value, 10);
-      updateVitalsUI();
-      saveLifeline();
-    });
-  });
-
-  document.getElementById('addMigrationBtn').addEventListener('click', () => {
-    lifeline.migrations++;
-    updateElderingUI();
-    saveLifeline();
-  });
-
-  document.getElementById('subMigrationBtn').addEventListener('click', () => {
-    if (lifeline.migrations > 0) {
-      lifeline.migrations--;
-      updateElderingUI();
-      saveLifeline();
+// --- Decay Timer Logic ---
+const updateTimerDisplay = () => {
+  const display = document.getElementById('timerDisplay');
+  if (!decayEndTime) {
+    display.textContent = "00:00";
+    display.style.color = "var(--primary)";
+    return;
+  }
+  
+  const now = Date.now();
+  const remaining = Math.max(0, decayEndTime - now);
+  
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  
+  display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  
+  if (remaining <= 0) {
+    clearInterval(decayTimerInterval);
+    decayEndTime = null;
+    display.style.color = "var(--danger)";
+    showToast("⚠️ Decay Timer Complete! Check your Vitals.", "error");
+    // Optionally trigger a browser notification if permitted
+    if (Notification.permission === "granted") {
+      new Notification("Elys Astra Helper", { body: "Your Upkeep Decay Timer has reached zero. Check your vitals!" });
     }
-  });
-
-  document.querySelectorAll('.rebirth-select').forEach(select => {
-    select.addEventListener('change', (e) => {
-      lifeline.rebirths[e.target.dataset.token] = e.target.value;
-      saveLifeline();
-    });
-  });
-
-  document.getElementById('resetLifelineBtn').addEventListener('click', () => {
-    if(confirm('Are you sure you want to reset your active dinosaur lifeline?')) {
-      lifeline = { ...defaultLifeline };
-      ['comfort', 'hygiene', 'satiation'].forEach(vital => {
-        document.getElementById(`${vital}Slider`).value = 100;
-      });
-      updateVitalsUI();
-      updateElderingUI();
-      saveLifeline();
-      showToast('Lifeline reset to base values.');
-    }
-  });
+  }
 };
+
+document.getElementById('startTimerBtn').addEventListener('click', () => {
+  const mins = parseInt(document.getElementById('timerMinutes').value, 10);
+  if (isNaN(mins) || mins <= 0) {
+    showToast("Please enter a valid number of minutes.", "error");
+    return;
+  }
+  
+  decayEndTime = Date.now() + (mins * 60000);
+  if (decayTimerInterval) clearInterval(decayTimerInterval);
+  
+  document.getElementById('timerDisplay').style.color = "var(--primary)";
+  decayTimerInterval = setInterval(updateTimerDisplay, 1000);
+  updateTimerDisplay();
+  
+  // Request notification permission if not asked yet
+  if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+    Notification.requestPermission();
+  }
+});
+
 
 // --- Quick Commands Logic ---
 const renderCommands = () => {
@@ -133,7 +276,7 @@ const renderCommands = () => {
   commands.forEach((command, index) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-ghost';
+    btn.className = 'chip';
     
     if (isEditMode) {
       btn.innerHTML = `${command} <span style="color: var(--danger); margin-left: 8px; font-weight: bold;">✕</span>`;
@@ -149,6 +292,7 @@ const renderCommands = () => {
         try {
           await navigator.clipboard.writeText(command);
           document.getElementById('commandStatus').textContent = `Copied: ${command}`;
+          document.getElementById('commandStatus').style.color = 'var(--success)';
         } catch (error) {
           document.getElementById('commandStatus').textContent = 'Clipboard access failed.';
         }
@@ -162,7 +306,8 @@ const setupCommandListeners = () => {
   document.getElementById('editCommandsToggle').addEventListener('change', (e) => {
     isEditMode = e.target.checked;
     document.getElementById('addCommandForm').classList.toggle('is-hidden', !isEditMode);
-    document.getElementById('commandStatus').textContent = isEditMode ? 'Click a command to delete it.' : 'Click a command to copy it.';
+    document.getElementById('commandStatus').textContent = isEditMode ? 'Click a command to delete it.' : 'Ready.';
+    document.getElementById('commandStatus').style.color = 'var(--muted)';
     renderCommands();
   });
 
@@ -216,7 +361,18 @@ const updateDateTime = () => {
 };
 
 // --- Boot Sequence ---
-const init = () => {
+const init = async () => {
+  // 1. Load Master Database (from local or base-data.json)
+  if (typeof EAHADataStore !== 'undefined') {
+    db = await EAHADataStore.getData();
+  } else {
+    console.error("Jarvis Alert: data-store.js is missing or not loaded.");
+  }
+
+  // 2. Initialize UI Components
+  populateCreatureDropdown();
+  updateBriefingPanel();
+  
   populateTimeZones();
   updateDateTime();
   setInterval(updateDateTime, 1000);
