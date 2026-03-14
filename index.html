@@ -22,13 +22,22 @@
 
   <main class="page">
     
-    <section class="hero card" style="border-top: 5px solid var(--primary);">
-      <div>
+    <section class="hero card" style="border-top: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+      <div style="flex: 1; min-width: 300px;">
         <p class="muted" style="text-transform: uppercase; letter-spacing: 1px; font-size: 0.85em; font-weight: 600;">Offline toolkit for the Elys Astra Path of Titans server</p>
         <h1 style="font-size: 2.5em; margin: 10px 0;">Elys Astra Helper Application (EAHA)</h1>
         <p class="muted" style="font-size: 1.1em; max-width: 800px;">
           EAHA is a modular, offline-ready helper for players and staff. Build posts, manage rules, curate creature profiles, and keep stats synchronized — all from a single workspace.
         </p>
+      </div>
+      <div style="text-align: right; background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border); min-width: 200px;">
+        <div style="margin-bottom: 8px;">
+          <select id="timeZoneSelect" style="padding: 6px 12px; font-size: 0.85em; border-radius: 50px; background: var(--bg-alt);"></select>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+          <span id="homeTime" style="font-weight: 800; font-size: 1.4em; color: var(--primary);">--:--</span>
+          <span id="homeDate" class="muted" style="font-size: 0.9em; font-weight: 500;">Loading date...</span>
+        </div>
       </div>
     </section>
 
@@ -151,16 +160,6 @@
         <div>
           <h2>Quick Commands</h2>
           <p class="muted">Click a bubbly chip to instantly copy the command.</p>
-        </div>
-        
-        <div style="text-align: right; background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
-          <div style="margin-bottom: 8px;">
-            <select id="timeZoneSelect" style="padding: 6px 12px; font-size: 0.85em; border-radius: 50px; background: var(--bg-alt);"></select>
-          </div>
-          <div style="display: flex; flex-direction: column; align-items: flex-end;">
-            <span id="homeTime" style="font-weight: 800; font-size: 1.4em; color: var(--primary);">--:--</span>
-            <span id="homeDate" class="muted" style="font-size: 0.9em; font-weight: 500;">Loading date...</span>
-          </div>
         </div>
       </div>
       
