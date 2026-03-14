@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Post Builder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Home</a>
+      <a class="nav-btn active" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn" href="about.html">Stats</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card">
+      <h2>Preset Library</h2>
+      <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Save and load custom configurations.</p>
+      
+      <div class="toolbar-vertical" style="margin-bottom: 20px;">
+        <button class="btn full-width" id="saveNewPreset">Save Current as New</button>
+        <button class="btn btn-ghost full-width" id="updatePreset" disabled>Update Selected</button>
+      </div>
+      
+      <div class="preset-list" id="presetList">
+        </div>
+      
+      <hr style="border-color: var(--border); margin: 20px 0;">
+      
+      <h3 style="font-size: 1.1em;">Base Templates</h3>
+      <select id="templateSelect" class="full-width" style="margin-bottom: 10px;"></select>
+      <button class="btn btn-ghost full-width" id="clearAll">Clear Editor</button>
+    </aside>
+
+    <section class="editor-pane scrollable">
+      <div class="card">
+        <h2>Core Details</h2>
+        <div class="form-grid">
+          <label class="field"><span>Post Title</span><input type="text" id="postTitle" placeholder="✧ Dragonflight Event ✧"></label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <label class="field"><span>Target Channel</span><input type="text" id="postChannel" placeholder="#events"></label>
+            <label class="field"><span>Tag / Category</span><input type="text" id="postTag" placeholder="Event, Group Finder"></label>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <label class="field"><span>Role Mentions</span><input type="text" id="postRoles" placeholder="@here @Rangers"></label>
+            <label class="field"><span>Header Prefix</span><input type="text" id="postPrefix" placeholder=">"></label>
+          </div>
+          <label class="field">
+            <span>Discord Formatting Theme</span>
+            <select id="themeSelect"></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Sections</h2>
+          <button class="btn btn-sm" id="addSection">+ Add Section</button>
+        </div>
+        <div id="sections" class="drag-container"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Checklist &amp; Questions</h2>
+          <label class="toggle"><input type="checkbox" id="checklistEnabled" checked><span>Enable</span></label>
+        </div>
+        <label class="toggle" style="margin-bottom: 15px;"><input type="checkbox" id="checklistInclude" checked><span>Include in final output</span></label>
+        <div class="form-grid">
+          <label class="field"><span>Checklist Items (one per line)</span><textarea id="checklistItems" rows="3"></textarea></label>
+          <label class="field"><span>Questions to Answer</span><textarea id="questionItems" rows="3"></textarea></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview-pane scrollable">
+      <div class="card">
+        <div class="card-header">
+          <h2 style="margin: 0;">Live Discord Preview</h2>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-sm" id="copyPost">Copy Text</button>
+            <button class="btn btn-ghost btn-sm" id="copyCode">Copy Code</button>
+          </div>
+        </div>
+        <pre id="postPreview" class="preview"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Emoji &amp; Divider Library</h2>
+        <div class="library" style="margin-top: 15px;">
+          <div><h3 style="font-size: 1em; color: var(--muted);">Status</h3><div class="chip-group" id="emojiStatus"></div></div>
+          <div><h3 style="font-size: 1em; color: var(--muted);">Food</h3><div class="chip-group" id="emojiFood"></div></div>
+          <div><h3 style="font-size: 1em; color: var(--muted);">Server</h3><div class="chip-group" id="emojiServer"></div></div>
+          <div style="grid-column: 1 / -1;"><h3 style="font-size: 1em; color: var(--muted); margin-top: 10px;">Dividers</h3><div class="chip-group" id="dividerLibrary"></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+  
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <script src="js/data-store.js"></script>
+  <script src="js/post-builder.js"></script>
+</body>
+</html>
