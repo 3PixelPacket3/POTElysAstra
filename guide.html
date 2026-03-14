@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | About & Guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn" href="about.html">Stats</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn active" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em;">Documentation</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Navigate the user manual for the Elys Astra Helper.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <a href="#welcome" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Welcome to EAHA</a>
+        <a href="#how-it-works" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">How Data Saving Works</a>
+        <a href="#modules" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Module Breakdown</a>
+        <a href="#troubleshooting" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Troubleshooting</a>
+      </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2;">
+      
+      <div class="card" style="border-top: 5px solid var(--primary); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); padding: 40px;">
+        
+        <section id="welcome" style="margin-bottom: 40px;">
+          <h1 style="color: var(--primary); font-size: 2.5em; margin-bottom: 10px;">Welcome to EAHA</h1>
+          <p class="muted" style="font-size: 1.1em; line-height: 1.6;">
+            The <strong>Elys Astra Helper Application</strong> is an offline, browser-based toolkit designed specifically for players and staff of the Elys Astra Path of Titans server. It centralizes your survival tracking, post formatting, rule lookup, and statistical analysis into one seamless dashboard.
+          </p>
+        </section>
+
+        <section id="how-it-works" style="margin-bottom: 40px; background: var(--bg); padding: 25px; border-radius: 16px; border: 1px solid var(--border);">
+          <h2 style="color: var(--primary); margin-bottom: 15px;">⚠️ Crucial: How Data Saving Works</h2>
+          <p style="margin-bottom: 15px; line-height: 1.6;">
+            EAHA operates <strong>100% offline</strong>. It does not connect to an external server or a cloud database. Instead, everything you type, create, or save is stored directly inside your browser's "Local Storage."
+          </p>
+          <ul style="margin-left: 20px; line-height: 1.8; color: var(--muted);">
+            <li><strong>The Risk:</strong> If you clear your browser cache/cookies, or use an Incognito/Private window, your data will be permanently wiped.</li>
+            <li><strong>The Solution:</strong> You must regularly use the <strong>JSON Backup</strong> tab to export your data to a file on your computer.</li>
+            <li><strong>Cross-Device:</strong> To use your EAHA setup on your phone or another PC, export your JSON backup from your main computer, send it to your other device, and use the "Import" button.</li>
+          </ul>
+        </section>
+
+        <section id="modules" style="margin-bottom: 40px;">
+          <h2 style="color: var(--primary); margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Module Breakdown</h2>
+          
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 5px;">1. Elysian Dashboard</h3>
+              <p class="muted" style="font-size: 0.95em;">Your primary control center. Select an active dinosaur from your database to load its specific upkeep tasks. Use the decay timer to alert you when your Comfort, Hygiene, or Satiation reaches 0%. Also features one-click Quick Commands for Discord.</p>
+            </div>
+            
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 5px;">2. Post Builder</h3>
+              <p class="muted" style="font-size: 0.95em;">A drag-and-drop formatting engine for Discord. Use Cookie-Cutter templates to instantly generate event posts, LFG requests, or staff announcements. The live preview automatically formats Discord markdown (like bolding and blockquotes).</p>
+            </div>
+
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 5px;">3. Rules & Guidelines</h3>
+              <p class="muted" style="font-size: 0.95em;">A fast-search directory for server moderation. Type a keyword like "body down" to instantly pull up the relevant ruling. You can edit, format, and tag rules to build a comprehensive server encyclopedia.</p>
+            </div>
+
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 5px;">4. Creature Profiles & Stats</h3>
+              <p class="muted" style="font-size: 0.95em;">Your master database. Any creature added here will automatically appear in the Dashboard dropdown. The Stats tab allows you to view precise combat metrics and use a sandbox calculator to test percentage buffs and nerfs safely.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="troubleshooting">
+          <h2 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Troubleshooting</h2>
+          <p style="margin-bottom: 10px; line-height: 1.6;">
+            <strong>Q: My lists are empty and nothing is saving!</strong><br>
+            <span class="muted">A: Go to the JSON Backup tab and click "Factory Reset". This forces the app to rebuild its database from the default `base-data.json` file included in your folder.</span>
+          </p>
+          <p style="line-height: 1.6;">
+            <strong>Q: Why isn't my Dashboard timer making a sound?</strong><br>
+            <span class="muted">A: The timer relies on standard browser notifications. If you denied notification permissions when your browser prompted you, the alarm will only trigger visually on the screen.</span>
+          </p>
+        </section>
+
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+</body>
+</html>
