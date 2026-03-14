@@ -20,6 +20,9 @@ const elements = {
   tabs: document.querySelectorAll('.tab'),
   panels: document.querySelectorAll('.panel'),
   
+  // Magic Auto-Fill
+  ocrInput: document.getElementById('ocrInput'),
+
   // Form Inputs - Core
   core: {
     name: document.getElementById('creatureName'),
@@ -58,6 +61,7 @@ const showToast = (message, type = 'success') => {
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
   if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else if (type === 'info') toast.style.backgroundColor = 'var(--info)';
   else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
@@ -122,6 +126,56 @@ const renderCustomStatRow = (name = '', value = '') => {
   
   row.querySelector('.delete-stat-btn').addEventListener('click', () => row.remove());
   elements.customStatsContainer.appendChild(row);
+};
+
+// --- OCR Parsing Engine ---
+const parseOCRText = (text) => {
+  // Normalize line breaks for easier regex scanning
+  const fullText = text.replace(/\n/g, ' ');
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // 1. Name: Usually the first block of text
+  const nameMatch = text.match(/^([A-Za-z]+)/);
+  if (nameMatch) elements.core.name.value = nameMatch[1];
+
+  // 2. Tier
+  const tierMatch = text.match(/(Tier\s*\d+|Apex)/i);
+  if (tierMatch) elements.core.tier.value = tierMatch[1];
+
+  // 3. Group Size
+  const groupMatch = text.match(/Group:\s*(\d+)/i);
+  if (groupMatch) elements.core.group.value = groupMatch[1];
+
+  // 4. Habitats (Extracting between HABITATS and Courting/PREFERRED FOODS)
+  const habitatMatch = text.match(/HABITATS([\s\S]*?)(?:Courting|PREFERRED FOODS|Active Time)/i);
+  if (habitatMatch) {
+      let habs = habitatMatch[1].replace(/RIPARIA HABITATS/i, '').replace(/\n/g, ', ').replace(/,+/g, ',').replace(/ ,/g, ',').trim();
+      habs = habs.replace(/^,|,$/g, '').trim();
+      elements.narrative.habitat.value = habs;
+  }
+
+  // 5. Preferred Foods
+  const foodMatch = text.match(/PREFERRED FOODS([\s\S]*?)(?:Active Time|Upkeep|Nesting)/i);
+  if (foodMatch) {
+      let foods = foodMatch[1].replace(/\n/g, ', ').replace(/\(Critter\)/g, '').replace(/,+/g, ',').trim();
+      foods = foods.replace(/^,|,$/g, '').trim();
+      elements.narrative.foods.value = foods;
+  }
+
+  // 6. Upkeep Tasks
+  const upkeepMatch = text.match(/Upkeep\s*\n([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i) || 
+                      text.match(/Upkeep([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i);
+  if (upkeepMatch) {
+      elements.narrative.upkeep.value = upkeepMatch[1].trim().replace(/\n/g, ' ');
+  }
+
+  // 7. Behaviors
+  const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
+  if (behaviorMatch) {
+      // Clean out bottom-of-image bot artifacts
+      let behaviorsText = behaviorMatch[1].split(/May be considered a rulebreak|Basic Info/i)[0].trim();
+      elements.narrative.behaviors.value = behaviorsText;
+  }
 };
 
 // --- Form Syncing ---
@@ -378,6 +432,28 @@ const init = async () => {
     syncForm({ stats: { base: {}, custom: [] } });
     setMode('edit');
     elements.tabs[0].click(); 
+  });
+
+  // OCR Upload Binding
+  elements.ocrInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    showToast("Scanning image... This may take a few seconds.", "info");
+
+    try {
+      const result = await Tesseract.recognize(file, 'eng');
+      const text = result.data.text;
+      
+      parseOCRText(text);
+      
+      showToast("Auto-fill complete! Please review the extracted data.");
+    } catch(err) {
+      console.error("Jarvis Error: OCR failed.", err);
+      showToast("Failed to read image.", "error");
+    }
+    
+    e.target.value = ''; // Reset input so same file can be scanned again
   });
 
   elements.addCustomStatBtn.addEventListener('click', () => renderCustomStatRow());
