@@ -3,15 +3,19 @@
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
 const COMMANDS_KEY = 'eahaCommands';
-const LIFELINES_KEY = 'eahaLifelines'; // Upgraded to store multiple lifelines
+const LIFELINES_KEY = 'eahaLifelines';
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
 
 // --- Global State ---
 let db = { creatures: [] };
 let activeCreatureId = null;
 let isEditMode = false;
+
+// Decay Timer State
 let decayTimerInterval = null;
 let decayEndTime = null;
+let exactVitals = { comfort: null, hygiene: null, satiation: null };
+let drainRatePerSec = 0;
 
 // Default Quick Commands
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
@@ -48,6 +52,13 @@ const getActiveLifeline = () => {
   return lifelines[activeCreatureId];
 };
 
+const syncExactVitals = () => {
+  const currentLife = getActiveLifeline();
+  exactVitals.comfort = currentLife.comfort;
+  exactVitals.hygiene = currentLife.hygiene;
+  exactVitals.satiation = currentLife.satiation;
+};
+
 // --- Active Creature Management & Briefing Panel ---
 const populateCreatureDropdown = () => {
   const select = document.getElementById('activeCreatureSelect');
@@ -79,6 +90,7 @@ const populateCreatureDropdown = () => {
     updateBriefingPanel();
     updateVitalsUI();
     updateElderingUI();
+    syncExactVitals(); // Keep internal float tracker synced
     showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
   });
 };
@@ -144,8 +156,10 @@ const setupLifelineListeners = () => {
   ['comfort', 'hygiene', 'satiation'].forEach(vital => {
     const slider = document.getElementById(`${vital}Slider`);
     slider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
       const currentLife = getActiveLifeline();
-      currentLife[vital] = parseInt(e.target.value, 10);
+      currentLife[vital] = val;
+      exactVitals[vital] = val; // Synchronize exact tracking with user override
       updateVitalsUI();
       saveLifelines();
     });
@@ -181,6 +195,7 @@ const setupLifelineListeners = () => {
       lifelines[activeCreatureId] = generateDefaultLifeline();
       updateVitalsUI();
       updateElderingUI();
+      syncExactVitals();
       saveLifelines();
       showToast('Creature Lifeline reset to base values.');
     }
@@ -221,6 +236,24 @@ const updateElderingUI = () => {
 // --- Decay Timer Logic ---
 const updateTimerDisplay = () => {
   const display = document.getElementById('timerDisplay');
+  
+  // Handle continuous drain based on exact exactVitals tracker
+  if (decayEndTime && exactVitals.comfort !== null) {
+    // Subtract drain rate proportionately (prevents integer rounding bugs)
+    exactVitals.comfort = Math.max(0, exactVitals.comfort - drainRatePerSec);
+    exactVitals.hygiene = Math.max(0, exactVitals.hygiene - drainRatePerSec);
+    exactVitals.satiation = Math.max(0, exactVitals.satiation - drainRatePerSec);
+
+    // Sync exact tracker to integer lifeline
+    const currentLife = getActiveLifeline();
+    currentLife.comfort = Math.round(exactVitals.comfort);
+    currentLife.hygiene = Math.round(exactVitals.hygiene);
+    currentLife.satiation = Math.round(exactVitals.satiation);
+    
+    updateVitalsUI();
+    saveLifelines();
+  }
+
   if (!decayEndTime) {
     display.textContent = "00:00";
     display.style.color = "var(--primary)";
@@ -238,9 +271,9 @@ const updateTimerDisplay = () => {
   if (remaining <= 0) {
     clearInterval(decayTimerInterval);
     decayEndTime = null;
+    drainRatePerSec = 0;
     display.style.color = "var(--danger)";
     showToast("⚠️ Decay Timer Complete! Check your Vitals.", "error");
-    // Optionally trigger a browser notification if permitted
     if (Notification.permission === "granted") {
       new Notification("Elys Astra Helper", { body: "Your Upkeep Decay Timer has reached zero. Check your vitals!" });
     }
@@ -254,6 +287,11 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
     return;
   }
   
+  const totalSeconds = mins * 60;
+  // Calculate drain percentage per second (100% over Total Seconds)
+  drainRatePerSec = 100 / totalSeconds; 
+  syncExactVitals(); // Lock in current vitals before drain
+
   decayEndTime = Date.now() + (mins * 60000);
   if (decayTimerInterval) clearInterval(decayTimerInterval);
   
@@ -261,7 +299,6 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
   decayTimerInterval = setInterval(updateTimerDisplay, 1000);
   updateTimerDisplay();
   
-  // Request notification permission if not asked yet
   if (Notification.permission !== "granted" && Notification.permission !== "denied") {
     Notification.requestPermission();
   }
@@ -362,14 +399,12 @@ const updateDateTime = () => {
 
 // --- Boot Sequence ---
 const init = async () => {
-  // 1. Load Master Database (from local or base-data.json)
   if (typeof EAHADataStore !== 'undefined') {
     db = await EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing or not loaded.");
   }
 
-  // 2. Initialize UI Components
   populateCreatureDropdown();
   updateBriefingPanel();
   
@@ -377,6 +412,7 @@ const init = async () => {
   updateDateTime();
   setInterval(updateDateTime, 1000);
   
+  syncExactVitals();
   setupLifelineListeners();
   updateVitalsUI();
   updateElderingUI();
