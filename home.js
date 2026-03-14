@@ -36,20 +36,24 @@ const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
+  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
 const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
 const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
 
-// Get the currently active lifeline, or create one if it doesn't exist
+// Get the currently active lifeline, or create a default if it doesn't exist
 const getActiveLifeline = () => {
-  if (!activeCreatureId) return generateDefaultLifeline();
-  if (!lifelines[activeCreatureId]) {
-    lifelines[activeCreatureId] = generateDefaultLifeline();
+  // Fix: Use a fallback key if the user hasn't created any creatures yet
+  const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
+  
+  if (!lifelines[targetId]) {
+    lifelines[targetId] = generateDefaultLifeline();
     saveLifelines();
   }
-  return lifelines[activeCreatureId];
+  return lifelines[targetId];
 };
 
 const syncExactVitals = () => {
@@ -67,7 +71,11 @@ const populateCreatureDropdown = () => {
   if (!db.creatures || db.creatures.length === 0) {
     select.appendChild(new Option("No Creatures in Database", "none"));
     select.disabled = true;
-    updateBriefingPanel(null);
+    activeCreatureId = 'none'; // Fix: Explicitly set to none so the fallback triggers
+    updateBriefingPanel();
+    updateVitalsUI();
+    updateElderingUI();
+    syncExactVitals();
     return;
   }
 
@@ -103,9 +111,9 @@ const updateBriefingPanel = () => {
   const creature = db.creatures.find(c => c.id === activeCreatureId);
   
   if (!creature) {
-    nameEl.textContent = "No Creature Selected";
-    statsEl.innerHTML = '<span class="muted">Select a creature from your database to load its stats and task commands.</span>';
-    tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. You MUST perform the physical task associated with your dinosaur.';
+    nameEl.textContent = "General Survival Mode";
+    statsEl.innerHTML = '<span class="muted">Add a creature in the Profiles tab to track specific stats.</span>';
+    tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. Perform the physical task associated with your dinosaur.';
     return;
   }
 
@@ -190,14 +198,14 @@ const setupLifelineListeners = () => {
   });
 
   document.getElementById('resetLifelineBtn').addEventListener('click', () => {
-    if(!activeCreatureId) return;
-    if(confirm('Are you sure you want to reset the lifeline for THIS specific dinosaur?')) {
-      lifelines[activeCreatureId] = generateDefaultLifeline();
+    if(confirm('Are you sure you want to reset the current lifeline to 100%?')) {
+      const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
+      lifelines[targetId] = generateDefaultLifeline();
       updateVitalsUI();
       updateElderingUI();
       syncExactVitals();
       saveLifelines();
-      showToast('Creature Lifeline reset to base values.');
+      showToast('Lifeline reset to base values.');
     }
   });
 };
@@ -304,7 +312,6 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
   }
 });
 
-
 // --- Quick Commands Logic ---
 const renderCommands = () => {
   const grid = document.getElementById('commandGrid');
@@ -405,17 +412,14 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing or not loaded.");
   }
 
+  // Populate UI before setting up listeners
   populateCreatureDropdown();
-  updateBriefingPanel();
   
   populateTimeZones();
   updateDateTime();
   setInterval(updateDateTime, 1000);
   
-  syncExactVitals();
   setupLifelineListeners();
-  updateVitalsUI();
-  updateElderingUI();
   
   setupCommandListeners();
   renderCommands();
