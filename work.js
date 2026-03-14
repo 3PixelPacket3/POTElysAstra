@@ -1,101 +1,276 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>EAHA | Rules & Guidelines</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="top-nav">
-    <div class="brand">Elys Astra Helper Application</div>
-    <nav class="nav-links">
-      <a class="nav-btn" href="index.html">Dashboard</a>
-      <a class="nav-btn" href="apps.html">Post Builder</a>
-      <a class="nav-btn active" href="work.html">Rules &amp; Guidelines</a>
-      <a class="nav-btn" href="docs.html">Creature Profiles</a>
-      <a class="nav-btn" href="about.html">Stats</a>
-      <a class="nav-btn" href="settings.html">JSON Backup</a>
-      <a class="nav-btn" href="guide.html">About</a>
-    </nav>
-  </header>
+// work.js
 
-  <main class="page builder-workspace">
-    
-    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
-      <h2 style="font-size: 1.5em;">Rulebook</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Manage and search server guidelines.</p>
-      
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-        <input type="text" id="ruleSearch" placeholder="Search by keyword, tag, or title...">
-        <select id="ruleCategoryFilter" class="full-width" style="cursor: pointer;"><option value="all">All Categories</option></select>
-        <button class="btn full-width" id="addRuleBtn">+ Add New Rule</button>
-      </div>
-      
-      <div class="preset-list" id="ruleList" style="display: flex; flex-direction: column; gap: 8px;">
-        </div>
-    </aside>
+// --- Global State ---
+let db = { creatures: [], rules: [], stats: [], customPresets: {} };
+let currentRuleId = null;
+let currentMode = 'view';
 
-    <section class="editor-pane scrollable" style="flex: 2;">
-      
-      <div class="card" style="box-shadow: none; border: 2px solid var(--border); padding: 15px 25px; margin-bottom: 20px;">
-        <div class="mode-toggle" id="modeToggleContainer" style="display: flex; gap: 10px;">
-          <button class="btn active" data-mode="view" style="flex: 1;">Read Rule</button>
-          <button class="btn btn-ghost" data-mode="edit" style="flex: 1;">Edit Rule</button>
-        </div>
-      </div>
-
-      <div id="ruleView" class="card" style="border-top: 5px solid var(--primary); min-height: 400px;">
-        <div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">
-          Select a rule from the directory to view its details.
-        </div>
-      </div>
-
-      <div id="ruleForm" class="is-hidden">
-        
-        <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
-          <h2 style="color: var(--primary);">Rule Metadata</h2>
-          <div class="form-grid">
-            <label class="field"><span>Rule Title</span><input type="text" id="ruleTitle" placeholder="e.g., Body Down, Safe Zones"></label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-              <label class="field"><span>Category</span><input type="text" id="ruleCategory" placeholder="PvP, General, Hunting"></label>
-              <label class="field"><span>Author / Source</span><input type="text" id="ruleAuthor" placeholder="Admin Name"></label>
-            </div>
-            <label class="field"><span>Search Tags (comma separated)</span><input type="text" id="ruleTags" placeholder="combat, body, claim"></label>
-          </div>
-        </div>
-
-        <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
-          <div class="card-header" style="margin-bottom: 15px;">
-             <h2 style="color: var(--primary); margin: 0;">Rule Content</h2>
-             <span class="muted" style="font-size: 0.85em;" id="ruleUpdatedDate"></span>
-          </div>
-          
-          <div id="ruleToolbar" style="display: flex; gap: 5px; background: var(--bg); padding: 5px; border-radius: 50px; border: 1px solid var(--border); margin-bottom: 15px; width: fit-content;">
-            <button class="btn btn-ghost btn-sm" data-command="bold"><b>B</b></button>
-            <button class="btn btn-ghost btn-sm" data-command="italic"><i>I</i></button>
-            <button class="btn btn-ghost btn-sm" data-command="underline"><u>U</u></button>
-            <button class="btn btn-ghost btn-sm" data-command="insertUnorderedList">• List</button>
-            <button class="btn btn-ghost btn-sm" data-command="insertOrderedList">1. List</button>
-          </div>
-          
-          <div id="ruleBody" class="editor-content" contenteditable="true" style="min-height: 300px; border: 2px solid var(--border); padding: 20px; border-radius: 12px; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 1.05em;"></div>
-        </div>
-
-        <div class="card" style="display: flex; gap: 15px; flex-wrap: wrap; background: transparent; border: none; box-shadow: none; padding: 0;">
-          <button class="btn" id="saveRule" style="flex: 1;">Save Rule Document</button>
-          <button class="btn btn-ghost" id="duplicateRule">Duplicate</button>
-          <button class="btn btn-ghost" id="deleteRule" style="border-color: var(--danger); color: var(--danger);">Delete Rule</button>
-        </div>
-
-      </div>
-    </section>
-  </main>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+// --- DOM Elements ---
+const elements = {
+  list: document.getElementById('ruleList'),
+  search: document.getElementById('ruleSearch'),
+  categoryFilter: document.getElementById('ruleCategoryFilter'),
+  addBtn: document.getElementById('addRuleBtn'),
+  saveBtn: document.getElementById('saveRule'),
+  duplicateBtn: document.getElementById('duplicateRule'),
+  deleteBtn: document.getElementById('deleteRule'),
+  viewPane: document.getElementById('ruleView'),
+  formPane: document.getElementById('ruleForm'),
+  modeButtons: document.querySelectorAll('.mode-toggle button'),
   
-  <script src="data-store.js"></script>
-  <script src="work.js"></script>
-</body>
-</html>
+  // Form Inputs
+  title: document.getElementById('ruleTitle'),
+  category: document.getElementById('ruleCategory'),
+  author: document.getElementById('ruleAuthor'),
+  tags: document.getElementById('ruleTags'),
+  body: document.getElementById('ruleBody'),
+  updatedDate: document.getElementById('ruleUpdatedDate'),
+  toolbar: document.getElementById('ruleToolbar')
+};
+
+// --- Utilities ---
+const showToast = (message, type = 'success') => {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = `toast toast-${type} show`;
+  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else toast.style.backgroundColor = 'var(--primary)';
+  setTimeout(() => toast.className = 'toast', 3000);
+};
+
+const generateId = () => 'rule_' + Math.random().toString(36).substr(2, 9);
+const formatTags = (text) => text.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
+
+// --- Navigation & Modes ---
+const setMode = (mode) => {
+  currentMode = mode;
+  elements.modeButtons.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+    if (btn.dataset.mode === mode) {
+      btn.classList.remove('btn-ghost');
+      btn.classList.add('btn');
+    } else {
+      btn.classList.remove('btn');
+      btn.classList.add('btn-ghost');
+    }
+  });
+  
+  if (mode === 'edit') {
+    elements.viewPane.classList.add('is-hidden');
+    elements.formPane.classList.remove('is-hidden');
+  } else {
+    elements.formPane.classList.add('is-hidden');
+    elements.viewPane.classList.remove('is-hidden');
+  }
+};
+
+// --- Form Syncing ---
+const syncForm = (rule) => {
+  elements.title.value = rule.title || '';
+  elements.category.value = rule.category || '';
+  elements.author.value = rule.author || '';
+  elements.tags.value = (rule.tags || []).join(', ');
+  elements.body.innerHTML = rule.bodyHtml || '';
+  
+  const dateStr = rule.updated ? new Date(rule.updated).toLocaleDateString() : 'New Rule';
+  elements.updatedDate.textContent = `Last Updated: ${dateStr}`;
+};
+
+const gatherForm = () => {
+  return {
+    id: currentRuleId || generateId(),
+    title: elements.title.value.trim() || 'Untitled Rule',
+    category: elements.category.value.trim() || 'General',
+    author: elements.author.value.trim(),
+    tags: formatTags(elements.tags.value),
+    updated: new Date().toISOString(), // Save current timestamp
+    bodyHtml: elements.body.innerHTML.trim()
+  };
+};
+
+// --- View Renderer ---
+const setView = (rule) => {
+  if (!rule) {
+    elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a rule from the directory to view its details.</div>';
+    return;
+  }
+
+  const dateStr = rule.updated ? new Date(rule.updated).toLocaleDateString() : 'Unknown';
+  const tagChips = (rule.tags || []).map(tag => `<span style="background: var(--bg-alt); border: 1px solid var(--border); padding: 4px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted);">#${tag}</span>`).join('');
+
+  elements.viewPane.innerHTML = `
+    <div style="margin-bottom: 25px; border-bottom: 2px solid var(--border); padding-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <h2 style="margin: 0 0 10px 0; font-size: 2.2em; color: var(--primary);">${rule.title}</h2>
+        <span style="background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); padding: 6px 14px; border-radius: 50px; font-weight: bold; font-size: 0.9em; border: 1px solid var(--info);">${rule.category || 'General'}</span>
+      </div>
+      
+      <div style="display: flex; gap: 15px; margin-top: 10px; font-size: 0.9em; color: var(--muted);">
+        <span><strong>Author:</strong> ${rule.author || 'Server Staff'}</span>
+        <span>•</span>
+        <span><strong>Updated:</strong> ${dateStr}</span>
+      </div>
+      
+      ${tagChips ? `<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px;">${tagChips}</div>` : ''}
+    </div>
+
+    <div style="line-height: 1.8; font-size: 1.05em; background: var(--bg); padding: 25px; border-radius: 16px; border: 1px solid var(--border); color: var(--text);">
+      ${rule.bodyHtml || '<p class="muted" style="text-align:center;">No rule content provided.</p>'}
+    </div>
+  `;
+};
+
+// --- Roster Logic ---
+const updateCategoryOptions = () => {
+  const categories = new Set(['All Categories']);
+  if (db.rules) {
+    db.rules.forEach((r) => { if (r.category) categories.add(r.category); });
+  }
+  
+  elements.categoryFilter.innerHTML = '';
+  Array.from(categories).forEach(cat => {
+    elements.categoryFilter.appendChild(new Option(cat, cat === 'All Categories' ? 'all' : cat));
+  });
+};
+
+const renderList = () => {
+  const searchTerm = elements.search.value.toLowerCase();
+  const categoryFilter = elements.categoryFilter.value;
+  
+  elements.list.innerHTML = '';
+  
+  if (!db.rules) return;
+
+  const filtered = db.rules.filter(r => {
+    const textToSearch = `${r.title} ${r.tags ? r.tags.join(' ') : ''}`.toLowerCase();
+    const matchesSearch = textToSearch.includes(searchTerm);
+    const matchesCategory = categoryFilter === 'all' || r.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  if (filtered.length === 0) {
+    elements.list.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No rules match your search.</p>';
+    return;
+  }
+
+  filtered.forEach(rule => {
+    const item = document.createElement('div');
+    item.className = `list-item ${currentRuleId === rule.id ? 'active' : ''}`;
+    item.innerHTML = `
+      <div style="display: flex; flex-direction: column; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 1.1em; color: ${currentRuleId === rule.id ? 'var(--primary)' : 'var(--text)'};">${rule.title}</strong>
+          <span style="font-size: 0.8em; color: var(--muted); background: var(--bg-alt); padding: 2px 8px; border-radius: 12px;">${rule.category || 'General'}</span>
+        </div>
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      currentRuleId = rule.id;
+      syncForm(rule);
+      setView(rule);
+      renderList(); 
+    });
+    elements.list.appendChild(item);
+  });
+};
+
+// --- Database Operations ---
+const saveRule = async () => {
+  const data = gatherForm();
+  if(!db.rules) db.rules = [];
+  const index = db.rules.findIndex(r => r.id === data.id);
+  
+  if (index >= 0) db.rules[index] = data;
+  else db.rules.push(data);
+  
+  await EAHADataStore.saveData(db);
+  
+  currentRuleId = data.id;
+  updateCategoryOptions();
+  renderList();
+  setView(data);
+  setMode('view');
+  showToast('Rule Document Saved.');
+};
+
+const deleteRule = async () => {
+  if (!currentRuleId || !confirm('Are you certain you want to delete this rule? This cannot be undone.')) return;
+  
+  db.rules = db.rules.filter(r => r.id !== currentRuleId);
+  await EAHADataStore.saveData(db);
+  
+  currentRuleId = null;
+  updateCategoryOptions();
+  renderList();
+  setView(null);
+  setMode('view');
+  showToast('Rule Erased.', 'error');
+};
+
+const duplicateRule = async () => {
+  if (!currentRuleId) return;
+  const data = gatherForm();
+  data.id = generateId();
+  data.title = data.title + ' (Copy)';
+  data.updated = new Date().toISOString();
+  
+  db.rules.push(data);
+  await EAHADataStore.saveData(db);
+  
+  currentRuleId = data.id;
+  syncForm(data);
+  updateCategoryOptions();
+  renderList();
+  setView(data);
+  showToast('Rule Duplicated.');
+};
+
+// --- Initialization ---
+const init = async () => {
+  // Load master database
+  if (typeof EAHADataStore !== 'undefined') {
+    db = await EAHADataStore.getData();
+  } else {
+    console.error("Jarvis Alert: data-store.js is missing.");
+  }
+
+  updateCategoryOptions();
+  renderList();
+
+  // Bind Listeners
+  elements.search.addEventListener('input', renderList);
+  elements.categoryFilter.addEventListener('change', renderList);
+  
+  elements.modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+  });
+
+  elements.addBtn.addEventListener('click', () => {
+    currentRuleId = null;
+    syncForm({ tags: [] });
+    setMode('edit');
+  });
+
+  elements.saveBtn.addEventListener('click', saveRule);
+  elements.deleteBtn.addEventListener('click', deleteRule);
+  elements.duplicateBtn.addEventListener('click', duplicateRule);
+
+  // Rich Text Editor Toolbar
+  elements.toolbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    document.execCommand(btn.dataset.command, false, null);
+    elements.body.focus();
+  });
+
+  // Initial Boot State
+  if (db.rules && db.rules.length > 0) {
+    currentRuleId = db.rules[0].id;
+    syncForm(db.rules[0]);
+    setView(db.rules[0]);
+  } else {
+    setView(null);
+  }
+};
+
+document.addEventListener('DOMContentLoaded', init);
