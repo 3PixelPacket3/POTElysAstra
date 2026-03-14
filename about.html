@@ -24,7 +24,7 @@
     
     <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
       <h2 style="font-size: 1.5em;">Stat Directory</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Select a creature to view its exact stat breakdowns and test modifiers.</p>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Select a creature to view its exact stat breakdowns, test modifiers, or update values.</p>
       
       <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
         <input type="text" id="statSearch" placeholder="Search creatures...">
@@ -39,13 +39,20 @@
       
       <div id="statPlaceholder" class="card" style="border-top: 5px solid var(--primary); min-height: 400px; display: flex; align-items: center; justify-content: center;">
         <div style="text-align: center; color: var(--muted); font-size: 1.1em; font-weight: 500;">
-          Select a creature from the directory to view its combat statistics.
+          Select a creature from the directory to manage its combat statistics.
         </div>
       </div>
 
-      <div id="statView" class="is-hidden">
+      <div id="statContent" class="is-hidden">
         
-        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); display: flex; gap: 20px; align-items: center;">
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); padding: 15px 25px; margin-bottom: 20px;">
+          <div class="mode-toggle" id="modeToggleContainer" style="display: flex; gap: 10px;">
+            <button class="btn active" data-mode="view" style="flex: 1;">View Stats</button>
+            <button class="btn btn-ghost" data-mode="edit" style="flex: 1;">Edit Stats</button>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); display: flex; gap: 20px; align-items: center; margin-bottom: 20px;">
           <img id="statCreatureImage" src="" alt="Creature" style="width: 100px; height: 100px; object-fit: cover; border-radius: 12px; border: 2px solid var(--border); display: none;">
           <div>
             <h2 id="statCreatureName" style="color: var(--primary); margin-bottom: 5px; font-size: 2em;">Creature Name</h2>
@@ -56,50 +63,79 @@
           </div>
         </div>
 
-        <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
-          <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Core Server Values</h2>
-          
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="baseStatsGrid">
-            </div>
-        </div>
-        
-        <div id="customStatsWrapper" class="card is-hidden" style="box-shadow: none; border: 2px solid var(--border);">
-          <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Custom Mechanics</h2>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="customStatsGrid">
-             </div>
-        </div>
-
-        <div class="card" style="box-shadow: none; border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 5%, var(--bg));">
-          <div class="card-header" style="margin-bottom: 15px;">
-            <h2 style="margin: 0; color: var(--primary);">Sandbox Calculator</h2>
-            <button class="btn btn-ghost btn-sm" id="resetCalcBtn">Reset Values</button>
-          </div>
-          <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Test buffs and nerfs safely. These changes do not save to the master database.</p>
-          
-          <div class="form-grid" style="grid-template-columns: 1fr 1fr; align-items: end;">
-            <label class="field">
-              <span>Target Stat</span>
-              <select id="calcTargetStat" style="cursor: pointer;">
-                <option value="health">Health</option>
-                <option value="combatWeight">Combat Weight</option>
-                <option value="armor">Armor</option>
-                <option value="speed">Movement Speed</option>
-                <option value="stamina">Stamina</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Modifier (%)</span>
-              <div style="display: flex; gap: 10px;">
-                <input type="number" id="calcModifier" placeholder="e.g. 15 for +15%, -10 for -10%">
-                <button class="btn" id="applyCalcBtn">Apply</button>
+        <div id="statView">
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Core Server Values</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="baseStatsGrid">
               </div>
-            </label>
+          </div>
+          
+          <div id="customStatsWrapper" class="card is-hidden" style="box-shadow: none; border: 2px solid var(--border);">
+            <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Custom Mechanics</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="customStatsGrid">
+              </div>
           </div>
 
-          <div style="margin-top: 25px; padding: 20px; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); text-align: center;">
-            <span class="muted" style="font-size: 0.9em; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Calculated Result</span>
-            <div id="calcResultDisplay" style="font-size: 2.5em; font-weight: 800; color: var(--text); margin-top: 5px;">---</div>
-            <div id="calcFormulaDisplay" class="muted" style="font-size: 0.9em; margin-top: 5px;">Select a stat and apply a modifier.</div>
+          <div class="card" style="box-shadow: none; border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 5%, var(--bg));">
+            <div class="card-header" style="margin-bottom: 15px;">
+              <h2 style="margin: 0; color: var(--primary);">Sandbox Calculator</h2>
+              <button class="btn btn-ghost btn-sm" id="resetCalcBtn">Reset Values</button>
+            </div>
+            <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Test buffs and nerfs safely. These changes do not save to the master database.</p>
+            
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr; align-items: end;">
+              <label class="field">
+                <span>Target Stat</span>
+                <select id="calcTargetStat" style="cursor: pointer;">
+                  <option value="health">Health</option>
+                  <option value="combatWeight">Combat Weight</option>
+                  <option value="armor">Armor</option>
+                  <option value="speed">Movement Speed</option>
+                  <option value="stamina">Stamina</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Modifier (%)</span>
+                <div style="display: flex; gap: 10px;">
+                  <input type="number" id="calcModifier" placeholder="e.g. 15 for +15%, -10 for -10%">
+                  <button class="btn" id="applyCalcBtn">Apply</button>
+                </div>
+              </label>
+            </div>
+
+            <div style="margin-top: 25px; padding: 20px; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); text-align: center;">
+              <span class="muted" style="font-size: 0.9em; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Calculated Result</span>
+              <div id="calcResultDisplay" style="font-size: 2.5em; font-weight: 800; color: var(--text); margin-top: 5px;">---</div>
+              <div id="calcFormulaDisplay" class="muted" style="font-size: 0.9em; margin-top: 5px;">Select a stat and apply a modifier.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="statEdit" class="is-hidden">
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Edit Base Stats</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+              <label class="field"><span>Health</span><input type="number" id="editStatHealth"></label>
+              <label class="field"><span>Combat Weight</span><input type="number" id="editStatWeight"></label>
+              <label class="field"><span>Armor</span><input type="number" id="editStatArmor"></label>
+              <label class="field"><span>Carry Capacity</span><input type="number" id="editStatCarry"></label>
+              <label class="field"><span>Stamina</span><input type="number" id="editStatStamina"></label>
+              <label class="field"><span>Movement Speed</span><input type="number" step="0.01" id="editStatSpeed"></label>
+            </div>
+          </div>
+          
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <div class="card-header" style="margin-bottom: 5px;">
+              <h2 style="margin: 0; color: var(--primary);">Edit Custom Mechanics</h2>
+              <button class="btn btn-sm" id="addEditCustomStatBtn">+ Add Stat</button>
+            </div>
+            <p class="muted" style="margin-bottom: 20px; font-size: 0.85em;">Track specific bleed thresholds, venom rates, or turn radius.</p>
+            <div id="editCustomStatsContainer" style="display: flex; flex-direction: column; gap: 10px;">
+              </div>
+          </div>
+
+          <div class="card" style="display: flex; gap: 15px; background: transparent; border: none; box-shadow: none; padding: 0;">
+            <button class="btn" id="saveStatsBtn" style="flex: 1;">Save Stat Changes</button>
           </div>
         </div>
 
