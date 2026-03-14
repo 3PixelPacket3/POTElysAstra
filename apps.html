@@ -44,6 +44,31 @@
 
     <section class="editor-pane scrollable">
       
+      <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 20px; position: sticky; top: 0; z-index: 10;">
+        <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+          <div style="display: flex; gap: 5px; background: var(--bg); padding: 5px; border-radius: 8px; border: 1px solid var(--border);">
+            <button class="btn btn-ghost btn-sm format-btn" data-wrap="**" title="Bold"><b>B</b></button>
+            <button class="btn btn-ghost btn-sm format-btn" data-wrap="*" title="Italic"><i>I</i></button>
+            <button class="btn btn-ghost btn-sm format-btn" data-wrap="__" title="Underline"><u>U</u></button>
+            <button class="btn btn-ghost btn-sm format-btn" data-wrap="||" title="Spoiler"><span style="background:var(--muted); color:transparent; border-radius:3px;">Sp</span></button>
+          </div>
+          
+          <div style="display: flex; gap: 5px; background: var(--bg); padding: 5px; border-radius: 8px; border: 1px solid var(--border);">
+            <button class="btn btn-ghost btn-sm format-btn" data-prefix="# " title="Heading 1 (Large)">H1</button>
+            <button class="btn btn-ghost btn-sm format-btn" data-prefix="## " title="Heading 2 (Medium)">H2</button>
+            <button class="btn btn-ghost btn-sm format-btn" data-prefix="### " title="Heading 3 (Small)">H3</button>
+            <button class="btn btn-ghost btn-sm format-btn" data-prefix="> " title="Blockquote">”</button>
+          </div>
+
+          <div style="display: flex; gap: 5px; background: var(--bg); padding: 5px; border-radius: 8px; border: 1px solid var(--border);">
+            <button class="btn btn-ghost btn-sm font-btn" data-font="gothic" title="Gothic Font" style="font-family: serif;">𝔊𝔬𝔱𝔥𝔦𝔠</button>
+            <button class="btn btn-ghost btn-sm font-btn" data-font="script" title="Script Font" style="font-family: cursive;">𝒮𝒸𝓇𝒾𝓅𝓉</button>
+            <button class="btn btn-ghost btn-sm font-btn" data-font="double" title="Double Struck">𝔻𝕠𝕦𝕓𝕝𝕖</button>
+          </div>
+          <span class="muted" style="font-size: 0.8em; margin-left: auto;">Highlight text to apply formats & fonts.</span>
+        </div>
+      </div>
+
       <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
         <h2 style="color: var(--primary);">Core Details</h2>
         <div class="form-grid">
@@ -66,16 +91,6 @@
       <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
         <div class="card-header" style="flex-wrap: wrap; gap: 15px;">
           <h2 style="margin: 0; color: var(--primary);">Sections</h2>
-          
-          <div id="discordToolbar" style="display: flex; gap: 5px; background: var(--bg); padding: 5px; border-radius: 50px; border: 1px solid var(--border);">
-            <button class="btn btn-ghost btn-sm format-btn" data-wrap="**" title="Bold"><b>B</b></button>
-            <button class="btn btn-ghost btn-sm format-btn" data-wrap="*" title="Italic"><i>I</i></button>
-            <button class="btn btn-ghost btn-sm format-btn" data-wrap="__" title="Underline"><u>U</u></button>
-            <button class="btn btn-ghost btn-sm format-btn" data-wrap="||" title="Spoiler"><span style="background:var(--muted); color:transparent; border-radius:3px;">Sp</span></button>
-            <button class="btn btn-ghost btn-sm format-btn" data-prefix="> " title="Blockquote">”</button>
-            <button class="btn btn-ghost btn-sm format-btn" data-wrap="`" title="Code">`</button>
-          </div>
-
           <button class="btn btn-sm" id="addSection" style="margin-left: auto;">+ Add Section</button>
         </div>
         
