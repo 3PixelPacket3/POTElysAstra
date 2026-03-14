@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Stats Database</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn active" href="about.html">Stats</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em;">Stat Directory</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Select a creature to view its exact stat breakdowns and test modifiers.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <input type="text" id="statSearch" placeholder="Search creatures...">
+        <select id="statTierFilter" class="full-width" style="cursor: pointer;"><option value="all">All Tiers</option></select>
+      </div>
+      
+      <div class="preset-list" id="statCreatureList" style="display: flex; flex-direction: column; gap: 8px;">
+        </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2;">
+      
+      <div id="statPlaceholder" class="card" style="border-top: 5px solid var(--primary); min-height: 400px; display: flex; align-items: center; justify-content: center;">
+        <div style="text-align: center; color: var(--muted); font-size: 1.1em; font-weight: 500;">
+          Select a creature from the directory to view its combat statistics.
+        </div>
+      </div>
+
+      <div id="statView" class="is-hidden">
+        
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); display: flex; gap: 20px; align-items: center;">
+          <img id="statCreatureImage" src="" alt="Creature" style="width: 100px; height: 100px; object-fit: cover; border-radius: 12px; border: 2px solid var(--border); display: none;">
+          <div>
+            <h2 id="statCreatureName" style="color: var(--primary); margin-bottom: 5px; font-size: 2em;">Creature Name</h2>
+            <div style="display: flex; gap: 10px; font-size: 0.9em; font-weight: 600;">
+              <span id="statCreatureTier" style="background: var(--bg); padding: 5px 12px; border-radius: 50px; border: 1px solid var(--border);">Tier</span>
+              <span id="statCreatureGroup" style="background: var(--bg); padding: 5px 12px; border-radius: 50px; border: 1px solid var(--border);">Group Size</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+          <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Core Server Values</h2>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="baseStatsGrid">
+            </div>
+        </div>
+        
+        <div id="customStatsWrapper" class="card is-hidden" style="box-shadow: none; border: 2px solid var(--border);">
+          <h2 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">Custom Mechanics</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;" id="customStatsGrid">
+             </div>
+        </div>
+
+        <div class="card" style="box-shadow: none; border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 5%, var(--bg));">
+          <div class="card-header" style="margin-bottom: 15px;">
+            <h2 style="margin: 0; color: var(--primary);">Sandbox Calculator</h2>
+            <button class="btn btn-ghost btn-sm" id="resetCalcBtn">Reset Values</button>
+          </div>
+          <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Test buffs and nerfs safely. These changes do not save to the master database.</p>
+          
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr; align-items: end;">
+            <label class="field">
+              <span>Target Stat</span>
+              <select id="calcTargetStat" style="cursor: pointer;">
+                <option value="health">Health</option>
+                <option value="combatWeight">Combat Weight</option>
+                <option value="armor">Armor</option>
+                <option value="speed">Movement Speed</option>
+                <option value="stamina">Stamina</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Modifier (%)</span>
+              <div style="display: flex; gap: 10px;">
+                <input type="number" id="calcModifier" placeholder="e.g. 15 for +15%, -10 for -10%">
+                <button class="btn" id="applyCalcBtn">Apply</button>
+              </div>
+            </label>
+          </div>
+
+          <div style="margin-top: 25px; padding: 20px; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); text-align: center;">
+            <span class="muted" style="font-size: 0.9em; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Calculated Result</span>
+            <div id="calcResultDisplay" style="font-size: 2.5em; font-weight: 800; color: var(--text); margin-top: 5px;">---</div>
+            <div id="calcFormulaDisplay" class="muted" style="font-size: 0.9em; margin-top: 5px;">Select a stat and apply a modifier.</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+  
+  <script src="data-store.js"></script>
+  <script src="stats.js"></script>
+</body>
+</html>
