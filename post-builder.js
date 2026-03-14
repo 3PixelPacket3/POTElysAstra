@@ -1,48 +1,83 @@
-// js/post-builder.js
+// post-builder.js
 
 const PRESETS_KEY = 'eahaPostPresets';
 
-// --- Default Templates & Themes ---
+// --- Expanded Cookie-Cutter Templates ---
 const templates = {
   event: {
-    name: 'Event Setup',
+    name: 'Event: Standard Setup',
     data: {
-      title: '✧ Skyfire Rally ✧', channel: '#events', tag: 'Event', roles: '@here @Rangers', prefix: '>',
+      title: '✧ Server Event ✧', channel: '#events', tag: 'Event', roles: '@here @EventPing', prefix: '>',
       sections: [
-        { id: generateId(), title: 'Event Overview', subheading: 'Aerial scouting and treasure hunt', body: 'Gather at the Sunspire and follow the signal flares across the canyon.', bulletMode: 'none', enabled: true, dividerAbove: true, dividerBelow: false },
-        { id: generateId(), title: 'Requirements', subheading: '', body: 'Bring a flyer or glide-capable companion.\nStay within visual range of the host.', bulletMode: 'bullet', enabled: true, dividerAbove: false, dividerBelow: false },
-        { id: generateId(), title: 'Rewards', subheading: '', body: 'Cosmetic badge\nPriority nesting slot', bulletMode: 'emoji', enabled: true, dividerAbove: false, dividerBelow: true }
+        { id: generateId(), title: 'Event Overview', subheading: 'Brief description of the activity.', body: 'Gather at the specified location and await host instructions.', bulletMode: 'none', enabled: true, dividerAbove: true, dividerBelow: false },
+        { id: generateId(), title: 'Requirements', subheading: '', body: 'Specific diet or tier required.\nStay within visual range.', bulletMode: 'bullet', enabled: true, dividerAbove: false, dividerBelow: false },
+        { id: generateId(), title: 'Rewards', subheading: '', body: 'Cosmetic badge\nGrowth bump', bulletMode: 'emoji', enabled: true, dividerAbove: false, dividerBelow: true }
       ],
-      checklist: { enabled: true, include: true, items: 'Confirm date/time\nAssign staff watch\nPost final reminder', questions: 'Start time?\nMax attendance?\nRequired roles?' }
+      checklist: { enabled: true, include: true, items: 'Confirm date/time\nAssign staff watch', questions: 'Start time?\nMax attendance?' }
     }
   },
   group: {
-    name: 'Group Finder',
+    name: 'Player: Group Finder',
     data: {
-      title: 'Looking for a Hunting Pack', channel: '#group-finder', tag: 'Group Finder', roles: '@Hunters', prefix: '',
+      title: 'Looking for a Hunting Pack', channel: '#group-finder', tag: 'LFG', roles: '@Hunters', prefix: '',
       sections: [
-        { id: generateId(), title: 'About Me', subheading: '', body: 'Main: T2 Allo\nPlaytime: 7-10 PM EST', bulletMode: 'bullet', enabled: true, dividerAbove: true, dividerBelow: false },
+        { id: generateId(), title: 'About Me', subheading: '', body: 'Main: [Insert Dino]\nPlaytime: [Insert Time]', bulletMode: 'bullet', enabled: true, dividerAbove: true, dividerBelow: false },
         { id: generateId(), title: 'Looking For', subheading: '', body: 'Small to mid pack\nRegular voice comms\nChill vibes', bulletMode: 'emoji', enabled: true, dividerAbove: false, dividerBelow: true }
       ],
-      checklist: { enabled: true, include: false, items: 'Add timezone\nList preferred map', questions: 'Preferred playstyle?\nPreferred creatures?' }
+      checklist: { enabled: true, include: false, items: 'Add timezone', questions: 'Preferred playstyle?' }
+    }
+  },
+  staff_announcement: {
+    name: 'Admin: Official Announcement',
+    data: {
+      title: 'SERVER UPDATE', channel: '#announcements', tag: 'Update', roles: '@everyone', prefix: '🚨',
+      sections: [
+        { id: generateId(), title: 'Patch Notes', subheading: 'Changes effective immediately.', body: 'Adjusted global stamina drain.\nFixed collision issues at Great Lake.', bulletMode: 'bullet', enabled: true, dividerAbove: true, dividerBelow: false },
+        { id: generateId(), title: 'Rule Adjustments', subheading: '', body: 'Updated Body Down rules. Please review the rulebook channel.', bulletMode: 'none', enabled: true, dividerAbove: false, dividerBelow: true }
+      ],
+      checklist: { enabled: false, include: false, items: '', questions: '' }
+    }
+  },
+  character_profile: {
+    name: 'Roleplay: Character Profile',
+    data: {
+      title: 'Character Record', channel: '#character-profiles', tag: 'RP', roles: '', prefix: '📜',
+      sections: [
+        { id: generateId(), title: 'Identity', subheading: '', body: 'Name: \nSpecies: \nGender: ', bulletMode: 'none', enabled: true, dividerAbove: true, dividerBelow: false },
+        { id: generateId(), title: 'Physical Traits', subheading: '', body: 'Scars/Markings:\nMutation:\nSize:', bulletMode: 'none', enabled: true, dividerAbove: false, dividerBelow: false },
+        { id: generateId(), title: 'Backstory', subheading: 'Brief history.', body: 'Write character lore here...', bulletMode: 'none', enabled: true, dividerAbove: false, dividerBelow: true }
+      ],
+      checklist: { enabled: false, include: false, items: '', questions: '' }
     }
   }
 };
 
+// --- Expanded Discord Themes ---
 const themes = {
-  minimal: { name: 'Minimal', divider: '— — —', heading: (text) => `**${text}**`, bullet: '•', emojiBullet: '•' },
-  fancy: { name: 'Fancy dividers & emojis', divider: '꒷︶꒷꒥꒷︶✧꒷︶꒷꒥꒷︶', heading: (text) => `✦ ${text.toUpperCase()} ✦`, bullet: '•', emojiBullet: '✨' },
-  compact: { name: 'Compact', divider: '• • •', heading: (text) => `__${text}__`, bullet: '-', emojiBullet: '-' },
-  rulebook: { name: 'Rulebook / Documentation', divider: '━━━━━━━━━━━━━━', heading: (text) => `### ${text}`, bullet: '•', emojiBullet: '➤' }
+  minimal: { name: 'Minimal & Clean', divider: '— — —', heading: (text) => `**${text}**`, bullet: '•', emojiBullet: '•' },
+  fancy: { name: 'Fantasy / Fancy', divider: '꒷︶꒷꒥꒷︶✧꒷︶꒷꒥꒷︶', heading: (text) => `✦ ${text.toUpperCase()} ✦`, bullet: '•', emojiBullet: '✨' },
+  compact: { name: 'Compact / Data', divider: '• • •', heading: (text) => `__${text}__`, bullet: '-', emojiBullet: '-' },
+  rulebook: { name: 'Admin Rulebook', divider: '━━━━━━━━━━━━━━', heading: (text) => `### ${text}`, bullet: '•', emojiBullet: '➤' },
+  heavy: { name: 'Heavy Block', divider: '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬', heading: (text) => `**[ ${text.toUpperCase()} ]**`, bullet: '▪', emojiBullet: '🔹' }
 };
 
+// --- Expanded Design Libraries ---
 const emojiLibrary = {
-  status: ['✅', '❌', '🟡', '🟢', '🔴', '📌', '✨'],
-  food: ['🍖', '🥩', '🍓', '🥭', '🐟', '🪴', '🛡️'],
-  server: ['🐉', '🪽', '🌙', '🗺️', '⚔️', '🏹', '🜂']
+  status: ['✅', '❌', '🟡', '🟢', '🔴', '📌', '✨', '⚠️', '🚨', '🛠️', '🛑', '⏸️', '▶️', '⏳'],
+  food: ['🍖', '🥩', '🍓', '🥭', '🐟', '🪴', '🛡️', '🌿', '🐾', '🦴', '🌧️', '🌙', '☀️'],
+  server: ['🐉', '🪽', '🗺️', '⚔️', '🏹', '🜂', '👑', '🩸', '💀', '💎', '🔮', '🏰'],
+  symbols: ['🔲', '🔳', '🟢', '🔵', '🟣', '🟤', '⚫', '⚪', '🔹', '🔸', '➤', '✓']
 };
 
-const dividerLibrary = ['꒷︶꒷꒥꒷︶✧꒷︶꒷꒥꒷︶', '━━━━━━༺༻━━━━━━', '•────────────────•', '✦･ﾟ: *✦*:･ﾟ✦', '— — —'];
+const dividerLibrary = [
+  '꒷︶꒷꒥꒷︶✧꒷︶꒷꒥꒷︶', 
+  '━━━━━━༺༻━━━━━━', 
+  '•────────────────•', 
+  '✦･ﾟ: *✦*:･ﾟ✦', 
+  '— — —', 
+  '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬',
+  '════════ ⋆★⋆ ════════'
+];
 
 // --- Application State ---
 let state = {
@@ -72,9 +107,12 @@ const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
+  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
+// Insert text at cursor (for Emoji/Dividers)
 const insertAtCursor = (text) => {
   if (!activeTextarea) return;
   const start = activeTextarea.selectionStart;
@@ -82,6 +120,26 @@ const insertAtCursor = (text) => {
   const value = activeTextarea.value;
   activeTextarea.value = value.slice(0, start) + text + value.slice(end);
   activeTextarea.selectionStart = activeTextarea.selectionEnd = start + text.length;
+  activeTextarea.dispatchEvent(new Event('input'));
+  activeTextarea.focus();
+};
+
+// Wrap selected text (for Discord formatting toolbar)
+const wrapTextForDiscord = (wrapper, prefix = null) => {
+  if (!activeTextarea) return;
+  const start = activeTextarea.selectionStart;
+  const end = activeTextarea.selectionEnd;
+  const value = activeTextarea.value;
+  
+  if (prefix) {
+    // Blockquote logic (adds > to the beginning of the line)
+    activeTextarea.value = value.slice(0, start) + prefix + value.slice(start, end) + value.slice(end);
+  } else {
+    // Wrap logic (e.g. **bold**)
+    const selectedText = value.slice(start, end);
+    activeTextarea.value = value.slice(0, start) + wrapper + selectedText + wrapper + value.slice(end);
+  }
+  
   activeTextarea.dispatchEvent(new Event('input'));
   activeTextarea.focus();
 };
@@ -96,36 +154,45 @@ const renderSections = () => {
   state.sections.forEach((section, index) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'card drag-item';
-    wrapper.style.marginBottom = '15px';
+    wrapper.style.marginBottom = '20px';
+    wrapper.style.boxShadow = 'none';
+    wrapper.style.border = '2px solid var(--border)';
     wrapper.dataset.id = section.id;
+    
     wrapper.innerHTML = `
       <div class="drag-handle">
-        <h3 style="margin:0; font-size:1.1em;"><span class="muted" style="margin-right:10px;">⋮⋮</span> Section ${index + 1}</h3>
-        <button class="btn btn-ghost btn-sm" data-action="remove" style="color: var(--danger); border-color: transparent;">X</button>
+        <h3 style="margin:0; font-size:1.1em; color: var(--primary);"><span class="muted" style="margin-right:10px;">⋮⋮</span> Section ${index + 1}</h3>
+        <button class="btn btn-ghost btn-sm" data-action="remove" style="color: var(--danger); border-color: transparent;">✕ Remove</button>
       </div>
-      <div class="form-grid" style="padding: 15px;">
+      <div class="form-grid" style="padding: 20px;">
         <label class="field"><span>Title</span><input type="text" data-field="title" value="${section.title}"></label>
-        <label class="field"><span>Subheading</span><input type="text" data-field="subheading" value="${section.subheading}"></label>
-        <label class="field"><span>Body Text</span><textarea rows="3" data-field="body">${section.body}</textarea></label>
+        <label class="field"><span>Subheading (Optional)</span><input type="text" data-field="subheading" value="${section.subheading}"></label>
+        <label class="field"><span>Body Text</span><textarea rows="4" data-field="body">${section.body}</textarea></label>
         
-        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-top: 5px;">
+        <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 10px; background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
           <label class="field" style="flex: 1; min-width: 150px;">
-            <span>Bullet Style</span>
+            <span style="margin-bottom: 5px;">Bullet Style</span>
             <select data-field="bulletMode">
               <option value="none" ${section.bulletMode === 'none' ? 'selected' : ''}>None</option>
               <option value="bullet" ${section.bulletMode === 'bullet' ? 'selected' : ''}>Plain Bullets</option>
-              <option value="emoji" ${section.bulletMode === 'emoji' ? 'selected' : ''}>Emoji Bullets</option>
+              <option value="emoji" ${section.bulletMode === 'emoji' ? 'selected' : ''}>Theme Emojis</option>
             </select>
           </label>
-          <label class="toggle"><input type="checkbox" data-field="enabled" ${section.enabled ? 'checked' : ''}><span>Include</span></label>
-          <label class="toggle"><input type="checkbox" data-field="dividerAbove" ${section.dividerAbove ? 'checked' : ''}><span>Divider Above</span></label>
-          <label class="toggle"><input type="checkbox" data-field="dividerBelow" ${section.dividerBelow ? 'checked' : ''}><span>Divider Below</span></label>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <label class="toggle"><input type="checkbox" data-field="enabled" ${section.enabled ? 'checked' : ''}><span>Include</span></label>
+            <label class="toggle"><input type="checkbox" data-field="dividerAbove" ${section.dividerAbove ? 'checked' : ''}><span>Divider Above</span></label>
+            <label class="toggle"><input type="checkbox" data-field="dividerBelow" ${section.dividerBelow ? 'checked' : ''}><span>Divider Below</span></label>
+          </div>
         </div>
       </div>
     `;
 
+    // Bind inputs to state updates and active textarea tracking
     wrapper.querySelectorAll('input, textarea, select').forEach((input) => {
-      input.addEventListener('focus', () => activeTextarea = input);
+      if (input.tagName.toLowerCase() === 'textarea') {
+        input.addEventListener('focus', () => activeTextarea = input);
+      }
+      
       input.addEventListener('change', (e) => {
         section[e.target.dataset.field] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
         updatePreview();
@@ -144,11 +211,13 @@ const renderSections = () => {
     elements.sectionsEl.appendChild(wrapper);
   });
 
+  // Re-initialize Drag and Drop
   if (sortableInstance) sortableInstance.destroy();
   if (typeof Sortable !== 'undefined') {
     sortableInstance = new Sortable(elements.sectionsEl, {
       handle: '.drag-handle',
-      animation: 150,
+      animation: 200,
+      ghostClass: 'sortable-ghost',
       onEnd: function (evt) {
         const movedItem = state.sections.splice(evt.oldIndex, 1)[0];
         state.sections.splice(evt.newIndex, 0, movedItem);
@@ -175,12 +244,12 @@ const updatePreview = () => {
     lines.push(theme.heading(section.title));
     if (section.subheading) lines.push(`_${section.subheading}_`);
     
-    const bodyLines = section.body.split('\n').filter(Boolean);
+    const bodyLines = section.body.split('\n');
     if (section.bulletMode === 'none') {
       lines.push(bodyLines.join('\n'));
     } else {
       const bullet = section.bulletMode === 'emoji' ? theme.emojiBullet : theme.bullet;
-      lines.push(bodyLines.map(line => `${bullet} ${line}`).join('\n'));
+      lines.push(bodyLines.map(line => line.trim() ? `${bullet} ${line}` : '').join('\n'));
     }
     
     if (section.dividerBelow) lines.push(theme.divider);
@@ -191,6 +260,7 @@ const updatePreview = () => {
     lines.push(theme.heading('Checklist'));
     if (state.checklist.items) lines.push(state.checklist.items.split('\n').filter(Boolean).map(i => `${theme.emojiBullet} ${i}`).join('\n'));
     if (state.checklist.questions) {
+      lines.push('');
       lines.push(theme.heading('Questions to Answer'));
       lines.push(state.checklist.questions.split('\n').filter(Boolean).map(i => `${theme.bullet} ${i}`).join('\n'));
     }
@@ -207,18 +277,22 @@ const renderPresets = () => {
   elements.presetListEl.innerHTML = '';
   
   if (Object.keys(presets).length === 0) {
-    elements.presetListEl.innerHTML = '<p class="muted">No presets saved.</p>';
+    elements.presetListEl.innerHTML = '<p class="muted" style="text-align: center; padding: 15px; background: var(--bg); border-radius: 12px; border: 1px dashed var(--border);">No custom presets saved.</p>';
     return;
   }
 
   Object.values(presets).forEach(preset => {
     const item = document.createElement('div');
     item.className = `list-item ${state.currentPresetId === preset.id ? 'active' : ''}`;
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '10px';
+    
     item.innerHTML = `
-      <div><strong>${preset.name}</strong></div>
-      <div style="display:flex; gap:5px;">
-        <button class="btn btn-ghost btn-sm" onclick="loadPreset('${preset.id}')">Load</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger); border-color:transparent;" onclick="deletePreset('${preset.id}')">X</button>
+      <div style="font-weight: 600; width: 100%;">${preset.name}</div>
+      <div style="display:flex; gap:10px; width: 100%;">
+        <button class="btn btn-sm" style="flex: 1;" onclick="loadPreset('${preset.id}')">Load</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="deletePreset('${preset.id}')">Delete</button>
       </div>
     `;
     elements.presetListEl.appendChild(item);
@@ -237,11 +311,11 @@ window.loadPreset = (id) => {
   populateFormFromState();
   elements.updatePresetBtn.disabled = false;
   renderPresets();
-  showToast(`Loaded: ${presets[id].name}`);
+  showToast(`Loaded Preset: ${presets[id].name}`);
 };
 
 window.deletePreset = (id) => {
-  if(!confirm('Delete this preset?')) return;
+  if(!confirm('Are you sure you want to delete this custom preset?')) return;
   const presets = getSavedPresets();
   delete presets[id];
   localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
@@ -250,7 +324,7 @@ window.deletePreset = (id) => {
 };
 
 const saveNewPreset = () => {
-  const name = prompt('Name this preset:', state.title || 'New Preset');
+  const name = prompt('Name this new preset:', state.title || 'My Preset');
   if (!name) return;
   
   const id = 'preset_' + Date.now();
@@ -261,7 +335,7 @@ const saveNewPreset = () => {
   state.currentPresetId = id;
   elements.updatePresetBtn.disabled = false;
   renderPresets();
-  showToast('Preset saved!');
+  showToast('New Custom Preset Saved!');
 };
 
 document.getElementById('updatePreset').addEventListener('click', () => {
@@ -270,7 +344,7 @@ document.getElementById('updatePreset').addEventListener('click', () => {
   if (presets[state.currentPresetId]) {
     presets[state.currentPresetId].data = JSON.parse(JSON.stringify(state));
     localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
-    showToast('Preset updated.');
+    showToast('Preset Successfully Updated.');
   }
 });
 
@@ -305,13 +379,16 @@ const loadBaseTemplate = (key) => {
 
 // --- Initialization ---
 const init = () => {
+  // Populate Dropdowns
   Object.keys(templates).forEach(key => elements.templateSelect.appendChild(new Option(templates[key].name, key)));
   Object.keys(themes).forEach(key => elements.themeSelect.appendChild(new Option(themes[key].name, key)));
 
   // Bind core text inputs
   ['postTitle', 'postChannel', 'postTag', 'postRoles', 'postPrefix'].forEach(id => {
-    document.getElementById(id).addEventListener('input', (e) => { state[id.replace('post', '').toLowerCase()] = e.target.value; updatePreview(); });
-    document.getElementById(id).addEventListener('focus', (e) => activeTextarea = e.target);
+    const el = document.getElementById(id);
+    el.addEventListener('input', (e) => { state[id.replace('post', '').toLowerCase()] = e.target.value; updatePreview(); });
+    // Text inputs technically don't need formatting toolbar, but let's track focus just in case
+    el.addEventListener('focus', (e) => activeTextarea = e.target);
   });
 
   // Bind checklist inputs
@@ -319,8 +396,18 @@ const init = () => {
     document.getElementById(id).addEventListener('change', (e) => { state.checklist[id.replace('checklist', '').toLowerCase()] = e.target.checked; updatePreview(); });
   });
   ['checklistItems', 'questionItems'].forEach(id => {
-    document.getElementById(id).addEventListener('input', (e) => { state.checklist[id === 'checklistItems' ? 'items' : 'questions'] = e.target.value; updatePreview(); });
-    document.getElementById(id).addEventListener('focus', (e) => activeTextarea = e.target);
+    const el = document.getElementById(id);
+    el.addEventListener('input', (e) => { state.checklist[id === 'checklistItems' ? 'items' : 'questions'] = e.target.value; updatePreview(); });
+    el.addEventListener('focus', (e) => activeTextarea = e.target);
+  });
+
+  // Bind Discord Formatting Toolbar
+  document.querySelectorAll('.format-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault(); // Stop form submission
+      if (btn.dataset.wrap) wrapTextForDiscord(btn.dataset.wrap);
+      if (btn.dataset.prefix) wrapTextForDiscord('', btn.dataset.prefix);
+    });
   });
 
   // Setup Emoji Libraries
@@ -332,26 +419,30 @@ const init = () => {
   renderChips('emojiStatus', emojiLibrary.status, false);
   renderChips('emojiFood', emojiLibrary.food, false);
   renderChips('emojiServer', emojiLibrary.server, false);
+  renderChips('emojiSymbols', emojiLibrary.symbols, false);
   renderChips('dividerLibrary', dividerLibrary, true);
 
-  // Buttons
+  // Bind Control Buttons
   document.getElementById('addSection').addEventListener('click', () => { state.sections.push(sectionTemplate()); renderSections(); updatePreview(); });
   document.getElementById('saveNewPreset').addEventListener('click', saveNewPreset);
   document.getElementById('clearAll').addEventListener('click', () => {
-    state = { currentPresetId: null, title: '', channel: '', tag: '', roles: '', prefix: '', sections: [sectionTemplate()], checklist: { enabled: false, include: false, items: '', questions: '' }, theme: 'fancy' };
-    elements.updatePresetBtn.disabled = true;
-    populateFormFromState();
-    renderPresets();
+    if(confirm('Are you sure you want to clear the entire editor?')) {
+      state = { currentPresetId: null, title: '', channel: '', tag: '', roles: '', prefix: '', sections: [sectionTemplate()], checklist: { enabled: false, include: false, items: '', questions: '' }, theme: 'fancy' };
+      elements.updatePresetBtn.disabled = true;
+      populateFormFromState();
+      renderPresets();
+    }
   });
-  document.getElementById('copyPost').addEventListener('click', () => navigator.clipboard.writeText(elements.previewEl.textContent).then(() => showToast('Copied to clipboard!')));
+  
+  document.getElementById('copyPost').addEventListener('click', () => navigator.clipboard.writeText(elements.previewEl.textContent).then(() => showToast('Post Copied to Clipboard!')));
   document.getElementById('copyCode').addEventListener('click', () => navigator.clipboard.writeText(`\`\`\`\n${elements.previewEl.textContent}\n\`\`\``).then(() => showToast('Copied as Code Block!')));
 
   elements.templateSelect.addEventListener('change', () => loadBaseTemplate(elements.templateSelect.value));
   elements.themeSelect.addEventListener('change', () => { state.theme = elements.themeSelect.value; updatePreview(); });
 
-  // Boot up
+  // Boot up with default template
   renderPresets();
   loadBaseTemplate('event');
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', init);;
