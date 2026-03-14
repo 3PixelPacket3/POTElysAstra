@@ -21,6 +21,7 @@ const elements = {
   panels: document.querySelectorAll('.panel'),
   
   // Magic Auto-Fill
+  ocrDropZone: document.getElementById('ocrDropZone'),
   ocrInput: document.getElementById('ocrInput'),
 
   // Form Inputs - Core
@@ -129,54 +130,108 @@ const renderCustomStatRow = (name = '', value = '') => {
 };
 
 // --- OCR Parsing Engine ---
+const processImage = async (file) => {
+  if(!file || !file.type.startsWith('image/')) return;
+  showToast("Scanning image... This may take a few seconds.", "info");
+
+  try {
+    const result = await Tesseract.recognize(file, 'eng');
+    
+    // Clean out emojis, bot artifacts, and non-ASCII symbols for pure parsing
+    const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "");
+    
+    parseOCRText(cleanText);
+    showToast("Auto-fill complete! Please review the extracted data.");
+  } catch(err) {
+    console.error("Jarvis Error: OCR failed.", err);
+    showToast("Failed to read image.", "error");
+  }
+};
+
 const parseOCRText = (text) => {
-  // Normalize line breaks for easier regex scanning
-  const fullText = text.replace(/\n/g, ' ');
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  // 1. Name
+  const nameMatch = text.match(/^\s*([A-Za-z]+)/);
+  if (nameMatch) elements.core.name.value = nameMatch[1].trim();
 
-  // 1. Name: Usually the first block of text
-  const nameMatch = text.match(/^([A-Za-z]+)/);
-  if (nameMatch) elements.core.name.value = nameMatch[1];
-
-  // 2. Tier
-  const tierMatch = text.match(/(Tier\s*\d+|Apex)/i);
-  if (tierMatch) elements.core.tier.value = tierMatch[1];
+  // 2. Tier Formatting (Tier 3 -> T3)
+  const tierMatch = text.match(/Tier\s*(\d+)/i);
+  if (tierMatch) {
+    elements.core.tier.value = 'T' + tierMatch[1];
+  } else if (text.match(/Apex/i)) {
+    elements.core.tier.value = 'Apex';
+  }
 
   // 3. Group Size
   const groupMatch = text.match(/Group:\s*(\d+)/i);
   if (groupMatch) elements.core.group.value = groupMatch[1];
 
-  // 4. Habitats (Extracting between HABITATS and Courting/PREFERRED FOODS)
+  // 4. Habitat (Extract and Comma-Separate)
   const habitatMatch = text.match(/HABITATS([\s\S]*?)(?:Courting|PREFERRED FOODS|Active Time)/i);
   if (habitatMatch) {
-      let habs = habitatMatch[1].replace(/RIPARIA HABITATS/i, '').replace(/\n/g, ', ').replace(/,+/g, ',').replace(/ ,/g, ',').trim();
-      habs = habs.replace(/^,|,$/g, '').trim();
+      let habs = habitatMatch[1].replace(/RIPARIA HABITATS/ig, '').replace(/GONDWA HABITATS/ig, '');
+      habs = habs.split(/[\n]+|\s{2,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
       elements.narrative.habitat.value = habs;
   }
 
-  // 5. Preferred Foods
-  const foodMatch = text.match(/PREFERRED FOODS([\s\S]*?)(?:Active Time|Upkeep|Nesting)/i);
+  // 5. Preferred Foods (Extract and Comma-Separate)
+  const foodMatch = text.match(/PREFERRED FOODS([\s\S]*?)(?:Active Time|Upkeep|Nesting|Courting)/i);
   if (foodMatch) {
-      let foods = foodMatch[1].replace(/\n/g, ', ').replace(/\(Critter\)/g, '').replace(/,+/g, ',').trim();
-      foods = foods.replace(/^,|,$/g, '').trim();
+      let foods = foodMatch[1].replace(/\(Critter\)/g, '');
+      foods = foods.split(/[\n]+|\s{2,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
       elements.narrative.foods.value = foods;
   }
 
   // 6. Upkeep Tasks
-  const upkeepMatch = text.match(/Upkeep\s*\n([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i) || 
-                      text.match(/Upkeep([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i);
+  const upkeepMatch = text.match(/Upkeep([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i);
   if (upkeepMatch) {
-      elements.narrative.upkeep.value = upkeepMatch[1].trim().replace(/\n/g, ' ');
+      elements.narrative.upkeep.value = upkeepMatch[1].trim().replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
   }
 
-  // 7. Behaviors
+  // 7. Behaviors & Rich Text Body Integration
+  let richTextHtml = `<h3>Profile Summary</h3><ul>`;
+  if (tierMatch) richTextHtml += `<li><strong>Tier:</strong> T${tierMatch[1]}</li>`;
+  if (text.match(/Carnivore/i)) richTextHtml += `<li><strong>Diet:</strong> Carnivore</li>`;
+  else if (text.match(/Herbivore/i)) richTextHtml += `<li><strong>Diet:</strong> Herbivore</li>`;
+  if (groupMatch) richTextHtml += `<li><strong>Group Limit:</strong> ${groupMatch[1]}</li>`;
+  richTextHtml += `</ul><hr><br>`;
+
   const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
   if (behaviorMatch) {
-      // Clean out bottom-of-image bot artifacts
-      let behaviorsText = behaviorMatch[1].split(/May be considered a rulebreak|Basic Info/i)[0].trim();
-      elements.narrative.behaviors.value = behaviorsText;
+      // Clean bottom-of-image bot text
+      let bText = behaviorMatch[1].split(/May be considered a rulebreak|Basic Info/i)[0].trim();
+      
+      // Split into distinct blocks by double newlines to separate Titles from Descriptions
+      let blocks = bText.split(/\n\s*\n/);
+      let bNames = [];
+      
+      richTextHtml += `<h3>Detailed Behaviors</h3>`;
+      
+      blocks.forEach(block => {
+          let lines = block.split('\n').map(l => l.trim()).filter(l => l);
+          if(lines.length > 0) {
+              let bTitle = lines[0]; 
+              
+              // Only consider it a title if it's reasonably short (avoids paragraph continuation issues)
+              if (bTitle.length < 45) {
+                  bNames.push(bTitle);
+                  richTextHtml += `<h4>${bTitle}</h4>`;
+                  if(lines.length > 1) {
+                      richTextHtml += `<p>${lines.slice(1).join(' ')}</p><br>`;
+                  }
+              } else {
+                  richTextHtml += `<p>${lines.join(' ')}</p><br>`;
+              }
+          }
+      });
+      
+      // Inject isolated titles into the input box
+      elements.narrative.behaviors.value = bNames.join('\n');
   }
+  
+  // Inject the fully built HTML into the rich text editor
+  elements.narrative.body.innerHTML = richTextHtml;
 };
+
 
 // --- Form Syncing ---
 const syncForm = (creature) => {
@@ -350,6 +405,7 @@ const renderList = () => {
       currentCreatureId = creature.id;
       syncForm(creature);
       setView(creature);
+      setMode('view'); // Enforce view mode when clicking the list
       renderList(); 
     });
     elements.list.appendChild(item);
@@ -408,7 +464,6 @@ const duplicateCreature = async () => {
 
 // --- Initialization ---
 const init = async () => {
-  // Load master database
   if (typeof EAHADataStore !== 'undefined') {
     db = await EAHADataStore.getData();
   } else {
@@ -434,26 +489,45 @@ const init = async () => {
     elements.tabs[0].click(); 
   });
 
-  // OCR Upload Binding
-  elements.ocrInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
+  // --- OCR Input Bindings ---
+  // 1. Manual Upload
+  elements.ocrInput.addEventListener('change', (e) => {
+    if(e.target.files.length > 0) processImage(e.target.files[0]);
+    e.target.value = ''; 
+  });
 
-    showToast("Scanning image... This may take a few seconds.", "info");
-
-    try {
-      const result = await Tesseract.recognize(file, 'eng');
-      const text = result.data.text;
-      
-      parseOCRText(text);
-      
-      showToast("Auto-fill complete! Please review the extracted data.");
-    } catch(err) {
-      console.error("Jarvis Error: OCR failed.", err);
-      showToast("Failed to read image.", "error");
+  // 2. Drag and Drop
+  elements.ocrDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    elements.ocrDropZone.style.borderColor = 'var(--primary)';
+    elements.ocrDropZone.style.backgroundColor = 'color-mix(in srgb, var(--primary) 20%, var(--bg))';
+  });
+  elements.ocrDropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    elements.ocrDropZone.style.borderColor = 'var(--primary)';
+    elements.ocrDropZone.style.backgroundColor = 'color-mix(in srgb, var(--primary) 10%, var(--bg))';
+  });
+  elements.ocrDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    elements.ocrDropZone.style.borderColor = 'var(--primary)';
+    elements.ocrDropZone.style.backgroundColor = 'color-mix(in srgb, var(--primary) 10%, var(--bg))';
+    if(e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processImage(e.dataTransfer.files[0]);
     }
-    
-    e.target.value = ''; // Reset input so same file can be scanned again
+  });
+
+  // 3. Ctrl+V Paste
+  window.addEventListener('paste', (e) => {
+    if (currentMode === 'edit') {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          processImage(item.getAsFile());
+          break;
+        }
+      }
+    }
   });
 
   elements.addCustomStatBtn.addEventListener('click', () => renderCustomStatRow());
