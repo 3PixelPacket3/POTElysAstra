@@ -12,7 +12,7 @@ const EAHADataStore = {
 
     // 2. If no local data exists, fetch the base-data.json you uploaded
     try {
-      const response = await fetch('data/base-data.json');
+      const response = await fetch('base-data.json');
       if (!response.ok) throw new Error('Network response was not ok');
       const baseData = await response.json();
       
