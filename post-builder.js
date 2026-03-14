@@ -79,6 +79,22 @@ const dividerLibrary = [
   '════════ ⋆★⋆ ════════'
 ];
 
+// --- Unicode Font Mappings ---
+const unicodeFonts = {
+  gothic: {
+    base:   'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    mapped: ['𝔞','𝔟','𝔠','𝔡','𝔢','𝔣','𝔤','𝔥','𝔦','𝔧','𝔨','𝔩','𝔪','𝔫','𝔬','𝔭','𝔮','𝔯','𝔰','𝔱','𝔲','𝔳','𝔴','𝔵','𝔶','𝔷','𝔄','𝔅','ℭ','𝔇','𝔈','𝔉','𝔊','ℌ','ℑ','𝔍','𝔎','𝔏','𝔐','𝔑','𝔒','𝔓','𝔔','ℜ','𝔖','𝔗','𝔘','𝔙','𝔚','𝔛','𝔜','ℨ','0','1','2','3','4','5','6','7','8','9']
+  },
+  script: {
+    base:   'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    mapped: ['𝒶','𝒷','𝒸','𝒹','𝑒','𝒻','𝑔','𝒽','𝒾','𝒿','𝓀','𝓁','𝓂','𝓃','𝑜','𝓅','𝓆','𝓇','𝓈','𝓉','𝓊','𝓋','𝓌','𝓍','𝓎','𝓏','𝒜','𝐵','𝒞','𝒟','𝐸','𝐹','𝒢','𝐻','𝐼','𝒥','𝒦','𝐿','𝑀','𝒩','𝒪','𝒫','𝒬','𝑅','𝒮','𝒯','𝒰','𝒱','𝒲','𝒳','𝒴','𝒵','𝟢','𝟣','𝟤','𝟥','𝟦','𝟧','𝟨','𝟩','𝟪','𝟫']
+  },
+  double: {
+    base:   'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    mapped: ['𝕒','𝕓','𝕔','𝕕','𝕖','𝕗','𝕘','𝕙','𝕚','𝕛','𝕜','𝕝','𝕞','𝕟','𝕠','𝕡','𝕢','𝕣','𝕤','𝕥','𝕦','𝕧','𝕨','𝕩','𝕪','𝕫','𝔸','𝔹','ℂ','𝔻','𝔼','𝔽','𝔾','ℍ','𝕀','𝕁','𝕂','𝕃','𝕄','ℕ','𝕆','ℙ','ℚ','ℝ','𝕊','𝕋','𝕌','𝕍','𝕎','𝕏','𝕐','ℤ','𝟘','𝟙','𝟚','𝟛','𝟜','𝟝','𝟞','𝟟','𝟠','𝟡']
+  }
+};
+
 // --- Application State ---
 let state = {
   currentPresetId: null,
@@ -112,19 +128,31 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// Insert text at cursor (for Emoji/Dividers)
+// --- Cursor Tracking & Formatting Actions ---
+const bindFocusTracking = (inputEl) => {
+  inputEl.addEventListener('focus', (e) => activeTextarea = e.target);
+};
+
+const triggerInputUpdate = () => {
+  if(activeTextarea) {
+    activeTextarea.dispatchEvent(new Event('input'));
+    activeTextarea.focus();
+  }
+};
+
 const insertAtCursor = (text) => {
-  if (!activeTextarea) return;
+  if (!activeTextarea) {
+    showToast("Click inside a text box first to insert design elements.", "error");
+    return;
+  }
   const start = activeTextarea.selectionStart;
   const end = activeTextarea.selectionEnd;
   const value = activeTextarea.value;
   activeTextarea.value = value.slice(0, start) + text + value.slice(end);
   activeTextarea.selectionStart = activeTextarea.selectionEnd = start + text.length;
-  activeTextarea.dispatchEvent(new Event('input'));
-  activeTextarea.focus();
+  triggerInputUpdate();
 };
 
-// Wrap selected text (for Discord formatting toolbar)
 const wrapTextForDiscord = (wrapper, prefix = null) => {
   if (!activeTextarea) return;
   const start = activeTextarea.selectionStart;
@@ -132,16 +160,47 @@ const wrapTextForDiscord = (wrapper, prefix = null) => {
   const value = activeTextarea.value;
   
   if (prefix) {
-    // Blockquote logic (adds > to the beginning of the line)
+    // Adds > or # to the beginning of the selection
     activeTextarea.value = value.slice(0, start) + prefix + value.slice(start, end) + value.slice(end);
+    activeTextarea.selectionStart = activeTextarea.selectionEnd = end + prefix.length;
   } else {
     // Wrap logic (e.g. **bold**)
     const selectedText = value.slice(start, end);
     activeTextarea.value = value.slice(0, start) + wrapper + selectedText + wrapper + value.slice(end);
+    activeTextarea.selectionStart = activeTextarea.selectionEnd = end + (wrapper.length * 2);
   }
+  triggerInputUpdate();
+};
+
+const applyUnicodeFont = (fontKey) => {
+  if (!activeTextarea) return;
+  const start = activeTextarea.selectionStart;
+  const end = activeTextarea.selectionEnd;
   
-  activeTextarea.dispatchEvent(new Event('input'));
-  activeTextarea.focus();
+  if (start === end) {
+    showToast("Highlight text to apply a font.", "error");
+    return;
+  }
+
+  const value = activeTextarea.value;
+  const selectedText = value.slice(start, end);
+  const fontObj = unicodeFonts[fontKey];
+  let convertedText = '';
+
+  for (let i = 0; i < selectedText.length; i++) {
+    const char = selectedText[i];
+    const index = fontObj.base.indexOf(char);
+    if (index !== -1) {
+      convertedText += fontObj.mapped[index];
+    } else {
+      convertedText += char;
+    }
+  }
+
+  activeTextarea.value = value.slice(0, start) + convertedText + value.slice(end);
+  activeTextarea.selectionStart = start;
+  activeTextarea.selectionEnd = start + convertedText.length;
+  triggerInputUpdate();
 };
 
 const sectionTemplate = () => ({
@@ -188,11 +247,9 @@ const renderSections = () => {
     `;
 
     // Bind inputs to state updates and active textarea tracking
+    wrapper.querySelectorAll('input[type="text"], textarea').forEach(bindFocusTracking);
+
     wrapper.querySelectorAll('input, textarea, select').forEach((input) => {
-      if (input.tagName.toLowerCase() === 'textarea') {
-        input.addEventListener('focus', () => activeTextarea = input);
-      }
-      
       input.addEventListener('change', (e) => {
         section[e.target.dataset.field] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
         updatePreview();
@@ -379,34 +436,40 @@ const loadBaseTemplate = (key) => {
 
 // --- Initialization ---
 const init = () => {
-  // Populate Dropdowns
   Object.keys(templates).forEach(key => elements.templateSelect.appendChild(new Option(templates[key].name, key)));
   Object.keys(themes).forEach(key => elements.themeSelect.appendChild(new Option(themes[key].name, key)));
 
-  // Bind core text inputs
+  // Bind core text inputs for state tracking AND cursor focus tracking
   ['postTitle', 'postChannel', 'postTag', 'postRoles', 'postPrefix'].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('input', (e) => { state[id.replace('post', '').toLowerCase()] = e.target.value; updatePreview(); });
-    // Text inputs technically don't need formatting toolbar, but let's track focus just in case
-    el.addEventListener('focus', (e) => activeTextarea = e.target);
+    bindFocusTracking(el);
   });
 
-  // Bind checklist inputs
   ['checklistEnabled', 'checklistInclude'].forEach(id => {
     document.getElementById(id).addEventListener('change', (e) => { state.checklist[id.replace('checklist', '').toLowerCase()] = e.target.checked; updatePreview(); });
   });
+  
   ['checklistItems', 'questionItems'].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('input', (e) => { state.checklist[id === 'checklistItems' ? 'items' : 'questions'] = e.target.value; updatePreview(); });
-    el.addEventListener('focus', (e) => activeTextarea = e.target);
+    bindFocusTracking(el);
   });
 
-  // Bind Discord Formatting Toolbar
+  // Bind Format Buttons
   document.querySelectorAll('.format-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      e.preventDefault(); // Stop form submission
+      e.preventDefault();
       if (btn.dataset.wrap) wrapTextForDiscord(btn.dataset.wrap);
       if (btn.dataset.prefix) wrapTextForDiscord('', btn.dataset.prefix);
+    });
+  });
+
+  // Bind Font Conversion Buttons
+  document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      applyUnicodeFont(btn.dataset.font);
     });
   });
 
@@ -440,9 +503,8 @@ const init = () => {
   elements.templateSelect.addEventListener('change', () => loadBaseTemplate(elements.templateSelect.value));
   elements.themeSelect.addEventListener('change', () => { state.theme = elements.themeSelect.value; updatePreview(); });
 
-  // Boot up with default template
   renderPresets();
   loadBaseTemplate('event');
 };
 
-document.addEventListener('DOMContentLoaded', init);;
+document.addEventListener('DOMContentLoaded', init);
