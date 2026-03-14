@@ -53,11 +53,11 @@
 
       <div id="creatureForm" class="is-hidden">
         
-        <div class="card" style="box-shadow: none; border: 2px dashed var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--bg)); text-align: center; margin-bottom: 20px; padding: 25px;">
+        <div id="ocrDropZone" class="card" style="box-shadow: none; border: 2px dashed var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--bg)); text-align: center; margin-bottom: 20px; padding: 25px; transition: all 0.2s ease;">
           <h3 style="color: var(--primary); margin-bottom: 10px;">✨ Magic Auto-Fill</h3>
-          <p class="muted" style="font-size: 0.9em; margin-bottom: 15px;">Upload a screenshot of the creature's bot profile to automatically extract its details.</p>
+          <p class="muted" style="font-size: 0.9em; margin-bottom: 15px;">Drag & drop a screenshot, press <strong>Ctrl+V</strong> to paste, or click to upload.</p>
           <input type="file" id="ocrInput" accept="image/*" style="display: none;">
-          <label for="ocrInput" class="btn" style="cursor: pointer;">Upload Profile Screenshot</label>
+          <label for="ocrInput" class="btn" style="cursor: pointer;">Browse for Image</label>
         </div>
 
         <section class="builder-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
@@ -71,7 +71,7 @@
             <h2 style="color: var(--primary);">Core Details</h2>
             <div class="form-grid">
               <label class="field"><span>Name</span><input type="text" id="creatureName" placeholder="e.g., Tyrannosaurus Rex"></label>
-              <label class="field"><span>Tier</span><input type="text" id="creatureTierInput" placeholder="Apex, Tier 2, etc."></label>
+              <label class="field"><span>Tier</span><input type="text" id="creatureTierInput" placeholder="T2, Apex, etc."></label>
               <label class="field"><span>Group Size</span><input type="text" id="creatureGroup" placeholder="e.g., 2 Adults, 3 Juvies"></label>
               <label class="field"><span>Image URL</span><input type="text" id="creatureImage" placeholder="images/trex.png"></label>
             </div>
@@ -114,7 +114,7 @@
               <label class="field"><span>Habitat (comma separated)</span><input type="text" id="creatureHabitat"></label>
               <label class="field"><span>Diet / Preferred Foods</span><input type="text" id="creatureFoods"></label>
               <label class="field"><span>Activity & Upkeep Tasks</span><textarea id="creatureUpkeep" rows="3" placeholder="Tasks to restore hygiene/comfort (e.g., Mud roll)"></textarea></label>
-              <label class="field"><span>Behaviors (one per line)</span><textarea id="creatureBehaviors" rows="5"></textarea></label>
+              <label class="field"><span>Behaviors (Titles Only - One per line)</span><textarea id="creatureBehaviors" rows="5"></textarea></label>
             </div>
           </div>
           
