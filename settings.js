@@ -1,7 +1,7 @@
 // settings.js
 
 // --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
+let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
 
 // --- LocalStorage Keys ---
 const PRESETS_KEY = 'eahaPostPresets';
@@ -16,6 +16,8 @@ const elements = {
   statRules: document.getElementById('statRules'),
   statPresets: document.getElementById('statPresets'),
   statEncounters: document.getElementById('statEncounters'),
+  statPins: document.getElementById('statPins'),
+  
   exportBtn: document.getElementById('exportBtn'),
   importInput: document.getElementById('importInput'),
   importBtn: document.getElementById('importBtn'),
@@ -36,9 +38,8 @@ const showToast = (message, type = 'success') => {
 const updateDashboard = () => {
   elements.statCreatures.textContent = db.creatures ? db.creatures.length : 0;
   elements.statRules.textContent = db.rules ? db.rules.length : 0;
-  
-  // Encounter Log Metric
   elements.statEncounters.textContent = db.encounters ? db.encounters.length : 0;
+  elements.statPins.textContent = db.pins ? db.pins.length : 0;
   
   // Custom Presets Metric
   const presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
@@ -107,9 +108,9 @@ const importDatabase = async (event) => {
 };
 
 const resetDatabase = async () => {
-  if (confirm('WARNING: This will erase ALL local creatures, rules, and stats. Are you absolutely certain?')) {
+  if (confirm('WARNING: This will erase ALL local creatures, rules, stats, markers, and logs. Are you absolutely certain?')) {
     // Clear the master DB
-    db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
+    db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
     await EAHADataStore.saveData(db);
     
     // Clear all EAHA specific LocalStorage keys
