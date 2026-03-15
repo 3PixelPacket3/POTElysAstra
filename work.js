@@ -83,7 +83,7 @@ const gatherForm = () => {
     category: elements.category.value.trim() || 'General',
     author: elements.author.value.trim(),
     tags: formatTags(elements.tags.value),
-    updated: new Date().toISOString(), // Save current timestamp
+    updated: new Date().toISOString(), 
     bodyHtml: elements.body.innerHTML.trim()
   };
 };
@@ -156,8 +156,11 @@ const renderList = () => {
   filtered.forEach(rule => {
     const item = document.createElement('div');
     item.className = `list-item ${currentRuleId === rule.id ? 'active' : ''}`;
+    // Force Pointer CSS and disable text selection for cleaner UI
+    item.style.cursor = 'pointer';
+    item.style.userSelect = 'none';
     item.innerHTML = `
-      <div style="display: flex; flex-direction: column; width: 100%;">
+      <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <strong style="font-size: 1.1em; color: ${currentRuleId === rule.id ? 'var(--primary)' : 'var(--text)'};">${rule.title}</strong>
           <span style="font-size: 0.8em; color: var(--muted); background: var(--bg-alt); padding: 2px 8px; border-radius: 12px;">${rule.category || 'General'}</span>
@@ -168,6 +171,7 @@ const renderList = () => {
       currentRuleId = rule.id;
       syncForm(rule);
       setView(rule);
+      setMode('view'); // Enforce view mode when clicking the list
       renderList(); 
     });
     elements.list.appendChild(item);
@@ -227,7 +231,6 @@ const duplicateRule = async () => {
 
 // --- Initialization ---
 const init = async () => {
-  // Load master database
   if (typeof EAHADataStore !== 'undefined') {
     db = await EAHADataStore.getData();
   } else {
