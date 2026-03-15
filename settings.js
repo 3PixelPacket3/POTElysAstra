@@ -23,7 +23,7 @@ elements.exportBtn.addEventListener('click', async () => {
   try {
     const data = await EAHADataStore.getData();
     
-    // Bundle the main database + standalone settings (commands, presets)
+    // Bundle the main database + standalone settings (commands, presets, lifelines)
     const fullBackup = {
       database: data,
       eahaCommands: JSON.parse(localStorage.getItem('eahaCommands')) || [],
