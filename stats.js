@@ -46,7 +46,16 @@ const elements = {
   calcApplyBtn: document.getElementById('applyCalcBtn'),
   calcResetBtn: document.getElementById('resetCalcBtn'),
   calcResult: document.getElementById('calcResultDisplay'),
-  calcFormula: document.getElementById('calcFormulaDisplay')
+  calcFormula: document.getElementById('calcFormulaDisplay'),
+
+  // Threat Assessment Simulator (NEW)
+  fighterA: document.getElementById('fighterASelect'),
+  fighterB: document.getElementById('fighterBSelect'),
+  simOutputA: document.getElementById('simOutputA'),
+  simOutputB: document.getElementById('simOutputB'),
+  advantageBanner: document.getElementById('advantageBanner'),
+  speedComparison: document.getElementById('speedComparison'),
+  staminaComparison: document.getElementById('staminaComparison')
 };
 
 // --- Utilities ---
@@ -202,6 +211,9 @@ const saveStats = async () => {
   // Refresh UI
   setView(creature);
   setMode('view');
+  
+  // Update Simulator Dropdowns if names changed
+  if (elements.fighterA) populateDropdowns();
 };
 
 // --- Sandbox Calculator Logic ---
@@ -247,6 +259,135 @@ const applyCalculation = () => {
   
   const statName = elements.calcTarget.options[elements.calcTarget.selectedIndex].text;
   elements.calcFormula.textContent = `Formula: ${baseValue} ${sign} ${Math.abs(modifierValue)}% (${formattedDelta}) = ${formattedResult} ${statName}`;
+};
+
+// --- Threat Assessment Simulator Logic (NEW) ---
+const populateDropdowns = () => {
+  if (!elements.fighterA || !elements.fighterB) return;
+  
+  const defaultOptionA = new Option("Select Your Dinosaur...", "none");
+  const defaultOptionB = new Option("Select Opponent Dinosaur...", "none");
+  
+  // Save current selections to persist through re-renders
+  const currentA = elements.fighterA.value;
+  const currentB = elements.fighterB.value;
+  
+  elements.fighterA.innerHTML = '';
+  elements.fighterB.innerHTML = '';
+  
+  elements.fighterA.appendChild(defaultOptionA);
+  elements.fighterB.appendChild(defaultOptionB);
+
+  // Sort alphabetically for easier finding
+  const sortedCreatures = [...db.creatures].sort((a, b) => a.name.localeCompare(b.name));
+
+  sortedCreatures.forEach(c => {
+    elements.fighterA.appendChild(new Option(c.name, c.id));
+    elements.fighterB.appendChild(new Option(c.name, c.id));
+  });
+  
+  // Try to restore previous selection, else default to the active lifeline creature
+  const activeId = localStorage.getItem('eahaActiveCreature');
+  
+  if (currentA && currentA !== 'none') {
+    elements.fighterA.value = currentA;
+  } else if (activeId && db.creatures.find(c => c.id === activeId)) {
+    elements.fighterA.value = activeId;
+  }
+
+  if (currentB && currentB !== 'none') {
+    elements.fighterB.value = currentB;
+  }
+};
+
+const runSimulation = () => {
+  if (!elements.fighterA || !elements.fighterB) return;
+
+  const idA = elements.fighterA.value;
+  const idB = elements.fighterB.value;
+
+  if (idA === 'none' || idB === 'none') {
+    elements.advantageBanner.innerHTML = `<span class="muted">Awaiting combatants... Select two dinosaurs to run the numbers.</span>`;
+    elements.simOutputA.innerHTML = '';
+    elements.simOutputB.innerHTML = '';
+    elements.speedComparison.innerHTML = '';
+    elements.staminaComparison.innerHTML = '';
+    return;
+  }
+
+  const dinoA = db.creatures.find(c => c.id === idA);
+  const dinoB = db.creatures.find(c => c.id === idB);
+
+  const weightA = parseFloat(dinoA.stats?.base?.combatWeight) || 0;
+  const weightB = parseFloat(dinoB.stats?.base?.combatWeight) || 0;
+  
+  const healthA = parseFloat(dinoA.stats?.base?.health) || 0;
+  const healthB = parseFloat(dinoB.stats?.base?.health) || 0;
+  
+  const speedA = parseFloat(dinoA.stats?.base?.speed) || 0;
+  const speedB = parseFloat(dinoB.stats?.base?.speed) || 0;
+  
+  const stamA = parseFloat(dinoA.stats?.base?.stamina) || 0;
+  const stamB = parseFloat(dinoB.stats?.base?.stamina) || 0;
+
+  // Path of Titans Combat Weight Math: Damage = Base * (Attacker CW / Defender CW)
+  const multiplierA = weightB > 0 ? (weightA / weightB) : 1;
+  const multiplierB = weightA > 0 ? (weightB / weightA) : 1;
+
+  // Render Fighter A Card
+  elements.simOutputA.innerHTML = `
+    <h3 style="color: var(--primary); margin-bottom: 10px;">${dinoA.name}</h3>
+    <div style="font-size: 0.9em; line-height: 1.6;">
+      <div><strong>Health:</strong> ${healthA}</div>
+      <div><strong>Combat Weight:</strong> ${weightA}</div>
+      <hr style="border-top: 1px solid var(--border); margin: 10px 0;">
+      <div style="color: ${multiplierA >= 1 ? 'var(--success)' : 'var(--danger)'}; font-size: 1.1em; font-weight: bold;">
+        Deals ${Math.round(multiplierA * 100)}% Damage
+      </div>
+      <div class="muted" style="font-size: 0.85em;">(Takes ${Math.round(multiplierB * 100)}% damage from opponent)</div>
+    </div>
+  `;
+
+  // Render Fighter B Card
+  elements.simOutputB.innerHTML = `
+    <h3 style="color: var(--danger); margin-bottom: 10px;">${dinoB.name}</h3>
+    <div style="font-size: 0.9em; line-height: 1.6;">
+      <div><strong>Health:</strong> ${healthB}</div>
+      <div><strong>Combat Weight:</strong> ${weightB}</div>
+      <hr style="border-top: 1px solid var(--border); margin: 10px 0;">
+      <div style="color: ${multiplierB >= 1 ? 'var(--success)' : 'var(--danger)'}; font-size: 1.1em; font-weight: bold;">
+        Deals ${Math.round(multiplierB * 100)}% Damage
+      </div>
+      <div class="muted" style="font-size: 0.85em;">(Takes ${Math.round(multiplierA * 100)}% damage from you)</div>
+    </div>
+  `;
+
+  // Analyze Threat Banner
+  if (weightA > weightB) {
+    elements.advantageBanner.innerHTML = `<strong style="color: var(--success);">TACTICAL ADVANTAGE:</strong> You have the weight advantage. Your attacks will hit significantly harder and you will absorb more punishment.`;
+  } else if (weightA < weightB) {
+    elements.advantageBanner.innerHTML = `<strong style="color: var(--danger);">LETHAL THREAT:</strong> Opponent out-weighs you. DO NOT FACE TANK. You must rely on speed, bleed, or numbers to survive this engagement.`;
+  } else {
+    elements.advantageBanner.innerHTML = `<strong style="color: var(--info);">EVEN MATCHUP:</strong> Combat weights are identical. This fight comes down to raw base damage, armor hides, and player skill.`;
+  }
+
+  // Analyze Speed
+  if (speedA > speedB) {
+    elements.speedComparison.innerHTML = `<span style="color: var(--success);">You are faster (${speedA} vs ${speedB}). You control the engagement.</span>`;
+  } else if (speedA < speedB) {
+    elements.speedComparison.innerHTML = `<span style="color: var(--danger);">They are faster (${speedB} vs ${speedA}). You cannot outrun them if things go bad.</span>`;
+  } else {
+    elements.speedComparison.innerHTML = `<span style="color: var(--muted);">Speeds are equal (${speedA}).</span>`;
+  }
+
+  // Analyze Stamina
+  if (stamA > stamB) {
+    elements.staminaComparison.innerHTML = `<span style="color: var(--success);">You have more stamina (${stamA} vs ${stamB}). You can out-endure them.</span>`;
+  } else if (stamA < stamB) {
+    elements.staminaComparison.innerHTML = `<span style="color: var(--danger);">They have more stamina (${stamB} vs ${stamA}). Do not let them drain you.</span>`;
+  } else {
+    elements.staminaComparison.innerHTML = `<span style="color: var(--muted);">Stamina pools are equal (${stamA}).</span>`;
+  }
 };
 
 // --- Roster Logic ---
@@ -331,6 +472,14 @@ const init = async () => {
   elements.calcMod.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') applyCalculation();
   });
+
+  // Simulator Bindings
+  if(elements.fighterA) {
+    populateDropdowns();
+    elements.fighterA.addEventListener('change', runSimulation);
+    elements.fighterB.addEventListener('change', runSimulation);
+    runSimulation();
+  }
 
   setView(null); 
 };
