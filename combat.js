@@ -9,7 +9,8 @@ let charts = {
   outcome: null,
   cod: null,
   location: null,
-  hunted: null
+  hunted: null,
+  myDinos: null // New chart for Total Counts per Dinosaur
 };
 
 // --- DOM Elements ---
@@ -17,6 +18,8 @@ const elements = {
   list: document.getElementById('encounterList'),
   search: document.getElementById('encounterSearch'),
   filter: document.getElementById('outcomeFilter'),
+  creatureFilter: document.getElementById('creatureFilter'), // New filter for isolated stats
+  sortFilter: document.getElementById('sortFilter'), // New sorter
   addBtn: document.getElementById('addEncounterBtn'),
   dashBtn: document.getElementById('viewDashboardBtn'),
   
@@ -76,9 +79,16 @@ const setViewMode = (mode) => {
 
 const populateCreatureDropdown = () => {
   elements.myCreature.innerHTML = '<option value="Unknown">Select from Roster...</option>';
+  if (elements.creatureFilter) {
+    elements.creatureFilter.innerHTML = '<option value="all">All My Dinosaurs</option>';
+  }
+
   if (db.creatures && db.creatures.length > 0) {
     db.creatures.forEach(c => {
       elements.myCreature.appendChild(new Option(c.name, c.name));
+      if (elements.creatureFilter) {
+        elements.creatureFilter.appendChild(new Option(c.name, c.name));
+      }
     });
   }
 };
@@ -142,6 +152,8 @@ const gatherForm = () => {
 const renderList = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filter = elements.filter.value;
+  const creatureFilter = elements.creatureFilter ? elements.creatureFilter.value : 'all';
+  const sortMode = elements.sortFilter ? elements.sortFilter.value : 'newest';
   
   elements.list.innerHTML = '';
   
@@ -150,20 +162,29 @@ const renderList = () => {
     return;
   }
 
-  // Sort by newest first
-  const sortedEncounters = [...db.encounters].sort((a, b) => b.timestamp - a.timestamp);
+  // Handle Sorting
+  let sortedEncounters = [...db.encounters];
+  sortedEncounters.sort((a, b) => {
+    if (sortMode === 'newest') return b.timestamp - a.timestamp;
+    if (sortMode === 'oldest') return a.timestamp - b.timestamp;
+    if (sortMode === 'dinosaur') return (a.myCreature || 'Unknown').localeCompare(b.myCreature || 'Unknown');
+    return 0;
+  });
 
   const filtered = sortedEncounters.filter(e => {
     const textToSearch = `${e.opponent} ${e.location} ${e.myCreature}`.toLowerCase();
     const matchesSearch = textToSearch.includes(searchTerm);
     
-    // Handle the generic "Defeat" filter to catch all death types
+    // Outcome Filter
     let matchesFilter = false;
     if (filter === 'all') matchesFilter = true;
     else if (filter === 'Defeat' && e.outcome.includes('Defeat')) matchesFilter = true;
     else if (e.outcome === filter) matchesFilter = true;
     
-    return matchesSearch && matchesFilter;
+    // My Dinosaur Filter (Isolated Stats)
+    const matchesCreature = creatureFilter === 'all' || e.myCreature === creatureFilter;
+    
+    return matchesSearch && matchesFilter && matchesCreature;
   });
 
   if (filtered.length === 0) {
@@ -193,7 +214,10 @@ const renderList = () => {
           <strong style="font-size: 1.05em; color: ${color};">${icon} vs ${enc.opponent || 'Unknown'}</strong>
           <span style="font-size: 0.75em; color: var(--muted);">${enc.date ? new Date(enc.date).toLocaleDateString() : ''}</span>
         </div>
-        <span style="font-size: 0.85em; color: var(--muted); margin-top: 4px;">📍 ${enc.location || 'Unknown Location'}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+          <span style="font-size: 0.85em; color: var(--muted);">📍 ${enc.location || 'Unknown Location'}</span>
+          <span style="font-size: 0.85em; color: var(--primary); font-weight: bold;">${enc.myCreature || ''}</span>
+        </div>
       </div>
     `;
     
@@ -221,6 +245,7 @@ const saveEncounter = async () => {
   
   currentEncounterId = data.id;
   renderList();
+  updateDashboard();
   showToast('Encounter Logged Successfully.');
 };
 
@@ -272,7 +297,13 @@ const handleQuickLog = async (outcomeType) => {
 
 // --- Chart.js Analytics Engine ---
 const updateDashboard = () => {
-  const encs = db.encounters || [];
+  let encs = db.encounters || [];
+  
+  // Apply "My Dinosaur" Filter to isolate stats
+  const creatureFilter = elements.creatureFilter ? elements.creatureFilter.value : 'all';
+  if (creatureFilter !== 'all') {
+    encs = encs.filter(e => e.myCreature === creatureFilter);
+  }
   
   // 1. Core Top-Line Stats
   const total = encs.length;
@@ -308,125 +339,170 @@ const updateDashboard = () => {
 
   // --- CHART: Outcome Ratio (Doughnut) ---
   if (charts.outcome) charts.outcome.destroy();
-  const ctxOutcome = document.getElementById('outcomeChart').getContext('2d');
-  charts.outcome = new Chart(ctxOutcome, {
-    type: 'doughnut',
-    data: {
-      labels: ['Victories', 'Defeats', 'Draws'],
-      datasets: [{
-        data: [kills, deaths, draws],
-        backgroundColor: ['#10b981', '#ef4444', '#3b82f6'], // Success, Danger, Info
-        borderWidth: 0,
-        hoverOffset: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom' }
+  const ctxOutcome = document.getElementById('outcomeChart')?.getContext('2d');
+  if (ctxOutcome) {
+    charts.outcome = new Chart(ctxOutcome, {
+      type: 'doughnut',
+      data: {
+        labels: ['Victories', 'Defeats', 'Draws'],
+        datasets: [{
+          data: [kills, deaths, draws],
+          backgroundColor: ['#10b981', '#ef4444', '#3b82f6'], // Success, Danger, Info
+          borderWidth: 0,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
       }
-    }
-  });
+    });
+  }
 
   // --- CHART: Cause of Death (Pie) ---
   if (charts.cod) charts.cod.destroy();
-  const ctxCod = document.getElementById('codChart').getContext('2d');
-  
-  const pvpDeaths = encs.filter(e => e.outcome === 'Defeat (PvP)').length;
-  const starveDeaths = encs.filter(e => e.outcome === 'Defeat (Starvation)').length;
-  const thirstDeaths = encs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
-  const envDeaths = encs.filter(e => e.outcome === 'Defeat (Environment)').length;
+  const ctxCod = document.getElementById('codChart')?.getContext('2d');
+  if (ctxCod) {
+    const pvpDeaths = encs.filter(e => e.outcome === 'Defeat (PvP)').length;
+    const starveDeaths = encs.filter(e => e.outcome === 'Defeat (Starvation)').length;
+    const thirstDeaths = encs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
+    const envDeaths = encs.filter(e => e.outcome === 'Defeat (Environment)').length;
 
-  charts.cod = new Chart(ctxCod, {
-    type: 'pie',
-    data: {
-      labels: ['PvP', 'Starvation', 'Dehydration', 'Environment'],
-      datasets: [{
-        data: [pvpDeaths, starveDeaths, thirstDeaths, envDeaths],
-        backgroundColor: ['#ef4444', '#eab308', '#3b82f6', '#8b5cf6'],
-        borderWidth: 0,
-        hoverOffset: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'right' }
+    charts.cod = new Chart(ctxCod, {
+      type: 'pie',
+      data: {
+        labels: ['PvP', 'Starvation', 'Dehydration', 'Environment'],
+        datasets: [{
+          data: [pvpDeaths, starveDeaths, thirstDeaths, envDeaths],
+          backgroundColor: ['#ef4444', '#eab308', '#3b82f6', '#8b5cf6'],
+          borderWidth: 0,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right' }
+        }
       }
-    }
-  });
+    });
+  }
 
   // --- CHART: Fatalities by Location (Bar) ---
   if (charts.location) charts.location.destroy();
-  const ctxLocation = document.getElementById('locationChart').getContext('2d');
-  
-  // Sort locations by death count
-  const sortedDeathLocs = Object.entries(deathLocations)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5); // Top 5
+  const ctxLocation = document.getElementById('locationChart')?.getContext('2d');
+  if (ctxLocation) {
+    // Sort locations by death count
+    const sortedDeathLocs = Object.entries(deathLocations)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5); // Top 5
 
-  charts.location = new Chart(ctxLocation, {
-    type: 'bar',
-    data: {
-      labels: sortedDeathLocs.map(l => l[0]),
-      datasets: [{
-        label: 'Deaths',
-        data: sortedDeathLocs.map(l => l[1]),
-        backgroundColor: '#ef4444',
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+    charts.location = new Chart(ctxLocation, {
+      type: 'bar',
+      data: {
+        labels: sortedDeathLocs.map(l => l[0]),
+        datasets: [{
+          label: 'Deaths',
+          data: sortedDeathLocs.map(l => l[1]),
+          backgroundColor: '#ef4444',
+          borderRadius: 4
+        }]
       },
-      plugins: {
-        legend: { display: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
       }
-    }
-  });
+    });
+  }
 
   // --- CHART: Most Hunted Species (Bar) ---
   if (charts.hunted) charts.hunted.destroy();
-  const ctxHunted = document.getElementById('huntedChart').getContext('2d');
-  
-  const huntedSpecies = {};
-  encs.filter(e => e.outcome.includes('Victory')).forEach(e => {
-    const opp = e.opponent || 'Unknown';
-    huntedSpecies[opp] = (huntedSpecies[opp] || 0) + 1;
-  });
+  const ctxHunted = document.getElementById('huntedChart')?.getContext('2d');
+  if (ctxHunted) {
+    const huntedSpecies = {};
+    encs.filter(e => e.outcome.includes('Victory')).forEach(e => {
+      const opp = e.opponent || 'Unknown';
+      huntedSpecies[opp] = (huntedSpecies[opp] || 0) + 1;
+    });
 
-  const sortedHunted = Object.entries(huntedSpecies)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5); // Top 5
+    const sortedHunted = Object.entries(huntedSpecies)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5); // Top 5
 
-  charts.hunted = new Chart(ctxHunted, {
-    type: 'bar',
-    data: {
-      labels: sortedHunted.map(h => h[0]),
-      datasets: [{
-        label: 'Kills',
-        data: sortedHunted.map(h => h[1]),
-        backgroundColor: '#10b981',
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      indexAxis: 'y', // Makes it a horizontal bar chart
-      scales: {
-        x: { beginAtZero: true, ticks: { stepSize: 1 } }
+    charts.hunted = new Chart(ctxHunted, {
+      type: 'bar',
+      data: {
+        labels: sortedHunted.map(h => h[0]),
+        datasets: [{
+          label: 'Kills',
+          data: sortedHunted.map(h => h[1]),
+          backgroundColor: '#10b981',
+          borderRadius: 4
+        }]
       },
-      plugins: {
-        legend: { display: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y', // Makes it a horizontal bar chart
+        scales: {
+          x: { beginAtZero: true, ticks: { stepSize: 1 } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
       }
-    }
-  });
+    });
+  }
+
+  // --- CHART: Deployments by Dinosaur (Bar) - Total Counts ---
+  if (charts.myDinos) charts.myDinos.destroy();
+  const ctxMyDinos = document.getElementById('myDinosChart')?.getContext('2d');
+  if (ctxMyDinos) {
+    const dinoCounts = {};
+    // For this specific chart, we use the UNFILTERED full database to show total counts across all dinos
+    const fullEncs = db.encounters || [];
+    fullEncs.forEach(e => {
+      const dino = e.myCreature || 'Unknown';
+      dinoCounts[dino] = (dinoCounts[dino] || 0) + 1;
+    });
+
+    const sortedDinos = Object.entries(dinoCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    charts.myDinos = new Chart(ctxMyDinos, {
+      type: 'bar',
+      data: {
+        labels: sortedDinos.map(d => d[0]),
+        datasets: [{
+          label: 'Deployments',
+          data: sortedDinos.map(d => d[1]),
+          backgroundColor: '#8b5cf6', // Accent Purple
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
 };
 
 // --- Initialization ---
@@ -447,7 +523,9 @@ const init = async () => {
 
   // Bind Listeners
   elements.search.addEventListener('input', renderList);
-  elements.filter.addEventListener('change', renderList);
+  elements.filter.addEventListener('change', () => { renderList(); updateDashboard(); });
+  if (elements.creatureFilter) elements.creatureFilter.addEventListener('change', () => { renderList(); updateDashboard(); });
+  if (elements.sortFilter) elements.sortFilter.addEventListener('change', renderList);
   
   elements.dashBtn.addEventListener('click', () => {
     currentEncounterId = null;
