@@ -3,7 +3,8 @@
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
 let pendingPin = null; 
-let syncPendingPin = null; // Used for the image snip radar
+let syncPendingPin = null; 
+let editingPinId = null; // Track if we are editing an existing pin
 
 // Navigation Engine State
 let scale = 1;
@@ -37,6 +38,7 @@ const elements = {
   
   // Deploy Pin Modal
   modal: document.getElementById('pinModal'),
+  modalTitle: document.getElementById('pinModalTitle'), // Added for Edit Mode
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
   saveBtn: document.getElementById('savePinBtn'),
@@ -44,7 +46,7 @@ const elements = {
 
   // Sync Radar Modal
   syncModal: document.getElementById('syncModal'),
-  snipContainer: document.getElementById('snipContainer'), // Added to fix click target
+  snipContainer: document.getElementById('snipContainer'),
   snipImageDisplay: document.getElementById('snipImageDisplay'),
   snipCrosshair: document.getElementById('snipCrosshair'),
   confirmSyncBtn: document.getElementById('confirmSyncBtn'),
@@ -74,7 +76,7 @@ elements.mapWindow.addEventListener('wheel', (e) => {
   e.preventDefault();
   const zoomSensitivity = 0.15;
   const delta = e.deltaY < 0 ? zoomSensitivity : -zoomSensitivity;
-  let newScale = Math.max(0.5, Math.min(scale + delta, 6)); // Limit zoom 0.5x to 6x
+  let newScale = Math.max(0.5, Math.min(scale + delta, 6)); 
   
   const rect = elements.mapWindow.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -135,24 +137,20 @@ const handleImageUpload = (file) => {
   reader.onload = (e) => {
     elements.snipImageDisplay.src = e.target.result;
     elements.syncModal.classList.remove('is-hidden');
-    elements.snipCrosshair.classList.add('is-hidden'); // Hide crosshair until clicked
+    elements.snipCrosshair.classList.add('is-hidden');
     syncPendingPin = null;
     showToast("Snip acquired. Awaiting manual radar calibration.", "info");
   };
   reader.readAsDataURL(file);
 };
 
-// 1. Upload via Button
 elements.uploadSnipInput.addEventListener('change', (e) => {
   if (e.target.files.length > 0) handleImageUpload(e.target.files[0]);
-  e.target.value = ''; // Reset input
+  e.target.value = ''; 
 });
 
-// 2. Upload via Global Paste (Ctrl+V)
 window.addEventListener('paste', (e) => {
-  // Do not intercept paste if the user is typing in a text box
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-  
   const items = (e.clipboardData || e.originalEvent.clipboardData).items;
   for (let item of items) {
     if (item.kind === 'file' && item.type.startsWith('image/')) {
@@ -162,40 +160,53 @@ window.addEventListener('paste', (e) => {
   }
 });
 
-// 3. Radar Calibration (Clicking the Snip container)
-// We listen on the container because the image itself has pointer-events: none in CSS
+// Radar Calibration with Aspect Ratio Correction
 elements.snipContainer.addEventListener('click', (e) => {
   const rect = elements.snipImageDisplay.getBoundingClientRect();
-  
-  // Calculate precise percentage of the click relative to the image
-  const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-  const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+  let xPercent, yPercent;
+
+  // The base app map is square (1:1). If the user uploads a widescreen screenshot (16:9),
+  // we must ignore the extra ocean on the sides and calculate relative to the center square.
+  if (rect.width > rect.height) {
+    const mapSize = rect.height; // Assume the playable map fits cleanly in the vertical bounds
+    const xOffset = (rect.width - mapSize) / 2; // Calculate the blank space on the left
+    
+    // Adjust the click X coordinate by removing the left offset
+    const adjustedX = e.clientX - rect.left - xOffset;
+    
+    xPercent = (adjustedX / mapSize) * 100;
+    yPercent = ((e.clientY - rect.top) / mapSize) * 100;
+  } else {
+    // Fallback for square crops
+    xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+    yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+  }
 
   syncPendingPin = { x: xPercent, y: yPercent };
 
-  // Move visual crosshair
-  elements.snipCrosshair.style.left = `${xPercent}%`;
-  elements.snipCrosshair.style.top = `${yPercent}%`;
+  // Place visual crosshair using raw visual percentages so it maps correctly to the user's click
+  const visualXPercent = ((e.clientX - rect.left) / rect.width) * 100;
+  const visualYPercent = ((e.clientY - rect.top) / rect.height) * 100;
+  
+  elements.snipCrosshair.style.left = `${visualXPercent}%`;
+  elements.snipCrosshair.style.top = `${visualYPercent}%`;
   elements.snipCrosshair.classList.remove('is-hidden');
 });
 
-// 4. Confirm Sync
 elements.confirmSyncBtn.addEventListener('click', () => {
   if (!syncPendingPin) {
     showToast("Commander, you must click your location on the map snip first.", "error");
     return;
   }
-  
-  // Close Sync Radar, Open Deploy Marker Form
   elements.syncModal.classList.add('is-hidden');
-  
   pendingPin = { x: syncPendingPin.x, y: syncPendingPin.y };
+  
+  if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
   elements.newPinLabel.value = '';
   elements.modal.classList.remove('is-hidden');
   elements.newPinLabel.focus();
 });
 
-// 5. Abort Sync
 elements.cancelSyncBtn.addEventListener('click', () => {
   elements.syncModal.classList.add('is-hidden');
   syncPendingPin = null;
@@ -223,7 +234,6 @@ const renderPins = () => {
     return;
   }
 
-  // Sort newest first
   const sortedPins = [...filteredPins].sort((a, b) => b.timestamp - a.timestamp);
 
   sortedPins.forEach(pin => {
@@ -232,12 +242,49 @@ const renderPins = () => {
     mapMarker.className = 'map-pin';
     mapMarker.style.left = `${pin.x}%`;
     mapMarker.style.top = `${pin.y}%`;
+    mapMarker.title = "Drag to reposition, Right-click to delete.";
     mapMarker.innerHTML = `
       ${pin.type}
       <div class="pin-label">${pin.label || 'Marker'}</div>
     `;
     
-    // Quick delete from map directly via right-click
+    // Drag & Drop Map Marker Logic
+    mapMarker.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // Only trigger on left-click
+      e.stopPropagation(); // Prevent panning the map
+      let isDraggingPin = true;
+      const mapRect = elements.mapImage.getBoundingClientRect();
+
+      const onMouseMove = (moveEvent) => {
+        if (!isDraggingPin) return;
+        // Calculate new X/Y relative to the scaled map boundaries
+        let xPercent = ((moveEvent.clientX - mapRect.left) / mapRect.width) * 100;
+        let yPercent = ((moveEvent.clientY - mapRect.top) / mapRect.height) * 100;
+        
+        // Clamp inside map boundaries
+        xPercent = Math.max(0, Math.min(xPercent, 100));
+        yPercent = Math.max(0, Math.min(yPercent, 100));
+        
+        mapMarker.style.left = `${xPercent}%`;
+        mapMarker.style.top = `${yPercent}%`;
+        
+        pin.x = xPercent;
+        pin.y = yPercent;
+      };
+
+      const onMouseUp = async () => {
+        if (!isDraggingPin) return;
+        isDraggingPin = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        await EAHADataStore.saveData(db); // Save new position silently
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Delete via Right-Click
     mapMarker.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
@@ -258,28 +305,38 @@ const renderPins = () => {
       <div style="display: flex; flex-direction: column; width: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <strong style="font-size: 1.05em; color: var(--text);">${pin.type} ${pin.label || 'Unnamed Marker'}</strong>
-          <button class="btn btn-ghost btn-sm delete-pin-btn" style="color: var(--danger); border-color: transparent; padding: 4px 8px;">✕</button>
+          <div style="display: flex; gap: 5px;">
+            <button class="btn btn-ghost btn-sm edit-pin-btn" style="color: var(--primary); border-color: transparent; padding: 4px 8px;" title="Edit Marker">✎</button>
+            <button class="btn btn-ghost btn-sm delete-pin-btn" style="color: var(--danger); border-color: transparent; padding: 4px 8px;" title="Delete Marker">✕</button>
+          </div>
         </div>
         <span class="muted" style="font-size: 0.75em;">${new Date(pin.timestamp).toLocaleString()}</span>
       </div>
     `;
     
-    // Click to jump/center map on this pin
+    // Jump to Pin Location
     listItem.addEventListener('click', (e) => {
-      if (e.target.closest('.delete-pin-btn')) return;
+      if (e.target.closest('.delete-pin-btn') || e.target.closest('.edit-pin-btn')) return;
       
       const rect = elements.mapWindow.getBoundingClientRect();
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
-      
       const imgRect = elements.mapImage.getBoundingClientRect();
       const targetX = (pin.x / 100) * (imgRect.width / scale);
       const targetY = (pin.y / 100) * (imgRect.height / scale);
 
       translateX = centerX - (targetX * scale);
       translateY = centerY - (targetY * scale);
-      
       updateTransform();
+    });
+
+    // Edit Action
+    listItem.querySelector('.edit-pin-btn').addEventListener('click', () => {
+      editingPinId = pin.id;
+      if (elements.modalTitle) elements.modalTitle.textContent = "Edit Tactical Marker";
+      elements.newPinType.value = pin.type;
+      elements.newPinLabel.value = pin.label;
+      elements.modal.classList.remove('is-hidden');
     });
 
     // Delete Action
@@ -306,6 +363,7 @@ elements.mapImage.addEventListener('click', (e) => {
 
   pendingPin = { x: xPercent, y: yPercent };
   
+  if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
   elements.newPinLabel.value = '';
   elements.modal.classList.remove('is-hidden');
   elements.newPinLabel.focus();
@@ -314,32 +372,41 @@ elements.mapImage.addEventListener('click', (e) => {
 // --- Modal Logic (Saving the Pin) ---
 const closeModal = () => {
   pendingPin = null;
+  editingPinId = null; // Clear edit tracking
   elements.modal.classList.add('is-hidden');
-  setMode('pan'); // Auto-switch back to navigation after dropping a pin or canceling
+  setMode('pan'); 
 };
 
 elements.cancelBtn.addEventListener('click', closeModal);
 
 elements.saveBtn.addEventListener('click', async () => {
-  if (!pendingPin) return;
-
-  const newMarker = {
-    id: generateId(),
-    type: elements.newPinType.value,
-    label: elements.newPinLabel.value.trim() || 'Tactical Marker',
-    x: pendingPin.x,
-    y: pendingPin.y,
-    timestamp: Date.now()
-  };
-
   if (!db.pins) db.pins = [];
-  db.pins.push(newMarker);
+
+  if (editingPinId) {
+    // Edit Existing Marker
+    const pin = db.pins.find(p => p.id === editingPinId);
+    if (pin) {
+      pin.type = elements.newPinType.value;
+      pin.label = elements.newPinLabel.value.trim() || 'Tactical Marker';
+    }
+  } else {
+    // Save New Marker
+    if (!pendingPin) return;
+    const newMarker = {
+      id: generateId(),
+      type: elements.newPinType.value,
+      label: elements.newPinLabel.value.trim() || 'Tactical Marker',
+      x: pendingPin.x,
+      y: pendingPin.y,
+      timestamp: Date.now()
+    };
+    db.pins.push(newMarker);
+  }
   
   await EAHADataStore.saveData(db);
-  
   closeModal();
   renderPins();
-  showToast('Marker deployed successfully.');
+  showToast(editingPinId ? 'Marker updated successfully.' : 'Marker deployed successfully.');
 });
 
 elements.newPinLabel.addEventListener('keypress', (e) => {
