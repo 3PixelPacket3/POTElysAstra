@@ -36,11 +36,52 @@ const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
+  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
 const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
 const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
+
+// Matrix Helpers
+const getStatArray = (valStr) => {
+  if (!valStr) return [0, 0, 0, 0, 0];
+  const parts = String(valStr).split(',').map(s => parseFloat(s.trim()));
+  while (parts.length < 5) parts.push(parts[parts.length - 1] || 0);
+  return parts;
+};
+
+const getAdultStat = (valStr) => {
+  if (!valStr) return '-';
+  const parts = String(valStr).split(',');
+  return parts[parts.length - 1].trim(); 
+};
+
+// Arsenal Parser for Dashboard
+const getAllAttacks = (dino, stageIndex = 4) => {
+  const attacks = [];
+  const customStats = dino.stats?.custom || [];
+
+  customStats.forEach(stat => {
+    const lowerName = stat.name.toLowerCase();
+    if (lowerName.includes('damage') && !lowerName.includes('debuff') && !lowerName.includes('multiplier') && !lowerName.includes('buff')) {
+      const baseDmg = getStatArray(stat.value)[stageIndex];
+      if (baseDmg > 0) {
+        const prefix = stat.name.replace('Damage', '');
+        const cdStat = customStats.find(s => s.name.toLowerCase() === `${prefix.toLowerCase()}cooldown`);
+        const cd = cdStat ? getStatArray(cdStat.value)[stageIndex] : 1.5; 
+
+        const dps = (baseDmg / cd).toFixed(1);
+        const displayName = stat.name.replace('Damage', '') || 'Base Attack';
+
+        attacks.push({ name: displayName, baseDmg, cd, dps });
+      }
+    }
+  });
+  
+  return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
+};
 
 // Get the currently active lifeline, or create one if it doesn't exist
 const getActiveLifeline = () => {
@@ -77,13 +118,12 @@ const populateCreatureDropdown = () => {
   }
 
   select.disabled = false;
-  
-  // Add default placeholder option
   select.appendChild(new Option("-- Select Active Dinosaur --", "none"));
   
-  db.creatures.forEach(c => select.appendChild(new Option(c.name, c.id)));
+  // Sort alphabetically for easy finding
+  const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+  sorted.forEach(c => select.appendChild(new Option(c.name, c.id)));
   
-  // Restore last active, or default to the placeholder
   const savedActive = localStorage.getItem(ACTIVE_CREA_KEY);
   if (savedActive && db.creatures.find(c => c.id === savedActive)) {
     activeCreatureId = savedActive;
@@ -93,7 +133,6 @@ const populateCreatureDropdown = () => {
   
   select.value = activeCreatureId;
   
-  // Force a UI update on initial load to match the selection
   updateBriefingPanel();
   updateVitalsUI();
   updateElderingUI();
@@ -107,7 +146,7 @@ const populateCreatureDropdown = () => {
     updateElderingUI();
     syncExactVitals(); 
     if(activeCreatureId !== 'none') {
-      showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
+      showToast(`Lifeline Sync Engaged: Tracking ${select.options[select.selectedIndex].text}`);
     }
   });
 };
@@ -128,25 +167,41 @@ const updateBriefingPanel = () => {
 
   nameEl.textContent = creature.name;
   
-  const health = creature.stats?.base?.health || "N/A";
-  const weight = creature.stats?.base?.combatWeight || "N/A";
-  const speed = creature.stats?.base?.speed || "N/A";
+  // Extract Clean Adult Stats
+  const health = getAdultStat(creature.stats?.base?.health);
+  const weight = getAdultStat(creature.stats?.base?.combatWeight);
+  const speed = getAdultStat(creature.stats?.base?.speed);
+  const armor = getAdultStat(creature.stats?.base?.armor) || 1;
   
-  // Extracting Diet and Habitat directly from the creature's profile
+  // Extract Arsenal
+  const arsenal = getAllAttacks(creature, 4);
+  let arsenalHtml = '';
+  if (arsenal.length > 0) {
+    const primaryAtk = arsenal[0];
+    arsenalHtml = `
+      <div style="background: color-mix(in srgb, var(--danger) 10%, transparent); padding: 8px; border-radius: 8px; border: 1px solid var(--danger); margin-top: 10px; font-size: 0.9em;">
+        <strong style="color: var(--danger); display: block; margin-bottom: 2px;">Primary Arsenal (Adult)</strong>
+        <span style="color: var(--text);"><strong>${primaryAtk.name}:</strong> ${primaryAtk.baseDmg} Base Dmg | <span style="color: #10b981;">${primaryAtk.dps} DPS</span></span>
+      </div>
+    `;
+  }
+
   const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
   const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
   
   statsEl.innerHTML = `
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Health: ${health}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Weight: ${weight}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Speed: ${speed}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">${creature.tier || 'Unknown Tier'}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);" title="Adult Health">HP: ${health}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);" title="Adult Combat Weight">CW: ${weight}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);" title="Adult Armor">Armor: ${armor}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);" title="Adult Speed">Speed: ${speed}</span>
+      <span style="background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--primary);">${creature.tier || 'Unknown Tier'}</span>
     </div>
     <div style="display: flex; flex-direction: column; gap: 5px; font-size: 0.95em; width: 100%;">
       <div><strong style="color: var(--muted);">Diet:</strong> ${diet}</div>
       <div><strong style="color: var(--muted);">Habitats:</strong> ${habitat}</div>
     </div>
+    ${arsenalHtml}
   `;
 
   const upkeepText = creature.upkeep ? creature.upkeep : "No specific upkeep tasks documented for this creature. Perform standard shaking/mud rolling to avoid command abuse.";
@@ -263,7 +318,6 @@ const updateElderingUI = () => {
 const updateTimerDisplay = () => {
   const display = document.getElementById('timerDisplay');
   
-  // Dynamic proportional drain based on snapshot values
   if (decayEndTime && exactVitals.comfort !== null) {
     exactVitals.comfort = Math.max(0, exactVitals.comfort - drainRates.comfort);
     exactVitals.hygiene = Math.max(0, exactVitals.hygiene - drainRates.hygiene);
@@ -299,7 +353,7 @@ const updateTimerDisplay = () => {
     display.style.color = "var(--danger)";
     showToast("⚠️ Decay Timer Complete! Check your Vitals.", "error");
     if (Notification.permission === "granted") {
-      new Notification("Elys Astra Helper", { body: "Your Upkeep Decay Timer has reached zero. Check your vitals!" });
+      new Notification("EAHA Tactical Alert", { body: "Your Upkeep Decay Timer has reached zero. Check your vitals immediately!" });
     }
   }
 };
@@ -314,7 +368,6 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
   const totalSeconds = mins * 60;
   syncExactVitals(); 
   
-  // Calculate unique drain rate for each vital so they all hit 0 exactly when the timer ends
   drainRates = {
     comfort: exactVitals.comfort / totalSeconds,
     hygiene: exactVitals.hygiene / totalSeconds,
@@ -438,6 +491,22 @@ const updateDateTime = () => {
   document.getElementById('homeDate').textContent = new Intl.DateTimeFormat(undefined, optionsDate).format(now);
 };
 
+// --- Quick Logger (Combat) Logic ---
+const saveEncounter = async (type) => {
+  if (!db.encounters) db.encounters = [];
+  
+  const event = {
+    id: 'enc_' + Math.random().toString(36).substr(2, 9),
+    type: type,
+    creatureId: activeCreatureId,
+    timestamp: Date.now()
+  };
+  
+  db.encounters.push(event);
+  await EAHADataStore.saveData(db);
+  showToast(`${type} logged successfully.`);
+};
+
 // --- Boot Sequence ---
 const init = async () => {
   if (typeof EAHADataStore !== 'undefined') {
@@ -446,7 +515,15 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing or not loaded.");
   }
 
-  // Populate UI before setting up listeners
+  // Bind Quick Log Buttons
+  const logWinBtn = document.getElementById('logWinBtn');
+  const logLossBtn = document.getElementById('logLossBtn');
+  const logStarveBtn = document.getElementById('logStarveBtn');
+  
+  if (logWinBtn) logWinBtn.addEventListener('click', () => saveEncounter('win'));
+  if (logLossBtn) logLossBtn.addEventListener('click', () => saveEncounter('loss'));
+  if (logStarveBtn) logStarveBtn.addEventListener('click', () => saveEncounter('starved'));
+
   populateCreatureDropdown();
   
   populateTimeZones();
