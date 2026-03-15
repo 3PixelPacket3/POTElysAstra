@@ -6,11 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
   <style>
-    /* Map Window & Overlay Styles - INCREASED SIZE */
     .map-window {
       position: relative;
       width: 100%;
-      height: 80vh; /* Increased from 65vh to make the map significantly larger */
+      height: 80vh; 
       min-height: 600px;
       border-radius: 12px;
       overflow: hidden;
@@ -19,7 +18,8 @@
       cursor: grab;
     }
     .map-window.pin-mode { cursor: crosshair; }
-    .map-window:active:not(.pin-mode) { cursor: grabbing; }
+    .map-window.route-mode { cursor: crosshair; }
+    .map-window:active:not(.pin-mode):not(.route-mode) { cursor: grabbing; }
     
     .map-transform {
       position: absolute;
@@ -38,10 +38,21 @@
       -webkit-user-drag: none;
     }
 
+    /* Route Vector Layer */
+    .route-layer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; /* Let clicks pass through to the mapImage */
+      z-index: 2;
+    }
+
+    /* Pin Layer */
     #pinLayer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; 
+      z-index: 3;
     }
 
     .map-pin {
@@ -52,7 +63,6 @@
       pointer-events: auto; 
       transition: filter 0.2s ease;
       filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
-      z-index: 5;
     }
     .map-pin:hover {
       filter: drop-shadow(0px 4px 8px rgba(0,0,0,1)) brightness(1.2);
@@ -170,30 +180,42 @@
 
   <main class="page builder-workspace">
     
-    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
-      <h2 style="font-size: 1.5em;">Reconnaissance</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Paste (Ctrl+V) a fully zoomed-out screenshot of your in-game map to sync your location automatically.</p>
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary); display: flex; flex-direction: column; gap: 20px;">
       
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+      <div>
+        <h2 style="font-size: 1.5em; margin-bottom: 5px;">Reconnaissance</h2>
+        <p class="muted" style="margin-bottom: 15px; font-size: 0.85em; line-height: 1.4;">Paste (Ctrl+V) an in-game map snip to sync your location automatically.</p>
         <input type="file" id="uploadSnipInput" accept="image/*" style="display: none;">
-        <label for="uploadSnipInput" class="btn full-width" style="text-align: center; cursor: pointer;">📸 Upload Map Snip</label>
+        <label for="uploadSnipInput" class="btn full-width" style="text-align: center; cursor: pointer; margin-bottom: 15px;">📸 Upload Map Snip</label>
         <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
-        <input type="text" id="pinSearch" placeholder="Search markers...">
-        <select id="pinFilter" class="full-width" style="cursor: pointer;">
-          <option value="all">All Markers</option>
-          <option value="👑">👑 PvP Kills</option>
-          <option value="💀">💀 PvP Deaths</option>
-          <option value="🥩">🥩 Food Sources</option>
-          <option value="💧">💧 Water Sources</option>
-          <option value="💎">💎 Homecaves / Waystones</option>
-          <option value="🌿">🌿 Rare Resources</option>
-          <option value="⚠️">⚠️ Danger Zones</option>
-        </select>
-        <button class="btn btn-ghost full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">Clear All Markers</button>
       </div>
-      
-      <div class="preset-list" id="pinList" style="display: flex; flex-direction: column; gap: 8px;">
+
+      <div style="flex: 1; display: flex; flex-direction: column; min-height: 200px;">
+        <h3 style="color: var(--text); margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Tactical Routes</h3>
+        <div class="preset-list" id="routeList" style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto;">
+          </div>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; min-height: 300px;">
+        <h3 style="color: var(--text); margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Map Markers</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+          <input type="text" id="pinSearch" placeholder="Search markers...">
+          <select id="pinFilter" class="full-width" style="cursor: pointer;">
+            <option value="all">All Markers</option>
+            <option value="👑">👑 PvP Kills</option>
+            <option value="💀">💀 PvP Deaths</option>
+            <option value="🥩">🥩 Food Sources</option>
+            <option value="💧">💧 Water Sources</option>
+            <option value="💎">💎 Homecaves / Waystones</option>
+            <option value="🌿">🌿 Rare Resources</option>
+            <option value="⚠️">⚠️ Danger Zones</option>
+          </select>
+          <button class="btn btn-ghost full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">Clear All Markers</button>
         </div>
+        <div class="preset-list" id="pinList" style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto;">
+          </div>
+      </div>
+
     </aside>
 
     <section class="editor-pane scrollable" style="flex: 2; display: flex; flex-direction: column;">
@@ -201,7 +223,8 @@
       <div class="map-toolbar">
         <div class="toolbar-group">
           <button id="modePanBtn" class="toolbar-btn active">🤚 Navigation</button>
-          <button id="modePinBtn" class="toolbar-btn">📍 Manual Marker</button>
+          <button id="modePinBtn" class="toolbar-btn">📍 Deploy Marker</button>
+          <button id="modeRouteBtn" class="toolbar-btn" style="color: #10b981;">🛤️ Draw Route</button>
         </div>
         <div class="toolbar-group">
           <button id="zoomOutBtn" class="toolbar-btn">🔍 -</button>
@@ -210,13 +233,26 @@
         </div>
       </div>
 
+      <div id="routeTools" class="is-hidden" style="display: flex; justify-content: space-between; align-items: center; background: color-mix(in srgb, #10b981 10%, var(--bg)); border: 1px solid #10b981; padding: 10px 15px; border-radius: 12px; margin-bottom: 15px;">
+        <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Route Editing Mode: Click to add waypoints. Right-click map to undo.</span>
+        <div style="display: flex; gap: 10px;">
+          <button id="saveRouteBtn" class="btn btn-sm" style="background: #10b981; border-color: #10b981; color: #fff;">Save Route</button>
+          <button id="cancelRouteBtn" class="btn btn-ghost btn-sm" style="color: var(--danger); border-color: transparent;">Cancel</button>
+        </div>
+      </div>
+
       <div class="map-window" id="mapWindow">
         <div class="map-transform" id="mapTransform">
           <img class="map-image" id="mapImage" src="https://preview.redd.it/gondwa-f-w-map-v12-17-v0-kii6vijomi6a1.jpg?width=1080&crop=smart&auto=webp&s=1d4cd8a9fa3342779693654195eb29ee258daaf9" alt="Gondwa Map">
+          
+          <svg class="route-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline id="activeRoutePolyline" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="8,4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+
           <div id="pinLayer"></div>
         </div>
       </div>
-      <p class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Scroll wheel to zoom. Click and drag to pan. <strong>Ctrl+V</strong> to paste map screenshot.</p>
+      <p class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Scroll wheel to zoom. Click and drag to pan.</p>
 
     </section>
   </main>
