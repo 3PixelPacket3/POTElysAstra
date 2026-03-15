@@ -17,7 +17,8 @@ const EAHADataStore = {
       if (!response.ok) throw new Error('Network response was not ok');
       const fullBackup = await response.json();
       
-      const strippedDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
+      // Added lineage and routes to the base array structure
+      const strippedDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
       
       if (fullBackup.database) {
         if (fullBackup.database.rules) strippedDb.rules = fullBackup.database.rules;
@@ -42,7 +43,8 @@ const EAHADataStore = {
 
     } catch (error) {
       console.error("Jarvis Error: Failed to load baseline JSON.json.", error);
-      return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
+      // Added lineage and routes to the base array structure fallback
+      return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
     }
   },
 
@@ -55,6 +57,10 @@ const EAHADataStore = {
       
       let localDb = await this.getData();
       let addedCount = 0;
+
+      // Ensure older databases get the new arrays patched in
+      if (!localDb.lineage) localDb.lineage = [];
+      if (!localDb.routes) localDb.routes = [];
 
       if (fullBackup.database) {
         // 1. Merge Rules (Official overrides local, adds new)
