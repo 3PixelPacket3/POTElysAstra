@@ -27,6 +27,17 @@ const templates = {
       checklist: { enabled: true, include: false, items: 'Add timezone', questions: 'Preferred playstyle?' }
     }
   },
+  nesting: {
+    name: 'Player: Nesting Request',
+    data: {
+      title: '🥚 Looking to Nest', channel: '#group-finder', tag: 'Nesting', roles: '', prefix: '',
+      sections: [
+        { id: generateId(), title: 'Nesting Details', subheading: '', body: 'Species: [Insert Dino]\nLocation: [Insert Habitat]\nAvailable Eggs: [Count]', bulletMode: 'bullet', enabled: true, dividerAbove: true, dividerBelow: false },
+        { id: generateId(), title: 'Requirements', subheading: '', body: 'Must share the same diet.\nMust stay in the local area to grow.', bulletMode: 'emoji', enabled: true, dividerAbove: false, dividerBelow: true }
+      ],
+      checklist: { enabled: true, include: false, items: 'Ensure local resources are adequate', questions: 'Are you bringing a waystone token?' }
+    }
+  },
   staff_announcement: {
     name: 'Admin: Official Announcement',
     data: {
@@ -128,18 +139,7 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// --- Cursor Tracking & Formatting Actions ---
-const bindFocusTracking = (inputEl) => {
-  inputEl.addEventListener('focus', (e) => activeTextarea = e.target);
-};
-
-const triggerInputUpdate = () => {
-  if(activeTextarea) {
-    activeTextarea.dispatchEvent(new Event('input'));
-    activeTextarea.focus();
-  }
-};
-
+// Insert text at cursor (for Emoji/Dividers)
 const insertAtCursor = (text) => {
   if (!activeTextarea) {
     showToast("Click inside a text box first to insert design elements.", "error");
@@ -150,9 +150,11 @@ const insertAtCursor = (text) => {
   const value = activeTextarea.value;
   activeTextarea.value = value.slice(0, start) + text + value.slice(end);
   activeTextarea.selectionStart = activeTextarea.selectionEnd = start + text.length;
-  triggerInputUpdate();
+  activeTextarea.dispatchEvent(new Event('input'));
+  activeTextarea.focus();
 };
 
+// Wrap selected text (for Discord formatting toolbar)
 const wrapTextForDiscord = (wrapper, prefix = null) => {
   if (!activeTextarea) return;
   const start = activeTextarea.selectionStart;
@@ -160,7 +162,7 @@ const wrapTextForDiscord = (wrapper, prefix = null) => {
   const value = activeTextarea.value;
   
   if (prefix) {
-    // Adds > or # to the beginning of the selection
+    // Blockquote logic (adds > to the beginning of the line)
     activeTextarea.value = value.slice(0, start) + prefix + value.slice(start, end) + value.slice(end);
     activeTextarea.selectionStart = activeTextarea.selectionEnd = end + prefix.length;
   } else {
@@ -169,7 +171,9 @@ const wrapTextForDiscord = (wrapper, prefix = null) => {
     activeTextarea.value = value.slice(0, start) + wrapper + selectedText + wrapper + value.slice(end);
     activeTextarea.selectionStart = activeTextarea.selectionEnd = end + (wrapper.length * 2);
   }
-  triggerInputUpdate();
+  
+  activeTextarea.dispatchEvent(new Event('input'));
+  activeTextarea.focus();
 };
 
 const applyUnicodeFont = (fontKey) => {
@@ -200,7 +204,8 @@ const applyUnicodeFont = (fontKey) => {
   activeTextarea.value = value.slice(0, start) + convertedText + value.slice(end);
   activeTextarea.selectionStart = start;
   activeTextarea.selectionEnd = start + convertedText.length;
-  triggerInputUpdate();
+  activeTextarea.dispatchEvent(new Event('input'));
+  activeTextarea.focus();
 };
 
 const sectionTemplate = () => ({
@@ -247,9 +252,11 @@ const renderSections = () => {
     `;
 
     // Bind inputs to state updates and active textarea tracking
-    wrapper.querySelectorAll('input[type="text"], textarea').forEach(bindFocusTracking);
-
     wrapper.querySelectorAll('input, textarea, select').forEach((input) => {
+      if (input.tagName.toLowerCase() === 'textarea' || input.type === 'text') {
+        input.addEventListener('focus', () => activeTextarea = input);
+      }
+      
       input.addEventListener('change', (e) => {
         section[e.target.dataset.field] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
         updatePreview();
@@ -436,36 +443,37 @@ const loadBaseTemplate = (key) => {
 
 // --- Initialization ---
 const init = () => {
+  // Populate Dropdowns
   Object.keys(templates).forEach(key => elements.templateSelect.appendChild(new Option(templates[key].name, key)));
   Object.keys(themes).forEach(key => elements.themeSelect.appendChild(new Option(themes[key].name, key)));
 
-  // Bind core text inputs for state tracking AND cursor focus tracking
+  // Bind core text inputs
   ['postTitle', 'postChannel', 'postTag', 'postRoles', 'postPrefix'].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('input', (e) => { state[id.replace('post', '').toLowerCase()] = e.target.value; updatePreview(); });
-    bindFocusTracking(el);
+    el.addEventListener('focus', (e) => activeTextarea = e.target);
   });
 
+  // Bind checklist inputs
   ['checklistEnabled', 'checklistInclude'].forEach(id => {
     document.getElementById(id).addEventListener('change', (e) => { state.checklist[id.replace('checklist', '').toLowerCase()] = e.target.checked; updatePreview(); });
   });
-  
   ['checklistItems', 'questionItems'].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('input', (e) => { state.checklist[id === 'checklistItems' ? 'items' : 'questions'] = e.target.value; updatePreview(); });
-    bindFocusTracking(el);
+    el.addEventListener('focus', (e) => activeTextarea = e.target);
   });
 
-  // Bind Format Buttons
+  // Bind Discord Formatting Toolbar
   document.querySelectorAll('.format-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      e.preventDefault();
+      e.preventDefault(); // Stop form submission
       if (btn.dataset.wrap) wrapTextForDiscord(btn.dataset.wrap);
       if (btn.dataset.prefix) wrapTextForDiscord('', btn.dataset.prefix);
     });
   });
 
-  // Bind Font Conversion Buttons
+  // Bind Unicode Font Buttons
   document.querySelectorAll('.font-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -503,6 +511,7 @@ const init = () => {
   elements.templateSelect.addEventListener('change', () => loadBaseTemplate(elements.templateSelect.value));
   elements.themeSelect.addEventListener('change', () => { state.theme = elements.themeSelect.value; updatePreview(); });
 
+  // Boot up with default template
   renderPresets();
   loadBaseTemplate('event');
 };
