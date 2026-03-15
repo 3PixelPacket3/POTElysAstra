@@ -33,11 +33,11 @@
         <input type="text" id="encounterSearch" placeholder="Search opponent, location...">
         <select id="outcomeFilter" class="full-width" style="cursor: pointer;">
           <option value="all">All Outcomes</option>
-          <option value="Victory">Victories (Kills)</option>
-          <option value="Defeat">Defeats (Deaths)</option>
-          <option value="Draw">Draws (Survived/Escaped)</option>
+          <option value="Victory (Kill)">Victories (Kills)</option>
+          <option value="Defeat">All Defeats</option>
+          <option value="Draw (Escaped)">Draws (Survived/Escaped)</option>
         </select>
-        <button class="btn full-width" id="addEncounterBtn">+ Log New Encounter</button>
+        <button class="btn full-width" id="addEncounterBtn">+ Log Detailed Encounter</button>
       </div>
       
       <div class="preset-list" id="encounterList" style="display: flex; flex-direction: column; gap: 8px;">
@@ -46,9 +46,24 @@
 
     <section class="editor-pane scrollable" style="flex: 2;">
       
-      <div id="analyticsDashboard" class="is-hidden">
-        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 20px;">
-          <h2 style="color: var(--primary); margin-bottom: 15px;">Tactical Overview</h2>
+      <div id="analyticsDashboard">
+        
+        <div class="card" style="box-shadow: none; border: 2px dashed var(--primary); background: color-mix(in srgb, var(--primary) 5%, var(--bg)); margin-bottom: 20px; padding: 15px 25px;">
+          <h3 style="color: var(--primary); margin-bottom: 10px; font-size: 1.1em;">⚡ Quick Log (Uses Active Dinosaur)</h3>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="quickOpponent" placeholder="Opponent/Species..." style="flex: 1; min-width: 150px;">
+            <input type="text" id="quickLocation" placeholder="Location..." style="flex: 1; min-width: 150px;">
+            <div style="display: flex; gap: 5px;">
+              <button class="btn btn-sm" id="quickWinBtn" style="background: var(--success); border-color: var(--success);" title="Victory">👑 Win</button>
+              <button class="btn btn-sm" id="quickLossBtn" style="background: var(--danger); border-color: var(--danger);" title="Defeat (PvP)">💀 PvP Death</button>
+              <button class="btn btn-sm" id="quickStarveBtn" style="background: #eab308; border-color: #eab308; color: #000;" title="Defeat (Starvation)">🍖 Starved</button>
+              <button class="btn btn-sm" id="quickThirstBtn" style="background: #3b82f6; border-color: #3b82f6;" title="Defeat (Dehydration)">💧 Thirst</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); margin-bottom: 20px;">
+          <h2 style="color: var(--text); margin-bottom: 15px;">Tactical Overview</h2>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
             <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
               <strong style="color: var(--muted);">Total Encounters</strong>
@@ -72,20 +87,24 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
           <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
             <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Outcome Ratio</h3>
-            <canvas id="outcomeChart" style="max-height: 250px;"></canvas>
+            <canvas id="outcomeChart" style="max-height: 220px;"></canvas>
+          </div>
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Cause of Death</h3>
+            <canvas id="codChart" style="max-height: 220px;"></canvas>
           </div>
           <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
             <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Fatalities by Location</h3>
-            <canvas id="locationChart" style="max-height: 250px;"></canvas>
+            <canvas id="locationChart" style="max-height: 220px;"></canvas>
           </div>
-          <div class="card" style="box-shadow: none; border: 2px solid var(--border); grid-column: 1 / -1;">
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
             <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Most Hunted Species (Victories)</h3>
-            <canvas id="huntedChart" style="max-height: 250px;"></canvas>
+            <canvas id="huntedChart" style="max-height: 220px;"></canvas>
           </div>
         </div>
       </div>
 
-      <div id="encounterFormView">
+      <div id="encounterFormView" class="is-hidden">
         <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 20px;">
           <div class="card-header" style="margin-bottom: 15px;">
             <h2 style="margin: 0; color: var(--primary);">Encounter Details</h2>
@@ -95,11 +114,14 @@
           <div class="form-grid">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
               <label class="field">
-                <span>Outcome</span>
-                <select id="encOutcome" style="font-weight: bold;">
-                  <option value="Victory">Victory (Got the Kill)</option>
-                  <option value="Defeat">Defeat (Died)</option>
-                  <option value="Draw">Draw (Survived / Escaped)</option>
+                <span>Outcome / Reason</span>
+                <select id="encOutcome" style="font-weight: bold; cursor: pointer;">
+                  <option value="Victory (Kill)">👑 Victory (Killed Opponent)</option>
+                  <option value="Defeat (PvP)">💀 Defeat (Killed in PvP)</option>
+                  <option value="Defeat (Starvation)">🍖 Defeat (Starvation)</option>
+                  <option value="Defeat (Dehydration)">💧 Defeat (Dehydration)</option>
+                  <option value="Defeat (Environment)">⛰️ Defeat (Fall / Environment)</option>
+                  <option value="Draw (Escaped)">🏃 Draw (Survived / Escaped)</option>
                 </select>
               </label>
               <label class="field">
@@ -116,7 +138,7 @@
                 </select>
               </label>
               <label class="field">
-                <span>Opponent Species</span>
+                <span>Opponent Species (If Applicable)</span>
                 <input type="text" id="encOpponent" placeholder="e.g., Spinosaurus, Rex pack">
               </label>
             </div>
