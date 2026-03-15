@@ -100,7 +100,7 @@
           The Dashboard is your active survival HUD. It tracks your current session's vitals, milestones, and immediate tactical needs.
         </p>
         <ul>
-          <li><strong>Active Dinosaur Selection:</strong> Engaging the dropdown will pull your designated creature from the database. This automatically populates the dashboard with their specific Dietary needs, Habitats, and Upkeep tasks.</li>
+          <li><strong>Active Dinosaur Selection:</strong> Engaging the dropdown will pull your designated creature from the database. This automatically populates the dashboard with their specific Dietary needs, Habitats, Upkeep tasks, and their Adult Combat Arsenal (Base Damage and True DPS).</li>
           <li><strong>Vital Decay Timers:</strong> Enter a minute value (e.g., 60) and initialize the countdown. Your Comfort, Hygiene, and Satiation bars will simulate decay. Clicking <strong>Reset Timer</strong> pauses the countdown without erasing your current percentages, allowing you to manually adjust them after a successful mud roll or hunt.</li>
           <li><strong>Eldering Protocol:</strong> Log your successful migrations. The UI automatically tracks your progress toward the 16-migration Rebirth token threshold.</li>
           <li><strong>Quick Log:</strong> Instantly record a Victory, Defeat, or Starvation event. The engine automatically tags the event with your currently active dinosaur and files it into the Combat Analytics database.</li>
@@ -132,23 +132,43 @@
       <section id="combat" class="guide-section">
         <h2>4. Threat Assessor Engine & Sandbox</h2>
         <p>
-          The Stats page houses the application's most advanced mathematical algorithms, utilizing the data you provided via the Matrix Importer.
-        </p>
-        <h3>The Sandbox Calculator</h3>
-        <p>
-          Select a stat (e.g., Health) and input a percentage modifier (e.g., +15% for a Lone Survivor buff). The engine unpacks the creature's entire 5-stage growth array, calculates the buff simultaneously across all life stages, and outputs the brand-new matrix for you to copy.
+          The Stats tab houses the application's most advanced mathematical algorithms, serving as a dynamic battle simulator that mirrors the backend code of Path of Titans.
         </p>
 
-        <h3>Threat Assessment Simulator</h3>
+        <h3>The Sandbox Calculator</h3>
         <p>
-          Select an Attacker, a Defender, and their respective <strong>Growth Stages</strong>. The engine executes the following game-accurate combat simulation:
+          Select a stat (e.g., Health) and input a percentage modifier (e.g., +15% for a Lone Survivor buff). The engine unpacks the creature's entire 5-stage growth array, calculates the buff simultaneously across all life stages, and outputs the brand-new matrix.
+        </p>
+
+        <h3>Behind the Scenes: How the Threat Assessor Works</h3>
+        <p>
+          When you select an Attacker, a Defender, and their respective <strong>Growth Stages</strong> (Hatchling to Adult), the engine isolates the precise integer for that life stage from the matrix and executes the following game-accurate calculations:
         </p>
         <ol style="margin-left: 20px; line-height: 1.8; color: var(--text);">
-          <li><strong>Combat Weight Multiplier:</strong> It divides the Attacker's weight by the Defender's weight at the specified growth stage.</li>
-          <li><strong>Armor Deflection:</strong> It factors the Defender's base armor into the divisor.</li>
-          <li><strong>Damage Output:</strong> It scans the Attacker's matrix for a <code>BiteDamage</code> or <code>Damage</code> variable, multiplies it by the CW/Armor factor, and outputs the <strong>Exact Estimated HP</strong> removed per bite.</li>
-          <li><strong>Status Badges:</strong> The engine checks both fighters for active Bleed, Bonebreak, Venom, or Poison variables at their growth stage and flags the UI.</li>
-          <li><strong>Tactical Advice:</strong> Provides a readout comparing raw speed, stamina, and specific counter-tactics (e.g., warning you if the target possesses Bonebreak while you do not).</li>
+          <li>
+            <strong>Combat Weight & Armor Deflection:</strong><br>
+            <span class="muted">The absolute core of PoT math. The engine takes the Attacker's Weight, divides it by the Defender's Weight, and then factors in the Defender's Base Armor modifier. <em>Formula: (Attacker CW / Defender CW) / Defender Armor.</em> This generates the master Damage Multiplier (e.g. 150%).</span>
+          </li>
+          <li style="margin-top: 10px;">
+            <strong>The Arsenal Breakdown (True DPS Math):</strong><br>
+            <span class="muted">The simulator doesn't just look at one bite. It scans the Attacker's entire matrix for <em>any</em> variable containing "Damage" (e.g., <code>TailDamage</code>, <code>KickDamage</code>, <code>BiteDamage</code>). It then hunts for its matching cooldown (e.g., <code>TailCooldown</code>). It runs the Base Damage through the Combat Weight Multiplier to find the <strong>Estimated Hit HP</strong>, and then divides that by the Cooldown to give you the <strong>True DPS (Damage Per Second)</strong>. The results are sorted with the most lethal attacks at the top.</span>
+          </li>
+          <li style="margin-top: 10px;">
+            <strong>Sprint Endurance Engine:</strong><br>
+            <span class="muted">Stamina pools don't tell the whole story. The engine locates <code>Core.MaxStamina</code> and divides it by <code>StaminaSprintCostPerSecond</code>. This outputs the exact, real-world seconds a dinosaur can sprint before gassing out, allowing you to gauge if you can out-endure a pursuit.</span>
+          </li>
+          <li style="margin-top: 10px;">
+            <strong>Agility & Turn Radius Scanners:</strong><br>
+            <span class="muted">The engine checks <code>TurnRadiusMultiplier</code> for both combatants. If the Defender has a superior turn multiplier, it generates an Agility Warning to caution you against getting tail-ridden.</span>
+          </li>
+          <li style="margin-top: 10px;">
+            <strong>Status Effect Badges:</strong><br>
+            <span class="muted">The simulator looks for custom mechanics like <code>BleedAmount</code>, <code>BoneBreakChance</code>, <code>Venom</code>, or <code>Poison</code>. If these values are greater than 0 at the selected growth stage, it generates a visual threat badge on the dinosaur's card.</span>
+          </li>
+          <li style="margin-top: 10px;">
+            <strong>The Tactical Banner:</strong><br>
+            <span class="muted">Finally, the engine weighs your total DPS against your Combat Weight advantage, combining them into a final AI-generated tactical verdict (e.g., "OVERWHELMING ADVANTAGE" or "LETHAL THREAT").</span>
+          </li>
         </ol>
       </section>
 
@@ -204,8 +224,8 @@
         <p><strong>Q: The OCR Auto-Fill is extracting gibberish or merging words incorrectly.</strong><br>
         <span class="muted">A: The OCR engine reads raw pixel data. If your Discord screenshot contains complex background UI elements or reaction emojis, the engine will attempt to translate them into text. Crop your screenshot tightly around the text block before importing.</span></p>
 
-        <p><strong>Q: The Threat Assessor says "No primary bite damage found in matrix" for my attacker.</strong><br>
-        <span class="muted">A: The simulator hunts specifically for custom variables named <code>BiteDamage</code> or <code>Damage</code>. If your dinosaur uses a different primary attack name in the code (e.g., <code>PeckDamage</code> or <code>TailSlam</code>), the engine will not currently auto-calculate it for the "Estimated Hit" box.</span></p>
+        <p><strong>Q: The Threat Assessor says "No primary damage stats found in matrix."</strong><br>
+        <span class="muted">A: The simulator hunts specifically for custom variables containing the word <code>Damage</code>. If your dinosaur's imported code is missing those lines, or they are spelled differently in the server files without "Damage" in the title, the engine cannot auto-calculate the DPS.</span></p>
       </section>
 
     </section>
