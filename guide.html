@@ -30,7 +30,7 @@
       
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <a href="#welcome" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Welcome to EAHA</a>
-        <a href="#how-it-works" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">How Data Saving Works</a>
+        <a href="#how-it-works" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Data Storage & Safety</a>
         <a href="#modules" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Comprehensive Manual</a>
         <a href="#troubleshooting" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Troubleshooting</a>
       </div>
@@ -48,14 +48,15 @@
         </section>
 
         <section id="how-it-works" style="margin-bottom: 40px; background: var(--bg); padding: 25px; border-radius: 16px; border: 1px solid var(--border);">
-          <h2 style="color: var(--primary); margin-bottom: 15px;">⚠️ Crucial: How Data Saving Works</h2>
+          <h2 style="color: var(--primary); margin-bottom: 15px;">⚠️ Crucial: Data Storage & Updates</h2>
           <p style="margin-bottom: 15px; line-height: 1.6;">
-            EAHA operates <strong>100% offline</strong>. It does not connect to an external server or a cloud database. Instead, everything you type, create, or save is stored directly inside your browser's "Local Storage."
+            EAHA operates <strong>100% offline</strong>. Everything you type, create, or map is stored directly inside your browser's "Local Storage." If you clear your browser cache, you will lose your personal data. The <strong>JSON Backup</strong> tab is your command center for managing this.
           </p>
           <ul style="margin-left: 20px; line-height: 1.8; color: var(--muted);">
-            <li><strong>The Risk:</strong> If you clear your browser cache/cookies, or use an Incognito/Private window, your data will be permanently wiped.</li>
-            <li><strong>The Solution:</strong> You must regularly use the <strong>JSON Backup</strong> tab to export your data to a file on your computer.</li>
-            <li><strong>Cross-Device:</strong> To use your EAHA setup on your phone or another PC, export your JSON backup from your main computer, send it to your other device, and use the "Import" button.</li>
+            <li><strong style="color: var(--text);">Export Personal Backup:</strong> Downloads your entire application state (Rules, Maps, Combat Logs, Custom Stats) to a file. Do this frequently.</li>
+            <li><strong style="color: var(--text);">Import Personal Backup:</strong> Restores the application to your exact personal state from a previously downloaded file.</li>
+            <li><strong style="color: #10b981;">Check for App Updates (Merge):</strong> When server staff push a new update, click this. The system will download the newest official Rules and Creature Profiles and merge them into your app <em>without</em> deleting your personal map markers, custom stat tweaks, or combat logs.</li>
+            <li><strong style="color: var(--danger);">Factory Reset:</strong> Wipes all local browser data and rebuilds the app strictly from the official base file. This deletes your personal logs, so ensure you have exported a personal backup first.</li>
           </ul>
         </section>
 
@@ -69,8 +70,8 @@
               <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Your primary control center for active survival tracking.</p>
               <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
                 <li><strong>Active Dinosaur Selection:</strong> Upon loading, the dashboard defaults to an unassigned state. Use the dropdown to select a creature from your database to load its specific upkeep tasks, diets, and habitats.</li>
-                <li><strong>Vitals & Upkeep Timer:</strong> Track your Comfort, Hygiene, and Satiation. Enter a minute value and click "Start Decay" to have your vitals drain proportionally. Use the new <strong>Reset Timer</strong> button to safely halt the countdown without wiping your current vital percentages.</li>
-                <li><strong>Eldering Progress:</strong> Track your <code>!migrationbuff</code> milestones. The UI will update to show you the current stage (Young, Inexperienced, Experienced, Withering) and alert you when Rebirth tokens are unlocked at 16 migrations.</li>
+                <li><strong>Vitals & Upkeep Timer:</strong> Track your Comfort, Hygiene, and Satiation. Enter a minute value and click "Start Decay" to have your vitals drain proportionally. Use the <strong>Reset Timer</strong> button to safely halt the countdown without wiping your current vital percentages.</li>
+                <li><strong>Eldering Progress:</strong> Track your <code>!migrationbuff</code> milestones. The UI will update to show you the current stage and alert you when Rebirth tokens are unlocked at 16 migrations.</li>
                 <li><strong>Quick Commands:</strong> Click any command chip to instantly copy it to your clipboard. Toggle "Edit Mode" to delete commands, or use the input box to add new ones.</li>
               </ul>
             </div>
@@ -98,7 +99,8 @@
               <h3 style="color: var(--text); margin-bottom: 10px;">4. Creature Profiles & Stats</h3>
               <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Maintain detailed lore, biology, and statistical data for every dinosaur.</p>
               <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
-                <li><strong>Magic Auto-Fill (OCR):</strong> Drag and drop (or Ctrl+V) a screenshot of a creature's profile card from Discord. The AI will scan the image and automatically extract the Name, Tier, Diet, Habitats, and Upkeep tasks into the form.</li>
+                <li><strong>Magic Auto-Fill (OCR):</strong> Drag and drop (or Ctrl+V) a screenshot of a creature's profile card from Discord. The AI will scan the image, auto-crop the avatar to a perfect square, and automatically extract the Name, Tier, Diet, Habitats, Upkeep tasks, and Behavior Titles into the form.</li>
+                <li><strong>Custom Mechanics:</strong> Add customized stat fields (e.g., "Bleed Heal Rate" or "Bonebreak Resist") to any creature to track specialized mechanics.</li>
                 <li><strong>Stat Calculator:</strong> Navigate to the <strong>Stats</strong> tab to view a creature's base values. Use the Sandbox Calculator to safely test percentage buffs (e.g., +15% Health) without permanently altering the database.</li>
               </ul>
             </div>
@@ -109,8 +111,7 @@
               <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
                 <li><strong>Quick Logging:</strong> Use the lightning-fast Quick Log section on the dashboard to record a win, loss, or starvation event in one click. It automatically associates the event with your currently active dinosaur.</li>
                 <li><strong>Isolated Analytics:</strong> Use the "All My Dinosaurs" dropdown filter in the sidebar to isolate your dashboard charts. You can view exactly how many kills or deaths a specific dinosaur in your roster has accumulated.</li>
-                <li><strong>Advanced Sorting:</strong> Sort your extensive encounter list by Newest, Oldest, or alphabetically by Dinosaur.</li>
-                <li><strong>Total Deployments Chart:</strong> A dedicated bar chart tracks which dinosaurs you play (and die/kill with) the most.</li>
+                <li><strong>Deployments Chart:</strong> A dedicated bar chart tracks which dinosaurs you deploy (and die/kill with) the most across your entire roster.</li>
               </ul>
             </div>
 
@@ -119,8 +120,8 @@
               <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Interactive map of Gondwa for deploying tactical markers.</p>
               <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
                 <li><strong>Navigation:</strong> Scroll your mouse wheel to zoom in/out, and click-and-drag to pan across the map.</li>
-                <li><strong>Recon Sync Radar:</strong> Take a fully zoomed-out screenshot of your in-game map. Paste it (Ctrl+V) into the tool. When the radar overlay appears, <strong>click directly on your player arrow within the image</strong> to calculate the precise coordinates and deploy a marker exactly where you are standing.</li>
-                <li><strong>Manual Markers:</strong> Switch to "📍 Manual Marker" mode in the toolbar and click anywhere on the map to deploy food, water, or danger waypoints.</li>
+                <li><strong>Recon Sync Radar:</strong> Paste (Ctrl+V) a fully zoomed-out screenshot of your in-game map into the tool. When the radar overlay appears, <strong>click directly on your player arrow within the image</strong> to calculate the precise coordinates and deploy a marker exactly where you are standing. The system automatically corrects for widescreen aspect ratios.</li>
+                <li><strong>Marker Editing:</strong> Click and drag any marker on the map to reposition it. Click the "✎" icon in the sidebar list to quickly rename it or change its category.</li>
               </ul>
             </div>
 
@@ -131,7 +132,7 @@
           <h2 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Troubleshooting</h2>
           <p style="margin-bottom: 15px; line-height: 1.6;">
             <strong>Q: My lists are empty and nothing is saving!</strong><br>
-            <span class="muted">A: Go to the JSON Backup tab and click "Factory Reset". This forces the app to rebuild its database from the default `base-data.json` file included in your folder.</span>
+            <span class="muted">A: Go to the JSON Backup tab and click "Factory Reset". This forces the app to rebuild its database from the default `JSON.json` file included in your folder.</span>
           </p>
           <p style="margin-bottom: 15px; line-height: 1.6;">
             <strong>Q: Why isn't my Dashboard timer making a sound?</strong><br>
@@ -142,8 +143,8 @@
             <span class="muted">A: Ensure you are clicking directly on the screenshot inside the popup modal. The system needs you to pinpoint the exact location of your arrow to calculate the X/Y percentages.</span>
           </p>
           <p style="line-height: 1.6;">
-            <strong>Q: My OCR Auto-Fill is extracting weird symbols.</strong><br>
-            <span class="muted">A: The OCR engine reads pixels. If your Discord screenshot includes the background UI, reactions, or emojis, it may confuse the scanner. Crop your screenshots tightly around the text block for best results.</span>
+            <strong>Q: My OCR Auto-Fill is extracting weird symbols or merging text poorly.</strong><br>
+            <span class="muted">A: The OCR engine reads pixels and strips out bot artifacts (like `~` or `@`). If your Discord screenshot includes heavy background UI or reactions, crop your screenshot tighter around the main text block before pasting it in.</span>
           </p>
         </section>
 
