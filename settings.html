@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top-nav">
+  <header class="top-nav">
     <div class="brand">Elys Astra Helper Application</div>
     <nav class="nav-links">
       <a class="nav-btn" href="index.html">Dashboard</a>
@@ -17,7 +17,7 @@
       <a class="nav-btn" href="about.html">Stats</a>
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
-      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn active" href="settings.html">JSON Backup</a>
       <a class="nav-btn" href="guide.html">About</a>
     </nav>
   </header>
@@ -28,7 +28,7 @@
       <h2 style="font-size: 2em; color: var(--primary); margin-bottom: 10px;">Database Management</h2>
       <p class="muted" style="font-size: 1.05em; line-height: 1.5; margin-bottom: 25px;">
         EAHA runs entirely in your browser's local memory. If you clear your browser cache, you will lose your data. 
-        <strong>Export your JSON backup frequently</strong> to secure your rules, creature profiles, lifelines, and combat logs.
+        <strong>Export your JSON backup frequently</strong> to secure your rules, creature profiles, lifelines, tactical markers, and combat logs.
       </p>
 
       <h3 style="color: var(--text); margin-bottom: 15px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Current Memory Status</h3>
@@ -49,6 +49,10 @@
         <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
           <strong style="color: var(--muted);">Combat Logs</strong>
           <span id="statEncounters" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+          <strong style="color: var(--muted);">Tactical Markers</strong>
+          <span id="statPins" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
         </div>
       </div>
 
