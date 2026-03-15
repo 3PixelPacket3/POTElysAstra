@@ -3,6 +3,7 @@
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
 let pendingPin = null; 
+let syncPendingPin = null; // Used for the image snip radar
 
 // Navigation Engine State
 let scale = 1;
@@ -25,6 +26,7 @@ const elements = {
   search: document.getElementById('pinSearch'),
   filter: document.getElementById('pinFilter'),
   clearAllBtn: document.getElementById('clearAllPinsBtn'),
+  uploadSnipInput: document.getElementById('uploadSnipInput'),
   
   // Toolbar Controls
   modePanBtn: document.getElementById('modePanBtn'),
@@ -33,12 +35,19 @@ const elements = {
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   resetZoomBtn: document.getElementById('resetZoomBtn'),
   
-  // Modal Elements
+  // Deploy Pin Modal
   modal: document.getElementById('pinModal'),
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
   saveBtn: document.getElementById('savePinBtn'),
-  cancelBtn: document.getElementById('cancelPinBtn')
+  cancelBtn: document.getElementById('cancelPinBtn'),
+
+  // Sync Radar Modal
+  syncModal: document.getElementById('syncModal'),
+  snipImageDisplay: document.getElementById('snipImageDisplay'),
+  snipCrosshair: document.getElementById('snipCrosshair'),
+  confirmSyncBtn: document.getElementById('confirmSyncBtn'),
+  cancelSyncBtn: document.getElementById('cancelSyncBtn')
 };
 
 // --- Utilities ---
@@ -56,7 +65,6 @@ const generateId = () => 'pin_' + Math.random().toString(36).substr(2, 9);
 // --- Navigation Engine (Pan & Zoom) ---
 const updateTransform = () => {
   elements.mapTransform.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-  // CSS Variable for inverse marker scaling
   elements.mapTransform.style.setProperty('--map-scale', scale);
 };
 
@@ -65,13 +73,12 @@ elements.mapWindow.addEventListener('wheel', (e) => {
   e.preventDefault();
   const zoomSensitivity = 0.15;
   const delta = e.deltaY < 0 ? zoomSensitivity : -zoomSensitivity;
-  let newScale = Math.max(0.5, Math.min(scale + delta, 5)); // Limit zoom 0.5x to 5x
+  let newScale = Math.max(0.5, Math.min(scale + delta, 6)); // Limit zoom 0.5x to 6x
   
   const rect = elements.mapWindow.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
 
-  // Zoom towards cursor mathematically
   translateX = mouseX - (mouseX - translateX) * (newScale / scale);
   translateY = mouseY - (mouseY - translateY) * (newScale / scale);
   scale = newScale;
@@ -98,25 +105,10 @@ window.addEventListener('mouseup', () => {
   isDragging = false;
 });
 
-// Toolbar Zoom Buttons
-elements.zoomInBtn.addEventListener('click', () => {
-  scale = Math.min(scale + 0.5, 5);
-  updateTransform();
-});
+elements.zoomInBtn.addEventListener('click', () => { scale = Math.min(scale + 0.5, 6); updateTransform(); });
+elements.zoomOutBtn.addEventListener('click', () => { scale = Math.max(scale - 0.5, 0.5); updateTransform(); });
+elements.resetZoomBtn.addEventListener('click', () => { scale = 1; translateX = 0; translateY = 0; updateTransform(); });
 
-elements.zoomOutBtn.addEventListener('click', () => {
-  scale = Math.max(scale - 0.5, 0.5);
-  updateTransform();
-});
-
-elements.resetZoomBtn.addEventListener('click', () => {
-  scale = 1;
-  translateX = 0;
-  translateY = 0;
-  updateTransform();
-});
-
-// Mode Toggles
 const setMode = (mode) => {
   currentMode = mode;
   if (mode === 'pan') {
@@ -134,7 +126,81 @@ elements.modePanBtn.addEventListener('click', () => setMode('pan'));
 elements.modePinBtn.addEventListener('click', () => setMode('pin'));
 
 
-// --- Rendering Logic ---
+// --- Recon Sync Engine (Image Snip Processing) ---
+const handleImageUpload = (file) => {
+  if (!file || !file.type.startsWith('image/')) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    elements.snipImageDisplay.src = e.target.result;
+    elements.syncModal.classList.remove('is-hidden');
+    elements.snipCrosshair.classList.add('is-hidden'); // Hide crosshair until clicked
+    syncPendingPin = null;
+    showToast("Snip acquired. Awaiting manual radar calibration.", "info");
+  };
+  reader.readAsDataURL(file);
+};
+
+// 1. Upload via Button
+elements.uploadSnipInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) handleImageUpload(e.target.files[0]);
+  e.target.value = ''; // Reset input
+});
+
+// 2. Upload via Global Paste (Ctrl+V)
+window.addEventListener('paste', (e) => {
+  // Do not intercept paste if the user is typing in a text box
+  if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+  
+  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (let item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      handleImageUpload(item.getAsFile());
+      break;
+    }
+  }
+});
+
+// 3. Radar Calibration (Clicking the Snip)
+elements.snipImageDisplay.addEventListener('click', (e) => {
+  const rect = elements.snipImageDisplay.getBoundingClientRect();
+  
+  // Calculate precise percentage of the click relative to the image
+  const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+  const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+  syncPendingPin = { x: xPercent, y: yPercent };
+
+  // Move visual crosshair
+  elements.snipCrosshair.style.left = `${xPercent}%`;
+  elements.snipCrosshair.style.top = `${yPercent}%`;
+  elements.snipCrosshair.classList.remove('is-hidden');
+});
+
+// 4. Confirm Sync
+elements.confirmSyncBtn.addEventListener('click', () => {
+  if (!syncPendingPin) {
+    showToast("Commander, you must click your location on the map snip first.", "error");
+    return;
+  }
+  
+  // Close Sync Radar, Open Deploy Marker Form
+  elements.syncModal.classList.add('is-hidden');
+  
+  pendingPin = { x: syncPendingPin.x, y: syncPendingPin.y };
+  elements.newPinLabel.value = '';
+  elements.modal.classList.remove('is-hidden');
+  elements.newPinLabel.focus();
+});
+
+// 5. Abort Sync
+elements.cancelSyncBtn.addEventListener('click', () => {
+  elements.syncModal.classList.add('is-hidden');
+  syncPendingPin = null;
+});
+
+
+// --- Rendering Logic (Map Markers) ---
 const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filterVal = elements.filter.value;
@@ -169,7 +235,7 @@ const renderPins = () => {
       <div class="pin-label">${pin.label || 'Marker'}</div>
     `;
     
-    // Quick delete from map directly via right-click or middle-click
+    // Quick delete from map directly via right-click
     mapMarker.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
@@ -228,11 +294,10 @@ const renderPins = () => {
   });
 };
 
-// --- Map Interaction Logic (Deploy Marker) ---
+// --- Manual Map Interaction Logic (Deploy Marker) ---
 elements.mapImage.addEventListener('click', (e) => {
   if (currentMode !== 'pin') return;
 
-  // Calculate coordinates relative to the underlying map image, accounting for zoom
   const rect = elements.mapImage.getBoundingClientRect();
   const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
   const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
@@ -244,7 +309,7 @@ elements.mapImage.addEventListener('click', (e) => {
   elements.newPinLabel.focus();
 });
 
-// --- Modal Logic ---
+// --- Modal Logic (Saving the Pin) ---
 const closeModal = () => {
   pendingPin = null;
   elements.modal.classList.add('is-hidden');
