@@ -3,7 +3,7 @@
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
 const COMMANDS_KEY = 'eahaCommands';
-const LIFELINES_KEY = 'eahaLifelines';
+const LIFELINES_KEY = 'eahaLifelines'; 
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
 
 // --- Global State ---
@@ -15,7 +15,7 @@ let isEditMode = false;
 let decayTimerInterval = null;
 let decayEndTime = null;
 let exactVitals = { comfort: null, hygiene: null, satiation: null };
-let drainRatePerSec = 0;
+let drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
 
 // Default Quick Commands
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
@@ -36,17 +36,14 @@ const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
-  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
-  else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
 const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
 const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
 
-// Get the currently active lifeline, or create a default if it doesn't exist
+// Get the currently active lifeline, or create one if it doesn't exist
 const getActiveLifeline = () => {
-  // Fix: Use a fallback key if the user hasn't created any creatures yet
   const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
   
   if (!lifelines[targetId]) {
@@ -71,7 +68,7 @@ const populateCreatureDropdown = () => {
   if (!db.creatures || db.creatures.length === 0) {
     select.appendChild(new Option("No Creatures in Database", "none"));
     select.disabled = true;
-    activeCreatureId = 'none'; // Fix: Explicitly set to none so the fallback triggers
+    activeCreatureId = 'none'; 
     updateBriefingPanel();
     updateVitalsUI();
     updateElderingUI();
@@ -98,7 +95,7 @@ const populateCreatureDropdown = () => {
     updateBriefingPanel();
     updateVitalsUI();
     updateElderingUI();
-    syncExactVitals(); // Keep internal float tracker synced
+    syncExactVitals(); 
     showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
   });
 };
@@ -112,23 +109,30 @@ const updateBriefingPanel = () => {
   
   if (!creature) {
     nameEl.textContent = "General Survival Mode";
-    statsEl.innerHTML = '<span class="muted">Add a creature in the Profiles tab to track specific stats.</span>';
+    statsEl.innerHTML = '<span class="muted">Add a creature in the Profiles tab to track specific stats, diets, and habitats.</span>';
     tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. Perform the physical task associated with your dinosaur.';
     return;
   }
 
   nameEl.textContent = creature.name;
   
-  // Safely extract stats if they exist in the creature object
   const health = creature.stats?.base?.health || "N/A";
   const weight = creature.stats?.base?.combatWeight || "N/A";
   const speed = creature.stats?.base?.speed || "N/A";
+  const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
+  const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
   
   statsEl.innerHTML = `
-    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Health: ${health}</span>
-    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Weight: ${weight}</span>
-    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Speed: ${speed}</span>
-    <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">${creature.tier || 'Unknown Tier'}</span>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Health: ${health}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Weight: ${weight}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Speed: ${speed}</span>
+      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">${creature.tier || 'Unknown Tier'}</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 5px; font-size: 0.95em; width: 100%;">
+      <div><strong style="color: var(--muted);">Diet:</strong> ${diet}</div>
+      <div><strong style="color: var(--muted);">Habitats:</strong> ${habitat}</div>
+    </div>
   `;
 
   const upkeepText = creature.upkeep ? creature.upkeep : "No specific upkeep tasks documented for this creature. Perform standard shaking/mud rolling to avoid command abuse.";
@@ -167,7 +171,7 @@ const setupLifelineListeners = () => {
       const val = parseInt(e.target.value, 10);
       const currentLife = getActiveLifeline();
       currentLife[vital] = val;
-      exactVitals[vital] = val; // Synchronize exact tracking with user override
+      exactVitals[vital] = val; 
       updateVitalsUI();
       saveLifelines();
     });
@@ -245,14 +249,12 @@ const updateElderingUI = () => {
 const updateTimerDisplay = () => {
   const display = document.getElementById('timerDisplay');
   
-  // Handle continuous drain based on exact exactVitals tracker
+  // Dynamic proportional drain based on snapshot values
   if (decayEndTime && exactVitals.comfort !== null) {
-    // Subtract drain rate proportionately (prevents integer rounding bugs)
-    exactVitals.comfort = Math.max(0, exactVitals.comfort - drainRatePerSec);
-    exactVitals.hygiene = Math.max(0, exactVitals.hygiene - drainRatePerSec);
-    exactVitals.satiation = Math.max(0, exactVitals.satiation - drainRatePerSec);
+    exactVitals.comfort = Math.max(0, exactVitals.comfort - drainRates.comfort);
+    exactVitals.hygiene = Math.max(0, exactVitals.hygiene - drainRates.hygiene);
+    exactVitals.satiation = Math.max(0, exactVitals.satiation - drainRates.satiation);
 
-    // Sync exact tracker to integer lifeline
     const currentLife = getActiveLifeline();
     currentLife.comfort = Math.round(exactVitals.comfort);
     currentLife.hygiene = Math.round(exactVitals.hygiene);
@@ -279,7 +281,7 @@ const updateTimerDisplay = () => {
   if (remaining <= 0) {
     clearInterval(decayTimerInterval);
     decayEndTime = null;
-    drainRatePerSec = 0;
+    drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
     display.style.color = "var(--danger)";
     showToast("⚠️ Decay Timer Complete! Check your Vitals.", "error");
     if (Notification.permission === "granted") {
@@ -296,9 +298,14 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
   }
   
   const totalSeconds = mins * 60;
-  // Calculate drain percentage per second (100% over Total Seconds)
-  drainRatePerSec = 100 / totalSeconds; 
-  syncExactVitals(); // Lock in current vitals before drain
+  syncExactVitals(); 
+  
+  // Calculate unique drain rate for each vital so they all hit 0 exactly when the timer ends
+  drainRates = {
+    comfort: exactVitals.comfort / totalSeconds,
+    hygiene: exactVitals.hygiene / totalSeconds,
+    satiation: exactVitals.satiation / totalSeconds
+  };
 
   decayEndTime = Date.now() + (mins * 60000);
   if (decayTimerInterval) clearInterval(decayTimerInterval);
@@ -311,6 +318,7 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
     Notification.requestPermission();
   }
 });
+
 
 // --- Quick Commands Logic ---
 const renderCommands = () => {
