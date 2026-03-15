@@ -20,15 +20,12 @@ const elements = {
   tabs: document.querySelectorAll('.tab'),
   panels: document.querySelectorAll('.panel'),
   
-  // Magic Auto-Fill
   ocrDropZone: document.getElementById('ocrDropZone'),
   ocrInput: document.getElementById('ocrInput'),
 
-  // Raw Import Matrix
   rawStatImportArea: document.getElementById('rawStatImportArea'),
   processRawStatsBtn: document.getElementById('processRawStatsBtn'),
 
-  // Form Inputs - Core
   core: {
     name: document.getElementById('creatureName'),
     tier: document.getElementById('creatureTierInput'),
@@ -39,7 +36,6 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
-  // Form Inputs - Stats
   stats: {
     health: document.getElementById('statHealth'),
     weight: document.getElementById('statCombatWeight'),
@@ -48,7 +44,6 @@ const elements = {
     stamina: document.getElementById('statStamina'),
     speed: document.getElementById('statSpeed')
   },
-  // Form Inputs - Narrative
   narrative: {
     habitat: document.getElementById('creatureHabitat'),
     foods: document.getElementById('creatureFoods'),
@@ -56,8 +51,6 @@ const elements = {
     behaviors: document.getElementById('creatureBehaviors'),
     body: document.getElementById('creatureBody')
   },
-  
-  // Custom Stats
   addCustomStatBtn: document.getElementById('addCustomStatBtn'),
   customStatsContainer: document.getElementById('customStatsContainer')
 };
@@ -73,15 +66,51 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-const formatList = (text) => text.split(',').map((item) => item.trim()).filter(Boolean);
-const formatLines = (text) => text.split('\n').map((item) => item.trim()).filter(Boolean);
+const formatList = (text) => text.split(',').map(item => item.trim()).filter(Boolean);
+const formatLines = (text) => text.split('\n').map(item => item.trim()).filter(Boolean);
 const generateId = () => 'crea_' + Math.random().toString(36).substr(2, 9);
 
-// Helper to grab the adult (last) stat from the array for a clean view
+const getStatArray = (valStr) => {
+  if (!valStr) return [0, 0, 0, 0, 0];
+  const parts = String(valStr).split(',').map(s => parseFloat(s.trim()));
+  while (parts.length < 5) parts.push(parts[parts.length - 1] || 0);
+  return parts;
+};
+
 const getAdultStat = (valStr) => {
   if (!valStr) return '-';
   const parts = String(valStr).split(',');
   return parts[parts.length - 1].trim(); 
+};
+
+// Advanced Arsenal & Mechanics Parsers
+const getCustomStageStat = (dino, statNameSubstring, stageIndex = 4) => {
+  const stat = dino.stats?.custom?.find(s => s.name.toLowerCase() === statNameSubstring.toLowerCase() || s.name.toLowerCase().includes(statNameSubstring.toLowerCase()));
+  return stat ? getStatArray(stat.value)[stageIndex] : 0;
+};
+
+const getAllAttacks = (dino, stageIndex = 4) => {
+  const attacks = [];
+  const customStats = dino.stats?.custom || [];
+
+  customStats.forEach(stat => {
+    const lowerName = stat.name.toLowerCase();
+    if (lowerName.includes('damage') && !lowerName.includes('debuff') && !lowerName.includes('multiplier') && !lowerName.includes('buff')) {
+      const baseDmg = getStatArray(stat.value)[stageIndex];
+      if (baseDmg > 0) {
+        const prefix = stat.name.replace('Damage', '');
+        const cdStat = customStats.find(s => s.name.toLowerCase() === `${prefix.toLowerCase()}cooldown`);
+        const cd = cdStat ? getStatArray(cdStat.value)[stageIndex] : 1.5; 
+
+        const dps = (baseDmg / cd).toFixed(1);
+        const displayName = stat.name.replace('Damage', '') || 'Base Attack';
+
+        attacks.push({ name: displayName, baseDmg, cd, dps });
+      }
+    }
+  });
+  
+  return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
 };
 
 // --- Base64 Image Compression Engine ---
@@ -216,7 +245,7 @@ if(elements.processRawStatsBtn) {
       }
     }
 
-    showToast(`Data Matrix Processed. ${customAddedCount} custom mechanics extracted.`);
+    showToast(`Data Matrix Processed. ${customAddedCount} custom mechanics extracted or updated.`);
     elements.rawStatImportArea.value = '';
   });
 }
@@ -356,7 +385,7 @@ const gatherForm = () => {
   };
 };
 
-// --- View Renderer (CLEAN UI UPGRADE WITH DROPDOWNS & WORD WRAP) ---
+// --- View Renderer (CLEAN UI UPGRADE WITH DROPDOWNS, WORD WRAP & ARSENAL) ---
 const setView = (creature) => {
   if (!creature) {
     elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a creature from the roster to view its profile.</div>';
@@ -366,7 +395,12 @@ const setView = (creature) => {
   const baseStats = creature.stats?.base || {};
   const customStats = creature.stats?.custom || [];
 
-  // Generate Custom Stats UI (Primary vs Advanced Accordion)
+  // Extract Arsenal Data for Adult Stage (Index 4)
+  const arsenal = getAllAttacks(creature, 4);
+  const stamina = getStatArray(baseStats.stamina)[4];
+  const sprintCost = getCustomStageStat(creature, 'StaminaSprintCostPerSecond', 4);
+  const maxSprint = sprintCost > 0 ? Math.floor(stamina / sprintCost) + ' seconds' : 'Unknown';
+
   let customStatsHtml = '';
   if (customStats.length > 0) {
     const primaryKeywords = ['damage', 'bleed', 'bonebreak', 'venom', 'poison', 'cooldown'];
@@ -384,7 +418,7 @@ const setView = (creature) => {
 
     if (primaryStats.length > 0) {
       customStatsHtml += `
-        <details open style="background: color-mix(in srgb, var(--danger) 5%, var(--bg)); padding: 15px; border-radius: 12px; border: 1px solid var(--danger); margin-bottom: 20px; margin-top: 20px;">
+        <details style="background: color-mix(in srgb, var(--danger) 5%, var(--bg)); padding: 15px; border-radius: 12px; border: 1px solid var(--danger); margin-bottom: 20px; margin-top: 20px;">
           <summary style="color: var(--danger); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
             Primary Combat Mechanics (${primaryStats.length} variables)
           </summary>
@@ -422,7 +456,7 @@ const setView = (creature) => {
   elements.viewPane.innerHTML = `
     <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: 16px; border: 1px solid var(--border);">
       ${creature.imagePath ? `<img src="${creature.imagePath}" alt="${creature.name}" style="width: 140px; height: 140px; object-fit: cover; border-radius: 12px; border: 2px solid var(--primary);">` : ''}
-      <div>
+      <div style="flex: 1;">
         <h2 style="margin: 0 0 5px 0; font-size: 2.2em; color: var(--text);">${creature.name}</h2>
         <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
           <span style="background: var(--bg-alt); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600;">${creature.tier || 'Unknown Tier'}</span>
@@ -432,6 +466,33 @@ const setView = (creature) => {
         <p class="muted" style="margin-bottom: 5px;"><strong>Habitat:</strong> ${(creature.habitat || []).join(', ') || 'Unknown'}</p>
         <p class="muted"><strong>Diet:</strong> ${(creature.foods || []).join(', ') || 'Unknown'}</p>
       </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+      
+      <div style="background: color-mix(in srgb, #10b981 5%, var(--bg)); padding: 20px; border-radius: 16px; border: 1px solid #10b981;">
+        <h3 style="color: #10b981; margin-bottom: 15px; border-bottom: 1px solid #10b981; padding-bottom: 5px;">Adult Arsenal & Base DPS</h3>
+        ${arsenal.length > 0 ? arsenal.map(atk => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <strong>${atk.name}:</strong> 
+            <span style="color: var(--text);">Base: <span style="color: var(--danger); font-weight:bold;">${atk.baseDmg}</span> | DPS: <span style="color: #10b981; font-weight:bold;">${atk.dps}/s</span></span>
+          </div>
+        `).join('') : '<p class="muted">No primary damage stats found in matrix.</p>'}
+      </div>
+
+      <div style="background: color-mix(in srgb, var(--info) 5%, var(--bg)); padding: 20px; border-radius: 16px; border: 1px solid var(--info);">
+        <h3 style="color: var(--info); margin-bottom: 15px; border-bottom: 1px solid var(--info); padding-bottom: 5px;">Endurance & Turn</h3>
+        <div style="margin-bottom: 10px;">
+          <strong>Max Adult Sprint:</strong> <span style="color: var(--text); float: right; font-weight: bold;">${maxSprint}</span>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <strong>Sprint Drain:</strong> <span style="color: var(--text); float: right;">${sprintCost}/s</span>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <strong>Turn Radius Mod:</strong> <span style="color: var(--text); float: right;">${getCustomStageStat(creature, 'TurnRadiusMultiplier', 4) || 1}</span>
+        </div>
+      </div>
+
     </div>
 
     <div style="background: var(--bg); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 30px;">
@@ -609,7 +670,6 @@ const init = async () => {
     elements.tabs[0].click(); 
   });
 
-  // Image Upload Bindings
   elements.core.imageUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) compressAndLoadImage(e.target.files[0]);
     e.target.value = ''; 
@@ -631,7 +691,6 @@ const init = async () => {
     }
   });
 
-  // OCR Input Bindings
   elements.ocrInput.addEventListener('change', (e) => {
     if(e.target.files.length > 0) processImage(e.target.files[0]);
     e.target.value = ''; 
