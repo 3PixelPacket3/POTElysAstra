@@ -24,6 +24,10 @@ const elements = {
   ocrDropZone: document.getElementById('ocrDropZone'),
   ocrInput: document.getElementById('ocrInput'),
 
+  // Raw Import Matrix (NEW)
+  rawStatImportArea: document.getElementById('rawStatImportArea'),
+  processRawStatsBtn: document.getElementById('processRawStatsBtn'),
+
   // Form Inputs - Core
   core: {
     name: document.getElementById('creatureName'),
@@ -35,7 +39,7 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
-  // Form Inputs - Stats
+  // Form Inputs - Stats (Now expects strings of 5-stage arrays)
   stats: {
     health: document.getElementById('statHealth'),
     weight: document.getElementById('statCombatWeight'),
@@ -73,10 +77,16 @@ const formatList = (text) => text.split(',').map((item) => item.trim()).filter(B
 const formatLines = (text) => text.split('\n').map((item) => item.trim()).filter(Boolean);
 const generateId = () => 'crea_' + Math.random().toString(36).substr(2, 9);
 
+// Helper to grab the adult (last) stat from the array for a clean view
+const getAdultStat = (valStr) => {
+  if (!valStr) return '-';
+  const parts = String(valStr).split(',');
+  return parts[parts.length - 1].trim(); 
+};
+
 // --- Base64 Image Compression Engine ---
 const compressAndLoadImage = (file) => {
   if (!file || !file.type.startsWith('image/')) return;
-  
   const reader = new FileReader();
   reader.readAsDataURL(file);
   reader.onload = (event) => {
@@ -84,20 +94,16 @@ const compressAndLoadImage = (file) => {
     img.src = event.target.result;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const SIZE = 400; // Optimal UI display size
+      const SIZE = 400; 
       canvas.width = SIZE;
       canvas.height = SIZE;
       const ctx = canvas.getContext('2d');
 
-      // Calculate 1:1 Center Crop
       const minDim = Math.min(img.width, img.height);
       const sx = (img.width - minDim) / 2;
       const sy = (img.height - minDim) / 2;
 
-      // Draw the cropped center into the 400x400 canvas
       ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, SIZE, SIZE);
-      
-      // Compress to high-quality JPEG Base64
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       elements.core.image.value = dataUrl;
       showToast('Profile image auto-cropped and loaded.');
@@ -154,14 +160,78 @@ const renderCustomStatRow = (name = '', value = '') => {
   row.className = 'custom-stat-row';
   
   row.innerHTML = `
-    <input type="text" class="stat-name" placeholder="Stat Name (e.g., Bleed Heal)" value="${name}" style="flex: 1;">
-    <input type="text" class="stat-value" placeholder="Value" value="${value}" style="flex: 1;">
+    <input type="text" class="stat-name" placeholder="Stat Name" value="${name}" style="flex: 1;">
+    <input type="text" class="stat-value" placeholder="v1, v2, v3, v4, v5" value="${value}" style="flex: 2;">
     <button type="button" class="btn btn-ghost delete-stat-btn" style="color: var(--danger); border-color: transparent; padding: 10px;">✕</button>
   `;
   
   row.querySelector('.delete-stat-btn').addEventListener('click', () => row.remove());
   elements.customStatsContainer.appendChild(row);
 };
+
+// --- RAW MATRIX PARSER (NEW) ---
+elements.processRawStatsBtn.addEventListener('click', () => {
+  const rawText = elements.rawStatImportArea.value;
+  if (!rawText.trim()) {
+    showToast('Please paste raw attribute or combat data first.', 'error');
+    return;
+  }
+
+  // Regex matches: Name",Values=(1,2,3,4,5))
+  // Captures Group 1: The stat name (e.g. Core.MaxHealth or BiteDamage)
+  // Captures Group 2: The comma-separated values (e.g. 150,262.5,375,487.5,600)
+  const regex = /([A-Za-z0-9_.]+)",Values=\(([^)]+)\)/g;
+  let match;
+  let customAddedCount = 0;
+
+  while ((match = regex.exec(rawText)) !== null) {
+    const statKey = match[1].trim();
+    const statValues = match[2].trim(); // "150, 262.5, 375..."
+
+    // Route Base Attributes to core inputs
+    if (statKey === 'Core.MaxHealth') {
+      elements.stats.health.value = statValues;
+    } else if (statKey === 'Core.CombatWeight') {
+      elements.stats.weight.value = statValues;
+    } else if (statKey === 'Core.Armor') {
+      elements.stats.armor.value = statValues;
+    } else if (statKey === 'Core.MaxStamina') {
+      elements.stats.stamina.value = statValues;
+    } else if (statKey === 'Core.SprintingSpeedMultiplier' || statKey === 'Core.MovementSpeedMultiplier') {
+      // Prioritize Sprinting if available, else overwrite with Movement
+      if (statKey === 'Core.SprintingSpeedMultiplier' || !elements.stats.speed.value) {
+        elements.stats.speed.value = statValues;
+      }
+    } 
+    // Ignore internal garbage data that isn't useful for players
+    else if (statKey.includes('Core.BodyFoodCorpseThreshold') || statKey.includes('Core.LimpHealthThreshold') || statKey.includes('Core.BodyFoodAmount')) {
+      continue;
+    }
+    // Everything else gets turned into a Custom Stat!
+    else {
+      // Clean up "Core." prefix for nicer display
+      const displayName = statKey.replace('Core.', '');
+      
+      // Check if it already exists to prevent duplicate rows on re-parse
+      let existingRow = null;
+      elements.customStatsContainer.querySelectorAll('.custom-stat-row').forEach(row => {
+        if (row.querySelector('.stat-name').value === displayName) {
+          existingRow = row;
+        }
+      });
+
+      if (existingRow) {
+        existingRow.querySelector('.stat-value').value = statValues;
+      } else {
+        renderCustomStatRow(displayName, statValues);
+        customAddedCount++;
+      }
+    }
+  }
+
+  showToast(`Data Matrix Processed. ${customAddedCount} custom mechanics extracted.`);
+  elements.rawStatImportArea.value = ''; // clear upon success
+});
 
 // --- OCR Parsing Engine ---
 const processImage = async (file) => {
@@ -170,30 +240,23 @@ const processImage = async (file) => {
 
   try {
     const result = await Tesseract.recognize(file, 'eng');
-    
-    // Clean out emojis, bot artifacts, non-ASCII symbols, tildes (~~), and @ symbols
     const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "").replace(/[~@]/g, "");
-    
     parseOCRText(cleanText);
     showToast("Auto-fill complete! Please review the extracted data.");
   } catch(err) {
-    console.error("Jarvis Error: OCR failed.", err);
     showToast("Failed to read image.", "error");
   }
 };
 
 const parseOCRText = (text) => {
-  // 1. Name (Look for first word before Tier, Carnivore, Herbivore, etc)
   const nameMatch = text.match(/^\s*([A-Za-z\s]+?)(?:Tier|Carnivore|Herbivore|Land|Semi-Aquatic|Group)/i);
   if (nameMatch && nameMatch[1].trim().length > 1) {
     elements.core.name.value = nameMatch[1].trim();
   } else {
-    // Fallback if specific words aren't present
     const firstWord = text.match(/^\s*([A-Za-z]+)/);
     if (firstWord) elements.core.name.value = firstWord[1];
   }
 
-  // 2. Tier (Handles "Tier 1", "Tier I", "Tier1")
   const tierMatch = text.match(/Tier\s*([1-5Iil]+)/i);
   if (tierMatch) {
     let tVal = tierMatch[1].toUpperCase().replace(/[IL]/g, '1');
@@ -202,27 +265,22 @@ const parseOCRText = (text) => {
     elements.core.tier.value = 'Apex';
   }
 
-  // 3. Group Size
   const groupMatch = text.match(/Group:\s*(\d+)/i);
   if (groupMatch) elements.core.group.value = groupMatch[1];
 
-  // 4. Habitats (Comma separated cleanup)
   const habitatMatch = text.match(/HABITATS?\s*([\s\S]*?)(?:PREFERRED FOODS|Active Time|Upkeep|Nesting|Food|BEHAVIORS)/i);
   if (habitatMatch) {
     let habs = habitatMatch[1].replace(/RIPARIA|GONDWA|PANJURA|HABITATS/ig, '');
-    // Split by 2+ spaces or newlines to isolate the pills, strip trailing punctuation
     let habArr = habs.split(/[\n]+|\s{2,}/).map(s => s.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, ''));
     elements.narrative.habitat.value = habArr.filter(s => s.length > 2).join(', ');
   }
 
-  // 5. Foods (Comma separated cleanup)
   const foodMatch = text.match(/PREFERRED FOODS?\s*([\s\S]*?)(?:Active Time|Upkeep|Nesting|Food|BEHAVIORS)/i);
   if (foodMatch) {
     let foodArr = foodMatch[1].split(/[\n]+|\s{2,}/).map(s => s.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z)]+$/g, ''));
     elements.narrative.foods.value = foodArr.filter(s => s.length > 2).join(', ');
   }
 
-  // 6. Upkeep / Active Time combined
   const upkeepMatch = text.match(/(?:Upkeep|Active Time)\s*([\s\S]*?)(?:Nesting|Food|BEHAVIORS)/i);
   if (upkeepMatch) {
     let uTxt = upkeepMatch[1].replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
@@ -231,27 +289,19 @@ const parseOCRText = (text) => {
     elements.narrative.upkeep.value = "";
   }
 
-  // 7. Behavior Titles isolated
   const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
   if (behaviorMatch) {
-    // Cut off the bottom server info
     let bText = behaviorMatch[1].split(/(?:May be considered a rulebreak|Basic Info|Can Symbiote|Elysian)/i)[0].trim();
     let lines = bText.split('\n').map(l => l.trim()).filter(l => l);
     let bNames = [];
-    
     lines.forEach(line => {
-      // Heuristic for a title: short line, no period at the end
-      if (line.length > 2 && line.length < 55 && !line.match(/[.!?]$/)) {
-          bNames.push(line);
-      }
+      if (line.length > 2 && line.length < 55 && !line.match(/[.!?]$/)) bNames.push(line);
     });
-    
     elements.narrative.behaviors.value = bNames.join('\n');
   } else {
     elements.narrative.behaviors.value = '';
   }
 
-  // 8. Leave the rich text body blank as requested
   elements.narrative.body.innerHTML = '';
 };
 
@@ -318,7 +368,7 @@ const gatherForm = () => {
   };
 };
 
-// --- View Renderer ---
+// --- View Renderer (Formats 5-Stage Arrays to show Max/Adult by Default) ---
 const setView = (creature) => {
   if (!creature) {
     elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a creature from the roster to view its profile.</div>';
@@ -329,9 +379,10 @@ const setView = (creature) => {
   const customStats = creature.stats?.custom || [];
   
   let customStatsHtml = customStats.map(stat => `
-    <div class="stat-card" style="background: var(--bg-alt); border: none;">
+    <div class="stat-card" style="background: var(--bg-alt); border: none;" title="Full Growth Array: ${stat.value}">
       <strong style="color: var(--primary);">${stat.name}</strong><br>
-      <span style="font-size: 1.1em; font-weight: 600;">${stat.value}</span>
+      <span style="font-size: 1.1em; font-weight: 600;">${getAdultStat(stat.value)}</span>
+      <div style="font-size: 0.7em; color: var(--muted); margin-top: 4px;">Adult / Max</div>
     </div>
   `).join('');
 
@@ -350,14 +401,14 @@ const setView = (creature) => {
       </div>
     </div>
 
-    <h3 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">Core Statistics</h3>
+    <h3 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">Core Statistics (Adult Matrix)</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; margin-bottom: 30px;">
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Health</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.health || '-'}</span></div>
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Weight</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.combatWeight || '-'}</span></div>
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Armor</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.armor || '-'}</span></div>
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Capacity</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.carryCapacity || '-'}</span></div>
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Stamina</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.stamina || '-'}</span></div>
-      <div class="stat-card" style="background: var(--bg);"><strong style="color: var(--muted);">Speed</strong><br><span style="font-size: 1.2em; font-weight: bold;">${baseStats.speed || '-'}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.health || '-'}"><strong style="color: var(--muted);">Health</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.health)}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.combatWeight || '-'}"><strong style="color: var(--muted);">Weight</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.combatWeight)}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.armor || '-'}"><strong style="color: var(--muted);">Armor</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.armor)}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.carryCapacity || '-'}"><strong style="color: var(--muted);">Capacity</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.carryCapacity)}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.stamina || '-'}"><strong style="color: var(--muted);">Stamina</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.stamina)}</span></div>
+      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.speed || '-'}"><strong style="color: var(--muted);">Speed</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.speed)}</span></div>
     </div>
     
     ${customStats.length > 0 ? `
@@ -417,7 +468,6 @@ const renderList = () => {
   filtered.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
-    // Force Pointer CSS and disable text selection for cleaner UI
     item.style.cursor = 'pointer';
     item.style.userSelect = 'none'; 
     item.innerHTML = `
@@ -499,7 +549,6 @@ const init = async () => {
   updateTierOptions();
   renderList();
 
-  // Bind Listeners
   elements.search.addEventListener('input', renderList);
   elements.tierFilter.addEventListener('change', renderList);
   
@@ -514,7 +563,7 @@ const init = async () => {
     elements.tabs[0].click(); 
   });
 
-  // --- Image Upload Bindings (Profile Avatar) ---
+  // Image Upload Bindings
   elements.core.imageUpload.addEventListener('change', (e) => {
     if(e.target.files.length > 0) compressAndLoadImage(e.target.files[0]);
     e.target.value = ''; 
@@ -536,14 +585,12 @@ const init = async () => {
     }
   });
 
-  // --- OCR Input Bindings (Magic Auto-Fill) ---
-  // 1. Manual Upload
+  // OCR Input Bindings
   elements.ocrInput.addEventListener('change', (e) => {
     if(e.target.files.length > 0) processImage(e.target.files[0]);
     e.target.value = ''; 
   });
 
-  // 2. Drag and Drop
   elements.ocrDropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     elements.ocrDropZone.style.borderColor = 'var(--primary)';
@@ -563,18 +610,15 @@ const init = async () => {
     }
   });
 
-  // 3. Ctrl+V Paste (Handles both Avatar and OCR depending on focus/target)
   window.addEventListener('paste', (e) => {
     if (currentMode === 'edit') {
       const items = (e.clipboardData || e.originalEvent.clipboardData).items;
       for (let index in items) {
         const item = items[index];
         if (item.kind === 'file' && item.type.startsWith('image/')) {
-          // If they are specifically focused on the image URL input, assume avatar upload
           if (document.activeElement === elements.core.image) {
             compressAndLoadImage(item.getAsFile());
           } else {
-            // Otherwise default to the OCR magic scanner
             processImage(item.getAsFile());
           }
           break;
@@ -588,7 +632,6 @@ const init = async () => {
   elements.deleteBtn.addEventListener('click', deleteCreature);
   elements.duplicateBtn.addEventListener('click', duplicateCreature);
 
-  // Rich Text Editor Toolbar
   document.getElementById('creatureToolbar').addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -596,7 +639,6 @@ const init = async () => {
     elements.narrative.body.focus();
   });
 
-  // Initial Boot State
   if (db.creatures && db.creatures.length > 0) {
     currentCreatureId = db.creatures[0].id;
     syncForm(db.creatures[0]);
