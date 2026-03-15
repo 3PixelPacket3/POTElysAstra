@@ -188,6 +188,36 @@ const updateBriefingPanel = () => {
 
   const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
   const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
+
+  // --- NEW: Modifiers & Roles Engine Integration ---
+  const role = creature.role || 'None';
+  const mutation = creature.mutation || 'None';
+  const genetic = creature.genetic || 'None';
+  
+  const roleDesc = window.EAHAModifiers?.roles?.[role]?.description || '';
+  const mutDesc = window.EAHAModifiers?.mutations?.[mutation]?.description || '';
+  const genDesc = window.EAHAModifiers?.genetics?.[genetic]?.description || '';
+  
+  const currentLife = getActiveLifeline();
+  const migrations = currentLife.migrations || 0;
+  let stage = 0;
+  if (migrations >= 16) stage = 4;
+  else if (migrations >= 12) stage = 3;
+  else if (migrations >= 8) stage = 2;
+  else if (migrations >= 4) stage = 1;
+  
+  const elderDesc = window.EAHAModifiers?.eldering?.[stage]?.description || '';
+  const stageName = window.EAHAModifiers?.eldering?.[stage]?.name || 'Pre-Elder';
+
+  let modifiersHtml = `<div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; width: 100%;">`;
+  
+  if (role !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
+  if (mutation !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
+  if (genetic !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${genetic}</strong><span class="muted">${genDesc}</span></div>`;
+  
+  modifiersHtml += `<div style="background: color-mix(in srgb, var(--primary) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--primary); font-size: 0.85em;"><strong style="color: var(--primary); display:block; margin-bottom: 3px;">${stageName}</strong><span class="muted">${elderDesc}</span></div>`;
+  modifiersHtml += `</div>`;
+  // ------------------------------------------------
   
   statsEl.innerHTML = `
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
@@ -202,6 +232,7 @@ const updateBriefingPanel = () => {
       <div><strong style="color: var(--muted);">Habitats:</strong> ${habitat}</div>
     </div>
     ${arsenalHtml}
+    ${modifiersHtml}
   `;
 
   const upkeepText = creature.upkeep ? creature.upkeep : "No specific upkeep tasks documented for this creature. Perform standard shaking/mud rolling to avoid command abuse.";
@@ -250,6 +281,8 @@ const setupLifelineListeners = () => {
     const currentLife = getActiveLifeline();
     currentLife.migrations++;
     updateElderingUI();
+    // Update the Briefing Panel to instantly show the new stage buffs!
+    if(activeCreatureId && activeCreatureId !== 'none') updateBriefingPanel();
     saveLifelines();
   });
 
@@ -258,6 +291,7 @@ const setupLifelineListeners = () => {
     if (currentLife.migrations > 0) {
       currentLife.migrations--;
       updateElderingUI();
+      if(activeCreatureId && activeCreatureId !== 'none') updateBriefingPanel();
       saveLifelines();
     }
   });
@@ -278,6 +312,7 @@ const setupLifelineListeners = () => {
       updateElderingUI();
       syncExactVitals();
       saveLifelines();
+      if(activeCreatureId && activeCreatureId !== 'none') updateBriefingPanel();
       showToast('Lifeline reset to base values.');
     }
   });
@@ -294,16 +329,16 @@ const updateElderingUI = () => {
   let isWithering = false;
 
   if (currentLife.migrations < 4) {
-    stageHtml = `<strong style="color: var(--text);">Stage 0: Pre-Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Requires 4 migrations to reach Tier 1.</p>`;
+    stageHtml = `<strong style="color: var(--text);">${window.EAHAModifiers?.eldering?.[0]?.name || 'Stage 0: Pre-Elder'}</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Requires 4 migrations to reach Tier 1.</p>`;
   } else if (currentLife.migrations >= 4 && currentLife.migrations < 8) {
-    stageHtml = `<strong style="color: var(--success);">Stage 1: Young Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health, +350 Weight. Slight speed debuff.</p>`;
+    stageHtml = `<strong style="color: var(--success);">${window.EAHAModifiers?.eldering?.[1]?.name || 'Stage 1'}</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">${window.EAHAModifiers?.eldering?.[1]?.description}</p>`;
   } else if (currentLife.migrations >= 8 && currentLife.migrations < 12) {
-    stageHtml = `<strong style="color: var(--info);">Stage 2: Inexperienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">No extra buffs yet. Keep pushing.</p>`;
+    stageHtml = `<strong style="color: var(--info);">${window.EAHAModifiers?.eldering?.[2]?.name || 'Stage 2'}</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">${window.EAHAModifiers?.eldering?.[2]?.description}</p>`;
   } else if (currentLife.migrations >= 12 && currentLife.migrations < 16) {
-    stageHtml = `<strong style="color: #a855f7;">Stage 3: Experienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health (Stacks). Required: Dull skin, lead pack, eat first.</p>`;
+    stageHtml = `<strong style="color: #a855f7;">${window.EAHAModifiers?.eldering?.[3]?.name || 'Stage 3'}</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">${window.EAHAModifiers?.eldering?.[3]?.description}</p>`;
   } else if (currentLife.migrations >= 16) {
     isWithering = true;
-    stageHtml = `<strong style="color: var(--danger);">Stage 4: Withering Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Speed debuff stacks. Slow damage active until death. Rebirth unlocked.</p>`;
+    stageHtml = `<strong style="color: var(--danger);">${window.EAHAModifiers?.eldering?.[4]?.name || 'Stage 4'}</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">${window.EAHAModifiers?.eldering?.[4]?.description} Rebirth unlocked.</p>`;
   }
 
   stageDisplay.innerHTML = stageHtml;
@@ -495,16 +530,30 @@ const updateDateTime = () => {
 const saveEncounter = async (type) => {
   if (!db.encounters) db.encounters = [];
   
+  // Convert basic "type" into exact match outcomes for the combat logs
+  let outcomeText = 'Unknown';
+  if (type === 'win') outcomeText = 'Victory (Kill)';
+  if (type === 'loss') outcomeText = 'Defeat (PvP)';
+  if (type === 'starved') outcomeText = 'Defeat (Starvation)';
+  
+  // Grab current dinosaur name, not just its ID, for the combat table
+  const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
+  const creaName = activeCrea ? activeCrea.name : 'Unknown';
+
   const event = {
     id: 'enc_' + Math.random().toString(36).substr(2, 9),
-    type: type,
-    creatureId: activeCreatureId,
+    outcome: outcomeText,
+    myCreature: creaName,
+    date: new Date().toISOString().split('T')[0],
+    opponent: 'Unknown',
+    location: 'Logged via Quick Dashboard',
+    notes: 'Quick logged from home screen.',
     timestamp: Date.now()
   };
   
   db.encounters.push(event);
   await EAHADataStore.saveData(db);
-  showToast(`${type} logged successfully.`);
+  showToast(`${outcomeText} logged successfully.`);
 };
 
 // --- Boot Sequence ---
