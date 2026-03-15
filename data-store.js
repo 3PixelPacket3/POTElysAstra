@@ -1,13 +1,67 @@
 // data-store.js
 
 const EAHADataStore = {
-  DB_KEY: 'eaha_master_db',
+  DB_NAME: 'EAHADatabase',
+  STORE_NAME: 'eaha_store',
+  MASTER_KEY: 'eaha_master_db',
 
+  // 1. Initialize High-Capacity IndexedDB
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.DB_NAME, 1);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.STORE_NAME)) {
+          db.createObjectStore(this.STORE_NAME);
+        }
+      };
+      request.onsuccess = (event) => resolve(event.target.result);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  },
+
+  async getIndexedData(key) {
+    const db = await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], 'readonly');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  async setIndexedData(key, value) {
+    const db = await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.put(value, key);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // 2. Main Retrieval Engine
   async getData() {
-    const localData = localStorage.getItem(this.DB_KEY);
-    if (localData) {
-      return JSON.parse(localData);
+    try {
+      // Step A: Try to load from the new high-capacity IndexedDB
+      const data = await this.getIndexedData(this.MASTER_KEY);
+      if (data) return data;
+
+      // Step B: MIGRATION - If no IndexedDB data exists, check old LocalStorage and move it over
+      const localData = localStorage.getItem(this.MASTER_KEY);
+      if (localData) {
+        console.log("Jarvis: Migrating legacy data to high-capacity storage.");
+        const parsed = JSON.parse(localData);
+        await this.setIndexedData(this.MASTER_KEY, parsed);
+        return parsed;
+      }
+    } catch (e) {
+      console.error("Jarvis Error: IndexedDB retrieval failed.", e);
     }
+
+    // Step C: Fallback to Baseline JSON if completely empty
     return await this.loadBaseJSON();
   },
 
@@ -17,12 +71,10 @@ const EAHADataStore = {
       if (!response.ok) throw new Error('Network response was not ok');
       const fullBackup = await response.json();
       
-      // Added lineage and routes to the base array structure
       const strippedDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
       
       if (fullBackup.database) {
         if (fullBackup.database.rules) strippedDb.rules = fullBackup.database.rules;
-        
         if (fullBackup.database.creatures) {
           strippedDb.creatures = fullBackup.database.creatures.map(c => {
             const cleanCreature = { ...c };
@@ -43,12 +95,11 @@ const EAHADataStore = {
 
     } catch (error) {
       console.error("Jarvis Error: Failed to load baseline JSON.json.", error);
-      // Added lineage and routes to the base array structure fallback
       return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
     }
   },
 
-  // NEW: Update App Data (Merge Logic)
+  // 3. System Update Engine
   async mergeWithBase() {
     try {
       const response = await fetch('JSON.json');
@@ -58,12 +109,10 @@ const EAHADataStore = {
       let localDb = await this.getData();
       let addedCount = 0;
 
-      // Ensure older databases get the new arrays patched in
       if (!localDb.lineage) localDb.lineage = [];
       if (!localDb.routes) localDb.routes = [];
 
       if (fullBackup.database) {
-        // 1. Merge Rules (Official overrides local, adds new)
         if (fullBackup.database.rules) {
           fullBackup.database.rules.forEach(jsonRule => {
             const existingIndex = localDb.rules.findIndex(r => r.id === jsonRule.id);
@@ -76,18 +125,15 @@ const EAHADataStore = {
           });
         }
 
-        // 2. Merge Creatures (Updates core info, PRESERVES custom stats)
         if (fullBackup.database.creatures) {
           fullBackup.database.creatures.forEach(jsonCrea => {
             const existingIndex = localDb.creatures.findIndex(c => c.id === jsonCrea.id);
             if (existingIndex === -1) {
-              // It's a brand new dinosaur!
               const cleanCreature = { ...jsonCrea };
               cleanCreature.stats = { base: jsonCrea.stats?.base || {}, custom: [] };
               localDb.creatures.push(cleanCreature);
               addedCount++;
             } else {
-              // It exists. Update base stats/info, but keep their custom mechanics intact.
               const existingCustom = localDb.creatures[existingIndex].stats?.custom || [];
               localDb.creatures[existingIndex] = {
                 ...jsonCrea,
@@ -101,15 +147,12 @@ const EAHADataStore = {
         }
       }
 
-      // 3. Merge Commands (Filters duplicates)
       if (fullBackup.eahaCommands) {
         const localCommands = JSON.parse(localStorage.getItem('eahaCommands')) || [];
-        // Use Set to prevent duplicating existing commands
         const mergedCommands = [...new Set([...localCommands, ...fullBackup.eahaCommands])];
         localStorage.setItem('eahaCommands', JSON.stringify(mergedCommands));
       }
 
-      // 4. Merge Presets (Preserves local tweaks if keys match)
       if (fullBackup.eahaPostPresets) {
         const localPresets = JSON.parse(localStorage.getItem('eahaPostPresets')) || {};
         const mergedPresets = { ...fullBackup.eahaPostPresets, ...localPresets };
@@ -125,23 +168,33 @@ const EAHADataStore = {
     }
   },
 
+  // 4. Save to IndexedDB
   async saveData(dataObj) {
     try {
-      localStorage.setItem(this.DB_KEY, JSON.stringify(dataObj));
+      await this.setIndexedData(this.MASTER_KEY, dataObj);
       return true;
     } catch (error) {
-      console.error("Jarvis Error: LocalStorage limit reached or blocked.", error);
+      console.error("Jarvis Error: Storage limit reached or blocked.", error);
       return false;
     }
   },
 
+  // 5. Factory Reset
   async resetToBase() {
-    localStorage.removeItem(this.DB_KEY);
+    // Clear LocalStorage fragments
+    localStorage.removeItem(this.MASTER_KEY);
     localStorage.removeItem('eahaPostPresets');
     localStorage.removeItem('eahaLifelines');
     localStorage.removeItem('eahaCommands');
     localStorage.removeItem('eahaActiveCreature');
     localStorage.removeItem('eahaTimeZone');
+    
+    // Clear IndexedDB Master
+    try {
+      const db = await this.initDB();
+      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
+      transaction.objectStore(this.STORE_NAME).delete(this.MASTER_KEY);
+    } catch(e) {}
     
     return await this.loadBaseJSON();
   }
