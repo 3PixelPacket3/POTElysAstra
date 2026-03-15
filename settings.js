@@ -46,7 +46,7 @@ const updateDashboard = () => {
   elements.statPresets.textContent = Object.keys(presets).length;
 };
 
-// --- Export / Import Logic ---
+// --- Export / Import Logic (Personal Backups) ---
 const exportDatabase = () => {
   // Bundle the master DB and all individual LocalStorage keys into one payload
   const exportData = {
@@ -83,11 +83,12 @@ const importDatabase = async (event) => {
         throw new Error("Invalid EAHA backup file.");
       }
 
-      // Restore Master Database
+      // RESTORE MASTER DATABASE: Directly overwrite the database (NO STRIPPING!)
+      // This ensures all personal pins, encounters, and custom stats are perfectly restored.
       db = importedData.database;
       await EAHADataStore.saveData(db);
 
-      // Restore LocalStorage Keys
+      // RESTORE LOCALSTORAGE KEYS:
       if (importedData.eahaPostPresets) localStorage.setItem(PRESETS_KEY, JSON.stringify(importedData.eahaPostPresets));
       if (importedData.eahaLifelines) localStorage.setItem(LIFELINES_KEY, JSON.stringify(importedData.eahaLifelines));
       if (importedData.eahaCommands) localStorage.setItem(COMMANDS_KEY, JSON.stringify(importedData.eahaCommands));
@@ -96,6 +97,7 @@ const importDatabase = async (event) => {
 
       updateDashboard();
       showToast('Database imported successfully! Memory restored.');
+      setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
       console.error('Import Error:', error);
       showToast('Failed to import data. The file may be corrupted.', 'error');
@@ -107,21 +109,13 @@ const importDatabase = async (event) => {
   event.target.value = '';
 };
 
+// --- Factory Reset Logic (Base JSON Loader) ---
 const resetDatabase = async () => {
-  if (confirm('WARNING: This will erase ALL local creatures, rules, stats, markers, and logs. Are you absolutely certain?')) {
-    // Clear the master DB
-    db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
-    await EAHADataStore.saveData(db);
-    
-    // Clear all EAHA specific LocalStorage keys
-    localStorage.removeItem(PRESETS_KEY);
-    localStorage.removeItem(LIFELINES_KEY);
-    localStorage.removeItem(COMMANDS_KEY);
-    localStorage.removeItem(ACTIVE_CREA_KEY);
-    localStorage.removeItem(TIME_ZONE_KEY);
-    
+  if (confirm('WARNING: This will reset the application to the server baseline JSON. ALL personal markers, lifelines, combat logs, and custom stats will be erased. Ensure you have exported your personal backup first! Are you absolutely certain?')) {
+    db = await EAHADataStore.resetToBase();
     updateDashboard();
-    showToast('Database wiped clean.', 'error');
+    showToast('Database reset to baseline. Reloading system...', 'success');
+    setTimeout(() => window.location.reload(), 1500);
   }
 };
 
