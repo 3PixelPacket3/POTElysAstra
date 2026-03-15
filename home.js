@@ -77,17 +77,27 @@ const populateCreatureDropdown = () => {
   }
 
   select.disabled = false;
+  
+  // Add default placeholder option
+  select.appendChild(new Option("-- Select Active Dinosaur --", "none"));
+  
   db.creatures.forEach(c => select.appendChild(new Option(c.name, c.id)));
   
-  // Restore last active, or default to the first in the list
+  // Restore last active, or default to the placeholder
   const savedActive = localStorage.getItem(ACTIVE_CREA_KEY);
   if (savedActive && db.creatures.find(c => c.id === savedActive)) {
     activeCreatureId = savedActive;
   } else {
-    activeCreatureId = db.creatures[0].id;
+    activeCreatureId = 'none';
   }
   
   select.value = activeCreatureId;
+  
+  // Force a UI update on initial load to match the selection
+  updateBriefingPanel();
+  updateVitalsUI();
+  updateElderingUI();
+  syncExactVitals();
   
   select.addEventListener('change', (e) => {
     activeCreatureId = e.target.value;
@@ -96,7 +106,9 @@ const populateCreatureDropdown = () => {
     updateVitalsUI();
     updateElderingUI();
     syncExactVitals(); 
-    showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
+    if(activeCreatureId !== 'none') {
+      showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
+    }
   });
 };
 
@@ -109,7 +121,7 @@ const updateBriefingPanel = () => {
   
   if (!creature) {
     nameEl.textContent = "General Survival Mode";
-    statsEl.innerHTML = '<span class="muted">Add a creature in the Profiles tab to track specific stats, diets, and habitats.</span>';
+    statsEl.innerHTML = '<span class="muted">Select a creature in the dropdown or add one in the Profiles tab to track specific stats, diets, and habitats.</span>';
     tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. Perform the physical task associated with your dinosaur.';
     return;
   }
@@ -319,6 +331,19 @@ document.getElementById('startTimerBtn').addEventListener('click', () => {
   if (Notification.permission !== "granted" && Notification.permission !== "denied") {
     Notification.requestPermission();
   }
+});
+
+document.getElementById('resetTimerBtn').addEventListener('click', () => {
+  if (decayTimerInterval) clearInterval(decayTimerInterval);
+  decayEndTime = null;
+  drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
+  
+  const display = document.getElementById('timerDisplay');
+  display.textContent = "00:00";
+  display.style.color = "var(--primary)";
+  document.getElementById('timerMinutes').value = '';
+  
+  showToast("Decay timer aborted and reset.");
 });
 
 // --- Quick Commands Logic ---
