@@ -57,16 +57,22 @@
       </div>
 
       <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-        <button id="exportBtn" class="btn" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📥 Export JSON Backup</button>
+        <button id="exportBtn" class="btn" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📥 Export Personal Backup</button>
         
         <input type="file" id="importInput" accept=".json" style="display: none;">
-        <button id="importBtn" class="btn btn-ghost" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📤 Import JSON File</button>
+        <button id="importBtn" class="btn btn-ghost" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📤 Import Personal Backup</button>
       </div>
     </div>
 
+    <div class="card" style="border-top: 5px solid #10b981; margin-bottom: 25px; box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+      <h3 style="color: #10b981; margin-bottom: 10px;">System Updates</h3>
+      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em; line-height: 1.5;">When server staff push a new EAHA update, click below to fetch the newest Rules, Creature Profiles, and Commands. This merges the official updates into your app <strong>without</strong> overwriting your custom stats, combat logs, or map markers.</p>
+      <button id="updateBtn" class="btn" style="background: #10b981; border-color: #10b981; color: #fff;">🔄 Check for App Updates</button>
+    </div>
+
     <div class="card" style="box-shadow: none; border: 2px dashed var(--danger); background: color-mix(in srgb, var(--danger) 5%, transparent);">
-      <h3 style="color: var(--danger); margin-bottom: 10px;">Factory Reset</h3>
-      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Resetting the database will wipe your personal combat logs, map markers, lifelines, and stats, replacing the system with the default baseline from <strong>JSON.json</strong>.</p>
+      <h3 style="color: var(--danger); margin-bottom: 10px;">Danger Zone: Factory Reset</h3>
+      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Resetting the database will wipe your personal combat logs, map markers, lifelines, and stats, replacing the system with the default baseline. Ensure you have exported your personal backup first.</p>
       <button id="resetBtn" class="btn btn-sm" style="background: transparent; border: 1px solid var(--danger); color: var(--danger);">Factory Reset to Baseline</button>
     </div>
 
