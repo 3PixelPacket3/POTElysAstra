@@ -1,436 +1,478 @@
-// js/home.js
-
-// --- Persistent Storage Keys ---
-const TIME_ZONE_KEY = 'eahaTimeZone';
-const COMMANDS_KEY = 'eahaCommands';
-const LIFELINES_KEY = 'eahaLifelines'; 
-const ACTIVE_CREA_KEY = 'eahaActiveCreature';
+// combat.js
 
 // --- Global State ---
-let db = { creatures: [] };
-let activeCreatureId = null;
-let isEditMode = false;
+let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
+let currentEncounterId = null;
 
-// Decay Timer State
-let decayTimerInterval = null;
-let decayEndTime = null;
-let exactVitals = { comfort: null, hygiene: null, satiation: null };
-let drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
+// Chart instances for memory management
+let charts = {
+  outcome: null,
+  cod: null,
+  location: null,
+  hunted: null
+};
 
-// Default Quick Commands
-const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
-let commands = JSON.parse(localStorage.getItem(COMMANDS_KEY)) || defaultCommands;
+// --- DOM Elements ---
+const elements = {
+  list: document.getElementById('encounterList'),
+  search: document.getElementById('encounterSearch'),
+  filter: document.getElementById('outcomeFilter'),
+  addBtn: document.getElementById('addEncounterBtn'),
+  dashBtn: document.getElementById('viewDashboardBtn'),
+  
+  dashView: document.getElementById('analyticsDashboard'),
+  formView: document.getElementById('encounterFormView'),
+  
+  // Form Inputs
+  outcome: document.getElementById('encOutcome'),
+  date: document.getElementById('encDate'),
+  myCreature: document.getElementById('encMyCreature'),
+  opponent: document.getElementById('encOpponent'),
+  location: document.getElementById('encLocation'),
+  notes: document.getElementById('encNotes'),
+  dateDisplay: document.getElementById('encounterDateDisplay'),
+  
+  saveBtn: document.getElementById('saveEncounter'),
+  deleteBtn: document.getElementById('deleteEncounter'),
 
-// Default Lifeline Template
-const generateDefaultLifeline = () => ({
-  comfort: 100, hygiene: 100, satiation: 100,
-  migrations: 0,
-  rebirths: { 1: 'none', 2: 'none', 3: 'none' }
-});
+  // Dashboard Stats
+  dashTotal: document.getElementById('dashTotal'),
+  dashKills: document.getElementById('dashKills'),
+  dashDeaths: document.getElementById('dashDeaths'),
+  dashDangerZone: document.getElementById('dashDangerZone'),
 
-// Load all saved lifelines (keyed by creature ID)
-let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
+  // Quick Log Elements
+  quickOpponent: document.getElementById('quickOpponent'),
+  quickLocation: document.getElementById('quickLocation'),
+  quickWin: document.getElementById('quickWinBtn'),
+  quickLoss: document.getElementById('quickLossBtn'),
+  quickStarve: document.getElementById('quickStarveBtn'),
+  quickThirst: document.getElementById('quickThirstBtn')
+};
 
 // --- Utilities ---
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
+  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
-const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
+const generateId = () => 'enc_' + Math.random().toString(36).substr(2, 9);
 
-// Get the currently active lifeline, or create one if it doesn't exist
-const getActiveLifeline = () => {
-  const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
-  
-  if (!lifelines[targetId]) {
-    lifelines[targetId] = generateDefaultLifeline();
-    saveLifelines();
+// --- View Management ---
+const setViewMode = (mode) => {
+  if (mode === 'dashboard') {
+    elements.formView.classList.add('is-hidden');
+    elements.dashView.classList.remove('is-hidden');
+    updateDashboard();
+  } else {
+    elements.dashView.classList.add('is-hidden');
+    elements.formView.classList.remove('is-hidden');
   }
-  return lifelines[targetId];
 };
 
-const syncExactVitals = () => {
-  const currentLife = getActiveLifeline();
-  exactVitals.comfort = currentLife.comfort;
-  exactVitals.hygiene = currentLife.hygiene;
-  exactVitals.satiation = currentLife.satiation;
-};
-
-// --- Active Creature Management & Briefing Panel ---
 const populateCreatureDropdown = () => {
-  const select = document.getElementById('activeCreatureSelect');
-  select.innerHTML = '';
-  
-  if (!db.creatures || db.creatures.length === 0) {
-    select.appendChild(new Option("No Creatures in Database", "none"));
-    select.disabled = true;
-    activeCreatureId = 'none'; 
-    updateBriefingPanel();
-    updateVitalsUI();
-    updateElderingUI();
-    syncExactVitals();
-    return;
-  }
-
-  select.disabled = false;
-  db.creatures.forEach(c => select.appendChild(new Option(c.name, c.id)));
-  
-  // Restore last active, or default to the first in the list
-  const savedActive = localStorage.getItem(ACTIVE_CREA_KEY);
-  if (savedActive && db.creatures.find(c => c.id === savedActive)) {
-    activeCreatureId = savedActive;
-  } else {
-    activeCreatureId = db.creatures[0].id;
-  }
-  
-  select.value = activeCreatureId;
-  
-  select.addEventListener('change', (e) => {
-    activeCreatureId = e.target.value;
-    localStorage.setItem(ACTIVE_CREA_KEY, activeCreatureId);
-    updateBriefingPanel();
-    updateVitalsUI();
-    updateElderingUI();
-    syncExactVitals(); 
-    showToast(`Switched tracking to ${select.options[select.selectedIndex].text}`);
-  });
-};
-
-const updateBriefingPanel = () => {
-  const nameEl = document.getElementById('briefingName');
-  const statsEl = document.getElementById('briefingStats');
-  const tasksEl = document.getElementById('briefingTasks');
-  
-  const creature = db.creatures.find(c => c.id === activeCreatureId);
-  
-  if (!creature) {
-    nameEl.textContent = "General Survival Mode";
-    statsEl.innerHTML = '<span class="muted">Add a creature in the Profiles tab to track specific stats, diets, and habitats.</span>';
-    tasksEl.innerHTML = '<strong>Upkeep Guide:</strong> Once Satiation, Comfort, or Hygiene reach 0%, use !tasty, !sleep, or !clean. Perform the physical task associated with your dinosaur.';
-    return;
-  }
-
-  nameEl.textContent = creature.name;
-  
-  const health = creature.stats?.base?.health || "N/A";
-  const weight = creature.stats?.base?.combatWeight || "N/A";
-  const speed = creature.stats?.base?.speed || "N/A";
-  const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
-  const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
-  
-  statsEl.innerHTML = `
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Health: ${health}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Weight: ${weight}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">Speed: ${speed}</span>
-      <span style="background: var(--bg); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; border: 1px solid var(--border);">${creature.tier || 'Unknown Tier'}</span>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 5px; font-size: 0.95em; width: 100%;">
-      <div><strong style="color: var(--muted);">Diet:</strong> ${diet}</div>
-      <div><strong style="color: var(--muted);">Habitats:</strong> ${habitat}</div>
-    </div>
-  `;
-
-  const upkeepText = creature.upkeep ? creature.upkeep : "No specific upkeep tasks documented for this creature. Perform standard shaking/mud rolling to avoid command abuse.";
-  tasksEl.innerHTML = `<strong style="color: var(--primary);">Required Tasks at 0%:</strong> ${upkeepText}`;
-};
-
-// --- Elysian Lifeline: Vitals Monitor ---
-const updateVitalsUI = () => {
-  const currentLife = getActiveLifeline();
-  
-  document.getElementById('comfortValue').textContent = `${currentLife.comfort}%`;
-  document.getElementById('hygieneValue').textContent = `${currentLife.hygiene}%`;
-  document.getElementById('satiationValue').textContent = `${currentLife.satiation}%`;
-  
-  document.getElementById('comfortSlider').value = currentLife.comfort;
-  document.getElementById('hygieneSlider').value = currentLife.hygiene;
-  document.getElementById('satiationSlider').value = currentLife.satiation;
-
-  const comfortStatus = document.getElementById('comfortStatus');
-  if (currentLife.comfort <= 0) {
-    comfortStatus.textContent = '⚠️ Armor Nerf Active!';
-    comfortStatus.style.color = 'var(--danger)';
-  } else if (currentLife.comfort > 70) {
-    comfortStatus.textContent = '+ Health Regen Active';
-    comfortStatus.style.color = 'var(--success)';
-  } else {
-    comfortStatus.textContent = 'Status Normal';
-    comfortStatus.style.color = 'var(--muted)';
-  }
-};
-
-const setupLifelineListeners = () => {
-  ['comfort', 'hygiene', 'satiation'].forEach(vital => {
-    const slider = document.getElementById(`${vital}Slider`);
-    slider.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
-      const currentLife = getActiveLifeline();
-      currentLife[vital] = val;
-      exactVitals[vital] = val; 
-      updateVitalsUI();
-      saveLifelines();
+  elements.myCreature.innerHTML = '<option value="Unknown">Select from Roster...</option>';
+  if (db.creatures && db.creatures.length > 0) {
+    db.creatures.forEach(c => {
+      elements.myCreature.appendChild(new Option(c.name, c.name));
     });
-  });
-
-  document.getElementById('addMigrationBtn').addEventListener('click', () => {
-    const currentLife = getActiveLifeline();
-    currentLife.migrations++;
-    updateElderingUI();
-    saveLifelines();
-  });
-
-  document.getElementById('subMigrationBtn').addEventListener('click', () => {
-    const currentLife = getActiveLifeline();
-    if (currentLife.migrations > 0) {
-      currentLife.migrations--;
-      updateElderingUI();
-      saveLifelines();
-    }
-  });
-
-  document.querySelectorAll('.rebirth-select').forEach(select => {
-    select.addEventListener('change', (e) => {
-      const currentLife = getActiveLifeline();
-      currentLife.rebirths[e.target.dataset.token] = e.target.value;
-      saveLifelines();
-    });
-  });
-
-  document.getElementById('resetLifelineBtn').addEventListener('click', () => {
-    if(confirm('Are you sure you want to reset the current lifeline to 100%?')) {
-      const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
-      lifelines[targetId] = generateDefaultLifeline();
-      updateVitalsUI();
-      updateElderingUI();
-      syncExactVitals();
-      saveLifelines();
-      showToast('Lifeline reset to base values.');
-    }
-  });
-};
-
-// --- Elysian Lifeline: Eldering Tracker ---
-const updateElderingUI = () => {
-  const currentLife = getActiveLifeline();
-  document.getElementById('migrationCount').textContent = currentLife.migrations;
-  const stageDisplay = document.getElementById('elderingStageDisplay');
-  const rebirthSelects = document.querySelectorAll('.rebirth-select');
-  
-  let stageHtml = '';
-  let isWithering = false;
-
-  if (currentLife.migrations < 4) {
-    stageHtml = `<strong style="color: var(--text);">Stage 0: Pre-Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Requires 4 migrations to reach Tier 1.</p>`;
-  } else if (currentLife.migrations >= 4 && currentLife.migrations < 8) {
-    stageHtml = `<strong style="color: var(--success);">Stage 1: Young Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health, +350 Weight. Slight speed debuff.</p>`;
-  } else if (currentLife.migrations >= 8 && currentLife.migrations < 12) {
-    stageHtml = `<strong style="color: var(--info);">Stage 2: Inexperienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">No extra buffs yet. Keep pushing.</p>`;
-  } else if (currentLife.migrations >= 12 && currentLife.migrations < 16) {
-    stageHtml = `<strong style="color: #a855f7;">Stage 3: Experienced Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">+125 Health (Stacks). Required: Dull skin, lead pack, eat first.</p>`;
-  } else if (currentLife.migrations >= 16) {
-    isWithering = true;
-    stageHtml = `<strong style="color: var(--danger);">Stage 4: Withering Elder</strong><p class="muted" style="margin-top: 5px; font-size: 0.9em;">Speed debuff stacks. Slow damage active until death. Rebirth unlocked.</p>`;
   }
-
-  stageDisplay.innerHTML = stageHtml;
-
-  rebirthSelects.forEach(select => {
-    select.disabled = !isWithering;
-    select.value = currentLife.rebirths[select.dataset.token];
-  });
 };
 
-// --- Decay Timer Logic ---
-const updateTimerDisplay = () => {
-  const display = document.getElementById('timerDisplay');
-  
-  // Dynamic proportional drain based on snapshot values
-  if (decayEndTime && exactVitals.comfort !== null) {
-    exactVitals.comfort = Math.max(0, exactVitals.comfort - drainRates.comfort);
-    exactVitals.hygiene = Math.max(0, exactVitals.hygiene - drainRates.hygiene);
-    exactVitals.satiation = Math.max(0, exactVitals.satiation - drainRates.satiation);
-
-    const currentLife = getActiveLifeline();
-    currentLife.comfort = Math.round(exactVitals.comfort);
-    currentLife.hygiene = Math.round(exactVitals.hygiene);
-    currentLife.satiation = Math.round(exactVitals.satiation);
+// --- Form Syncing ---
+const syncForm = (encounter) => {
+  if (!encounter) {
+    elements.outcome.value = 'Victory (Kill)';
+    elements.date.value = new Date().toISOString().split('T')[0];
     
-    updateVitalsUI();
-    saveLifelines();
-  }
-
-  if (!decayEndTime) {
-    display.textContent = "00:00";
-    display.style.color = "var(--primary)";
+    // Default to the currently active dinosaur from the dashboard if one exists
+    const activeId = localStorage.getItem('eahaActiveCreature');
+    const activeCreature = (db.creatures && activeId) ? db.creatures.find(c => c.id === activeId) : null;
+    
+    if (activeCreature && Array.from(elements.myCreature.options).some(opt => opt.value === activeCreature.name)) {
+      elements.myCreature.value = activeCreature.name;
+    } else {
+      elements.myCreature.value = 'Unknown';
+    }
+    
+    elements.opponent.value = '';
+    elements.location.value = '';
+    elements.notes.value = '';
+    elements.dateDisplay.textContent = 'New Record';
+    elements.deleteBtn.style.display = 'none';
     return;
   }
+
+  elements.outcome.value = encounter.outcome || 'Victory (Kill)';
+  elements.date.value = encounter.date || '';
   
-  const now = Date.now();
-  const remaining = Math.max(0, decayEndTime - now);
-  
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  
-  display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  
-  if (remaining <= 0) {
-    clearInterval(decayTimerInterval);
-    decayEndTime = null;
-    drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
-    display.style.color = "var(--danger)";
-    showToast("⚠️ Decay Timer Complete! Check your Vitals.", "error");
-    if (Notification.permission === "granted") {
-      new Notification("Elys Astra Helper", { body: "Your Upkeep Decay Timer has reached zero. Check your vitals!" });
-    }
+  if (Array.from(elements.myCreature.options).some(opt => opt.value === encounter.myCreature)) {
+    elements.myCreature.value = encounter.myCreature;
+  } else {
+    elements.myCreature.value = 'Unknown';
   }
+  
+  elements.opponent.value = encounter.opponent || '';
+  elements.location.value = encounter.location || '';
+  elements.notes.value = encounter.notes || '';
+  
+  const dateStr = encounter.date ? new Date(encounter.date).toLocaleDateString() : '--';
+  elements.dateDisplay.textContent = `Logged on: ${dateStr}`;
+  elements.deleteBtn.style.display = 'block';
 };
 
-document.getElementById('startTimerBtn').addEventListener('click', () => {
-  const mins = parseInt(document.getElementById('timerMinutes').value, 10);
-  if (isNaN(mins) || mins <= 0) {
-    showToast("Please enter a valid number of minutes.", "error");
+const gatherForm = () => {
+  return {
+    id: currentEncounterId || generateId(),
+    outcome: elements.outcome.value,
+    date: elements.date.value,
+    myCreature: elements.myCreature.value,
+    opponent: elements.opponent.value.trim(),
+    location: elements.location.value.trim(),
+    notes: elements.notes.value.trim(),
+    timestamp: Date.now() // For sorting
+  };
+};
+
+// --- Roster Logic ---
+const renderList = () => {
+  const searchTerm = elements.search.value.toLowerCase();
+  const filter = elements.filter.value;
+  
+  elements.list.innerHTML = '';
+  
+  if (!db.encounters || db.encounters.length === 0) {
+    elements.list.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No encounters logged.</p>';
     return;
   }
+
+  // Sort by newest first
+  const sortedEncounters = [...db.encounters].sort((a, b) => b.timestamp - a.timestamp);
+
+  const filtered = sortedEncounters.filter(e => {
+    const textToSearch = `${e.opponent} ${e.location} ${e.myCreature}`.toLowerCase();
+    const matchesSearch = textToSearch.includes(searchTerm);
+    
+    // Handle the generic "Defeat" filter to catch all death types
+    let matchesFilter = false;
+    if (filter === 'all') matchesFilter = true;
+    else if (filter === 'Defeat' && e.outcome.includes('Defeat')) matchesFilter = true;
+    else if (e.outcome === filter) matchesFilter = true;
+    
+    return matchesSearch && matchesFilter;
+  });
+
+  if (filtered.length === 0) {
+    elements.list.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No results found.</p>';
+    return;
+  }
+
+  filtered.forEach(enc => {
+    const item = document.createElement('div');
+    item.className = `list-item ${currentEncounterId === enc.id ? 'active' : ''}`;
+    item.style.cursor = 'pointer';
+    item.style.userSelect = 'none';
+    
+    let color = 'var(--text)';
+    let icon = '⚔️';
+    
+    if (enc.outcome.includes('Victory')) { color = 'var(--success)'; icon = '👑'; }
+    if (enc.outcome.includes('Defeat (PvP)')) { color = 'var(--danger)'; icon = '💀'; }
+    if (enc.outcome.includes('Starvation')) { color = '#eab308'; icon = '🍖'; }
+    if (enc.outcome.includes('Dehydration')) { color = '#3b82f6'; icon = '💧'; }
+    if (enc.outcome.includes('Environment')) { color = 'var(--danger)'; icon = '⛰️'; }
+    if (enc.outcome.includes('Draw')) { color = 'var(--info)'; icon = '🏃'; }
+
+    item.innerHTML = `
+      <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 1.05em; color: ${color};">${icon} vs ${enc.opponent || 'Unknown'}</strong>
+          <span style="font-size: 0.75em; color: var(--muted);">${enc.date ? new Date(enc.date).toLocaleDateString() : ''}</span>
+        </div>
+        <span style="font-size: 0.85em; color: var(--muted); margin-top: 4px;">📍 ${enc.location || 'Unknown Location'}</span>
+      </div>
+    `;
+    
+    item.addEventListener('click', () => {
+      currentEncounterId = enc.id;
+      syncForm(enc);
+      setViewMode('form');
+      renderList(); 
+    });
+    
+    elements.list.appendChild(item);
+  });
+};
+
+// --- Database Operations ---
+const saveEncounter = async () => {
+  const data = gatherForm();
+  if(!db.encounters) db.encounters = [];
+  const index = db.encounters.findIndex(e => e.id === data.id);
   
-  const totalSeconds = mins * 60;
-  syncExactVitals(); 
+  if (index >= 0) db.encounters[index] = data;
+  else db.encounters.push(data);
   
-  // Calculate unique drain rate for each vital so they all hit 0 exactly when the timer ends
-  drainRates = {
-    comfort: exactVitals.comfort / totalSeconds,
-    hygiene: exactVitals.hygiene / totalSeconds,
-    satiation: exactVitals.satiation / totalSeconds
+  await EAHADataStore.saveData(db);
+  
+  currentEncounterId = data.id;
+  renderList();
+  showToast('Encounter Logged Successfully.');
+};
+
+const deleteEncounter = async () => {
+  if (!currentEncounterId || !confirm('Are you sure you want to delete this log?')) return;
+  
+  db.encounters = db.encounters.filter(e => e.id !== currentEncounterId);
+  await EAHADataStore.saveData(db);
+  
+  currentEncounterId = null;
+  renderList();
+  setViewMode('dashboard');
+  showToast('Log Erased.', 'error');
+};
+
+// --- Quick Log Handling ---
+const handleQuickLog = async (outcomeType) => {
+  const opp = elements.quickOpponent.value.trim();
+  const loc = elements.quickLocation.value.trim();
+  
+  // Figure out the active creature
+  const activeId = localStorage.getItem('eahaActiveCreature');
+  const activeCreature = (db.creatures && activeId) ? db.creatures.find(c => c.id === activeId) : null;
+  const myCreaName = activeCreature ? activeCreature.name : 'Unknown';
+
+  const newLog = {
+    id: generateId(),
+    outcome: outcomeType,
+    date: new Date().toISOString().split('T')[0],
+    myCreature: myCreaName,
+    opponent: opp || (outcomeType.includes('Starve') || outcomeType.includes('Dehydrat') ? 'Nature' : 'Unknown'),
+    location: loc || 'Unknown',
+    notes: 'Logged via Quick Dashboard.',
+    timestamp: Date.now()
   };
 
-  decayEndTime = Date.now() + (mins * 60000);
-  if (decayTimerInterval) clearInterval(decayTimerInterval);
+  if(!db.encounters) db.encounters = [];
+  db.encounters.push(newLog);
+  await EAHADataStore.saveData(db);
   
-  document.getElementById('timerDisplay').style.color = "var(--primary)";
-  decayTimerInterval = setInterval(updateTimerDisplay, 1000);
-  updateTimerDisplay();
+  // Clear quick inputs
+  elements.quickOpponent.value = '';
+  elements.quickLocation.value = '';
   
-  if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-    Notification.requestPermission();
-  }
-});
+  renderList();
+  updateDashboard();
+  showToast(`Quick Log Saved: ${outcomeType}`);
+};
 
-
-// --- Quick Commands Logic ---
-const renderCommands = () => {
-  const grid = document.getElementById('commandGrid');
-  grid.innerHTML = '';
+// --- Chart.js Analytics Engine ---
+const updateDashboard = () => {
+  const encs = db.encounters || [];
   
-  commands.forEach((command, index) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chip';
-    
-    if (isEditMode) {
-      btn.innerHTML = `${command} <span style="color: var(--danger); margin-left: 8px; font-weight: bold;">✕</span>`;
-      btn.style.borderColor = 'var(--danger)';
-      btn.addEventListener('click', () => {
-        commands.splice(index, 1);
-        saveCommands();
-        renderCommands();
-      });
-    } else {
-      btn.textContent = command;
-      btn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(command);
-          document.getElementById('commandStatus').textContent = `Copied: ${command}`;
-          document.getElementById('commandStatus').style.color = 'var(--success)';
-        } catch (error) {
-          document.getElementById('commandStatus').textContent = 'Clipboard access failed.';
-        }
-      });
+  // 1. Core Top-Line Stats
+  const total = encs.length;
+  const kills = encs.filter(e => e.outcome.includes('Victory')).length;
+  const deaths = encs.filter(e => e.outcome.includes('Defeat')).length;
+  const draws = encs.filter(e => e.outcome.includes('Draw')).length;
+  
+  elements.dashTotal.textContent = total;
+  elements.dashKills.textContent = kills;
+  elements.dashDeaths.textContent = deaths;
+  
+  // 2. Location Analytics (Find Deadliest Zone)
+  const deathLocations = {};
+  encs.filter(e => e.outcome.includes('Defeat')).forEach(e => {
+    const loc = e.location || 'Unknown';
+    deathLocations[loc] = (deathLocations[loc] || 0) + 1;
+  });
+  
+  let deadliestZone = 'N/A';
+  let maxDeaths = 0;
+  for (const [loc, count] of Object.entries(deathLocations)) {
+    if (count > maxDeaths) {
+      maxDeaths = count;
+      deadliestZone = loc;
     }
-    grid.appendChild(btn);
-  });
-};
+  }
+  elements.dashDangerZone.textContent = deadliestZone !== 'N/A' ? `${deadliestZone} (${maxDeaths})` : 'None yet';
+  elements.dashDangerZone.style.color = deadliestZone !== 'N/A' ? 'var(--danger)' : 'var(--text)';
 
-const setupCommandListeners = () => {
-  document.getElementById('editCommandsToggle').addEventListener('change', (e) => {
-    isEditMode = e.target.checked;
-    document.getElementById('addCommandForm').classList.toggle('is-hidden', !isEditMode);
-    document.getElementById('commandStatus').textContent = isEditMode ? 'Click a command to delete it.' : 'Ready.';
-    document.getElementById('commandStatus').style.color = 'var(--muted)';
-    renderCommands();
+  // Default font settings for charts
+  Chart.defaults.color = '#a0aec0'; // matches var(--muted)
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+
+  // --- CHART: Outcome Ratio (Doughnut) ---
+  if (charts.outcome) charts.outcome.destroy();
+  const ctxOutcome = document.getElementById('outcomeChart').getContext('2d');
+  charts.outcome = new Chart(ctxOutcome, {
+    type: 'doughnut',
+    data: {
+      labels: ['Victories', 'Defeats', 'Draws'],
+      datasets: [{
+        data: [kills, deaths, draws],
+        backgroundColor: ['#10b981', '#ef4444', '#3b82f6'], // Success, Danger, Info
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
   });
 
-  document.getElementById('saveNewCommandBtn').addEventListener('click', () => {
-    const input = document.getElementById('newCommandInput');
-    const newCmd = input.value.trim();
-    if (newCmd) {
-      commands.push(newCmd.startsWith('!') ? newCmd : `!${newCmd}`);
-      input.value = '';
-      saveCommands();
-      renderCommands();
-      showToast('Command added.');
+  // --- CHART: Cause of Death (Pie) ---
+  if (charts.cod) charts.cod.destroy();
+  const ctxCod = document.getElementById('codChart').getContext('2d');
+  
+  const pvpDeaths = encs.filter(e => e.outcome === 'Defeat (PvP)').length;
+  const starveDeaths = encs.filter(e => e.outcome === 'Defeat (Starvation)').length;
+  const thirstDeaths = encs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
+  const envDeaths = encs.filter(e => e.outcome === 'Defeat (Environment)').length;
+
+  charts.cod = new Chart(ctxCod, {
+    type: 'pie',
+    data: {
+      labels: ['PvP', 'Starvation', 'Dehydration', 'Environment'],
+      datasets: [{
+        data: [pvpDeaths, starveDeaths, thirstDeaths, envDeaths],
+        backgroundColor: ['#ef4444', '#eab308', '#3b82f6', '#8b5cf6'],
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right' }
+      }
+    }
+  });
+
+  // --- CHART: Fatalities by Location (Bar) ---
+  if (charts.location) charts.location.destroy();
+  const ctxLocation = document.getElementById('locationChart').getContext('2d');
+  
+  // Sort locations by death count
+  const sortedDeathLocs = Object.entries(deathLocations)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5); // Top 5
+
+  charts.location = new Chart(ctxLocation, {
+    type: 'bar',
+    data: {
+      labels: sortedDeathLocs.map(l => l[0]),
+      datasets: [{
+        label: 'Deaths',
+        data: sortedDeathLocs.map(l => l[1]),
+        backgroundColor: '#ef4444',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // --- CHART: Most Hunted Species (Bar) ---
+  if (charts.hunted) charts.hunted.destroy();
+  const ctxHunted = document.getElementById('huntedChart').getContext('2d');
+  
+  const huntedSpecies = {};
+  encs.filter(e => e.outcome.includes('Victory')).forEach(e => {
+    const opp = e.opponent || 'Unknown';
+    huntedSpecies[opp] = (huntedSpecies[opp] || 0) + 1;
+  });
+
+  const sortedHunted = Object.entries(huntedSpecies)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5); // Top 5
+
+  charts.hunted = new Chart(ctxHunted, {
+    type: 'bar',
+    data: {
+      labels: sortedHunted.map(h => h[0]),
+      datasets: [{
+        label: 'Kills',
+        data: sortedHunted.map(h => h[1]),
+        backgroundColor: '#10b981',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y', // Makes it a horizontal bar chart
+      scales: {
+        x: { beginAtZero: true, ticks: { stepSize: 1 } }
+      },
+      plugins: {
+        legend: { display: false }
+      }
     }
   });
 };
 
-// --- Time & Clock Logic ---
-const timeZones = [
-  { label: 'Local Time', value: 'local' },
-  { label: 'UTC', value: 'UTC' },
-  { label: 'US/Eastern', value: 'America/New_York' },
-  { label: 'US/Central', value: 'America/Chicago' },
-  { label: 'US/Mountain', value: 'America/Denver' },
-  { label: 'US/Pacific', value: 'America/Los_Angeles' }
-];
-
-const populateTimeZones = () => {
-  const select = document.getElementById('timeZoneSelect');
-  timeZones.forEach(zone => select.appendChild(new Option(zone.label, zone.value)));
-  select.value = localStorage.getItem(TIME_ZONE_KEY) || 'local';
-  select.addEventListener('change', () => {
-    localStorage.setItem(TIME_ZONE_KEY, select.value);
-    updateDateTime();
-  });
-};
-
-const updateDateTime = () => {
-  const timeZone = document.getElementById('timeZoneSelect').value || 'local';
-  const now = new Date();
-  
-  const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
-  const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  
-  if (timeZone !== 'local') {
-    optionsTime.timeZone = timeZone;
-    optionsDate.timeZone = timeZone;
-  }
-  
-  document.getElementById('homeTime').textContent = new Intl.DateTimeFormat(undefined, optionsTime).format(now);
-  document.getElementById('homeDate').textContent = new Intl.DateTimeFormat(undefined, optionsDate).format(now);
-};
-
-// --- Boot Sequence ---
+// --- Initialization ---
 const init = async () => {
   if (typeof EAHADataStore !== 'undefined') {
     db = await EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing or not loaded.");
+    console.error("Jarvis Alert: data-store.js is missing.");
   }
 
-  // Populate UI before setting up listeners
+  // Ensure encounters array exists in older databases
+  if (!db.encounters) {
+    db.encounters = [];
+  }
+
   populateCreatureDropdown();
+  renderList();
+
+  // Bind Listeners
+  elements.search.addEventListener('input', renderList);
+  elements.filter.addEventListener('change', renderList);
   
-  populateTimeZones();
-  updateDateTime();
-  setInterval(updateDateTime, 1000);
-  
-  setupLifelineListeners();
-  
-  setupCommandListeners();
-  renderCommands();
+  elements.dashBtn.addEventListener('click', () => {
+    currentEncounterId = null;
+    renderList();
+    setViewMode('dashboard');
+  });
+
+  elements.addBtn.addEventListener('click', () => {
+    currentEncounterId = null;
+    syncForm(null);
+    renderList();
+    setViewMode('form');
+  });
+
+  elements.saveBtn.addEventListener('click', saveEncounter);
+  elements.deleteBtn.addEventListener('click', deleteEncounter);
+
+  // Quick Log Bindings
+  elements.quickWin.addEventListener('click', () => handleQuickLog('Victory (Kill)'));
+  elements.quickLoss.addEventListener('click', () => handleQuickLog('Defeat (PvP)'));
+  elements.quickStarve.addEventListener('click', () => handleQuickLog('Defeat (Starvation)'));
+  elements.quickThirst.addEventListener('click', () => handleQuickLog('Defeat (Dehydration)'));
+
+  // Boot State
+  setViewMode('dashboard');
 };
 
 document.addEventListener('DOMContentLoaded', init);
