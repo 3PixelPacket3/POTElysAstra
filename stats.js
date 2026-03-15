@@ -3,7 +3,6 @@
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {} };
 let currentCreatureId = null;
-let currentMode = 'view';
 
 // --- DOM Elements ---
 const elements = {
@@ -12,10 +11,7 @@ const elements = {
   tierFilter: document.getElementById('statTierFilter'),
   
   placeholder: document.getElementById('statPlaceholder'),
-  statContent: document.getElementById('statContent'),
   statView: document.getElementById('statView'),
-  statEdit: document.getElementById('statEdit'),
-  modeButtons: document.querySelectorAll('.mode-toggle button'),
   
   // Header
   image: document.getElementById('statCreatureImage'),
@@ -23,23 +19,11 @@ const elements = {
   tier: document.getElementById('statCreatureTier'),
   group: document.getElementById('statCreatureGroup'),
   
-  // View Grids
+  // Grids
   baseGrid: document.getElementById('baseStatsGrid'),
   customWrapper: document.getElementById('customStatsWrapper'),
   customGrid: document.getElementById('customStatsGrid'),
   
-  // Edit Inputs
-  editHealth: document.getElementById('editStatHealth'),
-  editWeight: document.getElementById('editStatWeight'),
-  editArmor: document.getElementById('editStatArmor'),
-  editCarry: document.getElementById('editStatCarry'),
-  editStamina: document.getElementById('editStatStamina'),
-  editSpeed: document.getElementById('editStatSpeed'),
-  
-  addEditCustomStatBtn: document.getElementById('addEditCustomStatBtn'),
-  editCustomStatsContainer: document.getElementById('editCustomStatsContainer'),
-  saveStatsBtn: document.getElementById('saveStatsBtn'),
-
   // Calculator
   calcTarget: document.getElementById('calcTargetStat'),
   calcMod: document.getElementById('calcModifier'),
@@ -59,58 +43,16 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// --- Mode Toggle ---
-const setMode = (mode) => {
-  currentMode = mode;
-  elements.modeButtons.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.mode === mode);
-    if (btn.dataset.mode === mode) {
-      btn.classList.remove('btn-ghost');
-      btn.classList.add('btn');
-    } else {
-      btn.classList.remove('btn');
-      btn.classList.add('btn-ghost');
-    }
-  });
-  
-  if (mode === 'edit') {
-    elements.statView.classList.add('is-hidden');
-    elements.statEdit.classList.remove('is-hidden');
-  } else {
-    elements.statEdit.classList.add('is-hidden');
-    elements.statView.classList.remove('is-hidden');
-  }
-};
-
-// --- Dynamic Edit Rows ---
-const renderEditCustomStatRow = (name = '', value = '') => {
-  const row = document.createElement('div');
-  row.style.display = 'flex';
-  row.style.gap = '10px';
-  row.style.marginBottom = '10px';
-  row.style.alignItems = 'center';
-  row.className = 'custom-stat-row';
-  
-  row.innerHTML = `
-    <input type="text" class="stat-name" placeholder="Stat Name (e.g., Bleed Heal)" value="${name}" style="flex: 1;">
-    <input type="text" class="stat-value" placeholder="Value" value="${value}" style="flex: 1;">
-    <button type="button" class="btn btn-ghost delete-stat-btn" style="color: var(--danger); border-color: transparent; padding: 10px;">✕</button>
-  `;
-  
-  row.querySelector('.delete-stat-btn').addEventListener('click', () => row.remove());
-  elements.editCustomStatsContainer.appendChild(row);
-};
-
-// --- View Renderer & Form Sync ---
+// --- View Renderer ---
 const setView = (creature) => {
   if (!creature) {
-    elements.statContent.classList.add('is-hidden');
+    elements.statView.classList.add('is-hidden');
     elements.placeholder.classList.remove('is-hidden');
     return;
   }
 
   elements.placeholder.classList.add('is-hidden');
-  elements.statContent.classList.remove('is-hidden');
+  elements.statView.classList.remove('is-hidden');
 
   // 1. Render Header
   elements.name.textContent = creature.name;
@@ -124,7 +66,7 @@ const setView = (creature) => {
     elements.image.style.display = 'none';
   }
 
-  // 2. Render Base Stats (View Mode)
+  // 2. Render Base Stats
   const baseStats = creature.stats?.base || {};
   const statLabels = {
     health: 'Health', combatWeight: 'Combat Weight', armor: 'Armor',
@@ -138,7 +80,7 @@ const setView = (creature) => {
     </div>
   `).join('');
 
-  // 3. Render Custom Stats (View Mode)
+  // 3. Render Custom Stats
   const customStats = creature.stats?.custom || [];
   if (customStats.length > 0) {
     elements.customWrapper.classList.remove('is-hidden');
@@ -152,56 +94,8 @@ const setView = (creature) => {
     elements.customWrapper.classList.add('is-hidden');
   }
 
-  // 4. Populate Edit Mode Inputs
-  elements.editHealth.value = baseStats.health || '';
-  elements.editWeight.value = baseStats.combatWeight || '';
-  elements.editArmor.value = baseStats.armor || '';
-  elements.editCarry.value = baseStats.carryCapacity || '';
-  elements.editStamina.value = baseStats.stamina || '';
-  elements.editSpeed.value = baseStats.speed || '';
-
-  elements.editCustomStatsContainer.innerHTML = '';
-  customStats.forEach(stat => renderEditCustomStatRow(stat.name, stat.value));
-
   // Reset calculator when switching creatures
   resetCalculator();
-};
-
-// --- Save Changes to DB ---
-const saveStats = async () => {
-  if (!currentCreatureId) return;
-  const creatureIndex = db.creatures.findIndex(c => c.id === currentCreatureId);
-  if (creatureIndex === -1) return;
-
-  const creature = db.creatures[creatureIndex];
-  if (!creature.stats) creature.stats = { base: {}, custom: [] };
-
-  // Gather Base Stats
-  creature.stats.base = {
-    health: elements.editHealth.value,
-    combatWeight: elements.editWeight.value,
-    armor: elements.editArmor.value,
-    carryCapacity: elements.editCarry.value,
-    stamina: elements.editStamina.value,
-    speed: elements.editSpeed.value
-  };
-
-  // Gather Custom Stats
-  const customStats = [];
-  elements.editCustomStatsContainer.querySelectorAll('.custom-stat-row').forEach(row => {
-    const name = row.querySelector('.stat-name').value.trim();
-    const value = row.querySelector('.stat-value').value.trim();
-    if (name) customStats.push({ name, value });
-  });
-  creature.stats.custom = customStats;
-
-  // Save to Database
-  await EAHADataStore.saveData(db);
-  showToast('Stats Updated Successfully.');
-  
-  // Refresh UI
-  setView(creature);
-  setMode('view');
 };
 
 // --- Sandbox Calculator Logic ---
@@ -284,8 +178,11 @@ const renderList = () => {
   filtered.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
+    // Force Pointer CSS and disable text selection for cleaner UI
+    item.style.cursor = 'pointer';
+    item.style.userSelect = 'none';
     item.innerHTML = `
-      <div style="display: flex; flex-direction: column; width: 100%;">
+      <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
         <strong style="font-size: 1.1em; color: ${currentCreatureId === creature.id ? 'var(--primary)' : 'var(--text)'};">${creature.name}</strong>
         <span style="font-size: 0.85em; color: var(--muted); font-weight: 500;">${creature.tier || 'Unknown'}</span>
       </div>
@@ -293,8 +190,7 @@ const renderList = () => {
     item.addEventListener('click', () => {
       currentCreatureId = creature.id;
       setView(creature);
-      renderList();
-      setMode('view');
+      renderList(); 
     });
     elements.list.appendChild(item);
   });
@@ -315,13 +211,6 @@ const init = async () => {
   elements.search.addEventListener('input', renderList);
   elements.tierFilter.addEventListener('change', renderList);
   
-  elements.modeButtons.forEach(btn => {
-    btn.addEventListener('click', () => setMode(btn.dataset.mode));
-  });
-
-  elements.addEditCustomStatBtn.addEventListener('click', () => renderEditCustomStatRow());
-  elements.saveStatsBtn.addEventListener('click', saveStats);
-
   elements.calcApplyBtn.addEventListener('click', applyCalculation);
   elements.calcResetBtn.addEventListener('click', resetCalculator);
   
@@ -329,7 +218,7 @@ const init = async () => {
     if (e.key === 'Enter') applyCalculation();
   });
 
-  setView(null);
+  setView(null); 
 };
 
 document.addEventListener('DOMContentLoaded', init);
