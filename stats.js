@@ -160,19 +160,18 @@ const setView = (creature) => {
 
   elements.baseGrid.innerHTML = Object.keys(statLabels).map(key => `
     <div class="stat-card" style="background: var(--bg); border-color: var(--border);" title="Full Array: ${baseStats[key] || '-'}">
-      <strong style="color: var(--muted);">${statLabels[key]}</strong>
+      <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">${statLabels[key]}</strong>
       <span style="display: block; font-size: 1.5em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(baseStats[key])}</span>
       <div style="font-size: 0.7em; color: var(--muted); margin-top: 4px;">Adult / Max</div>
     </div>
   `).join('');
 
-  // 3. UI CLEANUP: Render Custom Stats (Split into Primary Offense & Advanced Accordion)
+  // 3. UI CLEANUP: Custom Stats Dropdowns & Word-Wrap
   const customStats = creature.stats?.custom || [];
   
   if (customStats.length > 0) {
     elements.customWrapper.classList.remove('is-hidden');
     
-    // Keywords that determine if a stat is "Primary"
     const primaryKeywords = ['damage', 'bleed', 'bonebreak', 'venom', 'poison', 'cooldown'];
     const primaryStats = [];
     const advancedStats = [];
@@ -186,31 +185,38 @@ const setView = (creature) => {
       }
     });
 
-    // Render Primary Offense Grid
     let htmlOutput = ``;
+    
+    // Primary Offense Accordion
     if (primaryStats.length > 0) {
-      htmlOutput += `<h3 style="color: var(--danger); margin-bottom: 15px; margin-top: 20px;">Primary Combat Mechanics</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px;">
-        ${primaryStats.map(stat => `
-          <div class="stat-card" style="background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border-color: var(--danger);" title="Full Array: ${stat.value || '-'}">
-            <strong style="color: var(--danger); font-size: 0.9em;">${stat.name}</strong>
-            <span style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
+      htmlOutput += `
+        <details open style="background: color-mix(in srgb, var(--danger) 5%, var(--bg)); padding: 15px; border-radius: 12px; border: 1px solid var(--danger); margin-bottom: 20px; margin-top: 20px;">
+          <summary style="color: var(--danger); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
+            Primary Combat Mechanics (${primaryStats.length} variables)
+          </summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px;">
+            ${primaryStats.map(stat => `
+              <div class="stat-card" style="background: var(--bg); border-color: var(--danger);" title="Full Array: ${stat.value || '-'}">
+                <strong style="color: var(--danger); font-size: 0.85em; display: block; overflow-wrap: anywhere; word-break: break-word;">${stat.name}</strong>
+                <span style="display: block; font-size: 1.1em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>`;
+        </details>
+      `;
     }
 
-    // Render Advanced Stats inside a Collapsible Details element
+    // Advanced Stats Accordion
     if (advancedStats.length > 0) {
       htmlOutput += `
-        <details style="background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 30px;">
+        <details style="background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 30px;">
           <summary style="color: var(--primary); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
-            View Advanced Variables (${advancedStats.length} hidden)
+            Advanced Matrix Variables (${advancedStats.length} hidden)
           </summary>
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px;">
             ${advancedStats.map(stat => `
-              <div class="stat-card" style="background: var(--bg-alt); border-color: var(--border);" title="Full Array: ${stat.value || '-'}">
-                <strong style="color: var(--primary); font-size: 0.85em;">${stat.name}</strong>
+              <div class="stat-card" style="background: var(--bg); border-color: var(--border);" title="Full Array: ${stat.value || '-'}">
+                <strong style="color: var(--primary); font-size: 0.85em; display: block; overflow-wrap: anywhere; word-break: break-word;">${stat.name}</strong>
                 <span style="display: block; font-size: 1.1em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
               </div>
             `).join('')}
@@ -276,7 +282,7 @@ const saveStats = async () => {
   if (elements.fighterA) populateDropdowns();
 };
 
-// --- Sandbox Calculator Logic (5-Stage Array Math) ---
+// --- Sandbox Calculator Logic ---
 const resetCalculator = () => {
   elements.calcMod.value = '';
   elements.calcResult.textContent = '---';
@@ -355,6 +361,16 @@ const getCustomStageStat = (dino, statNameSubstring, stageIndex) => {
   return stat ? getStatArray(stat.value)[stageIndex] : 0;
 };
 
+// Generates visual badges for powerful mechanics
+const generateBadges = (dino, stageIndex) => {
+  let b = '';
+  if (getCustomStageStat(dino, 'Bleed', stageIndex) > 0) b += `<span style="background: #7f1d1d; color: white; padding: 2px 8px; border-radius: 6px; font-size: 0.75em; margin-right: 5px; display: inline-block; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">🩸 Bleed</span>`;
+  if (getCustomStageStat(dino, 'BoneBreak', stageIndex) > 0) b += `<span style="background: #b45309; color: white; padding: 2px 8px; border-radius: 6px; font-size: 0.75em; margin-right: 5px; display: inline-block; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">🦴 Bonebreak</span>`;
+  if (getCustomStageStat(dino, 'Venom', stageIndex) > 0) b += `<span style="background: #166534; color: white; padding: 2px 8px; border-radius: 6px; font-size: 0.75em; margin-right: 5px; display: inline-block; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">🐍 Venom</span>`;
+  if (getCustomStageStat(dino, 'Poison', stageIndex) > 0) b += `<span style="background: #4c1d95; color: white; padding: 2px 8px; border-radius: 6px; font-size: 0.75em; margin-right: 5px; display: inline-block; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">☣️ Poison</span>`;
+  return b;
+};
+
 const runSimulation = () => {
   if (!elements.fighterA || !elements.fighterB) return;
 
@@ -378,6 +394,7 @@ const runSimulation = () => {
   const dinoA = db.creatures.find(c => c.id === idA);
   const dinoB = db.creatures.find(c => c.id === idB);
 
+  // Core Stage Stats
   const weightA = getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 0;
   const weightB = getStatArray(dinoB.stats?.base?.combatWeight)[stageBIndex] || 0;
   
@@ -390,9 +407,12 @@ const runSimulation = () => {
   const stamA = getStatArray(dinoA.stats?.base?.stamina)[stageAIndex] || 0;
   const stamB = getStatArray(dinoB.stats?.base?.stamina)[stageBIndex] || 0;
 
-  // CW Math
-  const multiplierA = weightB > 0 ? (weightA / weightB) : 1;
-  const multiplierB = weightA > 0 ? (weightB / weightA) : 1;
+  const armorA = getStatArray(dinoA.stats?.base?.armor)[stageAIndex] || 1;
+  const armorB = getStatArray(dinoB.stats?.base?.armor)[stageBIndex] || 1;
+
+  // Combat Math - Factor in Opponent Armor!
+  const multiplierA = weightB > 0 ? (weightA / weightB) / armorB : 1;
+  const multiplierB = weightA > 0 ? (weightB / weightA) / armorA : 1;
 
   // Actual Simulated Damage Output
   const biteA = getCustomStageStat(dinoA, 'BiteDamage', stageAIndex) || getCustomStageStat(dinoA, 'Damage', stageAIndex) || 0;
@@ -405,9 +425,11 @@ const runSimulation = () => {
   elements.simOutputA.innerHTML = `
     <h3 style="color: var(--primary); margin-bottom: 5px;">${dinoA.name}</h3>
     <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--primary);">${stageNames[stageAIndex]}</span>
+    <div style="margin-bottom: 10px;">${generateBadges(dinoA, stageAIndex)}</div>
     <div style="font-size: 0.95em; line-height: 1.6;">
       <div><strong>Health:</strong> ${healthA} HP</div>
       <div><strong>Combat Weight:</strong> ${weightA}</div>
+      <div><strong>Armor:</strong> ${armorA}</div>
       <hr style="border-top: 1px solid var(--border); margin: 10px 0;">
       
       <div style="color: ${multiplierA >= 1 ? 'var(--success)' : 'var(--danger)'}; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">
@@ -417,7 +439,7 @@ const runSimulation = () => {
       ${biteA > 0 ? `
         <div style="background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9em;">
           <strong>Estimated Bite Hit:</strong> <span style="color: var(--danger); font-weight: 800; font-size: 1.1em;">${actualDmgA} HP</span>
-          <div class="muted" style="font-size: 0.8em; margin-top: 2px;">(Base ${biteA} x ${multiplierA.toFixed(2)} mod)</div>
+          <div class="muted" style="font-size: 0.8em; margin-top: 2px;">(Base ${biteA} x CW & Armor Mod)</div>
         </div>
       ` : '<span class="muted" style="font-size:0.85em;">No primary bite damage found in matrix.</span>'}
     </div>
@@ -427,9 +449,11 @@ const runSimulation = () => {
   elements.simOutputB.innerHTML = `
     <h3 style="color: var(--danger); margin-bottom: 5px;">${dinoB.name}</h3>
     <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--danger);">${stageNames[stageBIndex]}</span>
+    <div style="margin-bottom: 10px;">${generateBadges(dinoB, stageBIndex)}</div>
     <div style="font-size: 0.95em; line-height: 1.6;">
       <div><strong>Health:</strong> ${healthB} HP</div>
       <div><strong>Combat Weight:</strong> ${weightB}</div>
+      <div><strong>Armor:</strong> ${armorB}</div>
       <hr style="border-top: 1px solid var(--border); margin: 10px 0;">
       
       <div style="color: ${multiplierB >= 1 ? 'var(--success)' : 'var(--danger)'}; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">
@@ -439,20 +463,31 @@ const runSimulation = () => {
       ${biteB > 0 ? `
         <div style="background: var(--bg); padding: 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9em;">
           <strong>Estimated Bite Hit:</strong> <span style="color: var(--danger); font-weight: 800; font-size: 1.1em;">${actualDmgB} HP</span>
-          <div class="muted" style="font-size: 0.8em; margin-top: 2px;">(Base ${biteB} x ${multiplierB.toFixed(2)} mod)</div>
+          <div class="muted" style="font-size: 0.8em; margin-top: 2px;">(Base ${biteB} x CW & Armor Mod)</div>
         </div>
       ` : '<span class="muted" style="font-size:0.85em;">No primary bite damage found in matrix.</span>'}
     </div>
   `;
 
   // Analyze Threat Banner
+  let tacticalAdvice = "";
   if (weightA > weightB) {
-    elements.advantageBanner.innerHTML = `<strong style="color: var(--success);">TACTICAL ADVANTAGE:</strong> You have the weight advantage. Your attacks will hit significantly harder and you will absorb more punishment.`;
+    tacticalAdvice = `<strong style="color: var(--success);">WEIGHT ADVANTAGE:</strong> You have the mass advantage. Your attacks will hit harder and you will absorb more punishment.`;
   } else if (weightA < weightB) {
-    elements.advantageBanner.innerHTML = `<strong style="color: var(--danger);">LETHAL THREAT:</strong> Opponent out-weighs you. DO NOT FACE TANK. Rely on speed, bleed, or numbers.`;
+    tacticalAdvice = `<strong style="color: var(--danger);">LETHAL THREAT:</strong> Opponent out-weighs you. DO NOT FACE TANK.`;
   } else {
-    elements.advantageBanner.innerHTML = `<strong style="color: var(--info);">EVEN MATCHUP:</strong> Combat weights are identical. This fight comes down to raw base damage, armor hides, and player skill.`;
+    tacticalAdvice = `<strong style="color: var(--info);">EVEN MATCHUP:</strong> Combat weights are identical. This fight comes down to raw base damage, armor hides, and player skill.`;
   }
+
+  // Advanced Tactical Warnings
+  if (getCustomStageStat(dinoB, 'BoneBreak', stageBIndex) > 0 && getCustomStageStat(dinoA, 'BoneBreak', stageAIndex) === 0) {
+    tacticalAdvice += `<br><span style="color: var(--danger); font-size: 0.9em; display: block; margin-top: 8px;">⚠️ <strong>CAUTION:</strong> Target has Bonebreak capabilities. Getting hit will cripple your mobility.</span>`;
+  }
+  if (getCustomStageStat(dinoA, 'Bleed', stageAIndex) > 0 && weightA < weightB) {
+    tacticalAdvice += `<br><span style="color: var(--info); font-size: 0.9em; display: block; margin-top: 8px;">💡 <strong>TACTIC:</strong> Utilize hit-and-run attacks to stack your Bleed and wear down their larger health pool.</span>`;
+  }
+
+  elements.advantageBanner.innerHTML = tacticalAdvice;
 
   // Analyze Speed
   if (speedA > speedB) {
@@ -537,6 +572,7 @@ const init = async () => {
   updateTierOptions();
   renderList();
 
+  // Bind Listeners
   elements.search.addEventListener('input', renderList);
   elements.tierFilter.addEventListener('change', renderList);
   
@@ -566,4 +602,4 @@ const init = async () => {
   setView(null); 
 };
 
-document.addEventListener('DOMContentLoaded', init);;
+document.addEventListener('DOMContentLoaded', init);
