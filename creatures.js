@@ -171,8 +171,8 @@ const processImage = async (file) => {
   try {
     const result = await Tesseract.recognize(file, 'eng');
     
-    // Clean out emojis, bot artifacts, non-ASCII symbols, and tildes (~~)
-    const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "").replace(/~/g, "");
+    // Clean out emojis, bot artifacts, non-ASCII symbols, tildes (~~), and @ symbols
+    const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "").replace(/[~@]/g, "");
     
     parseOCRText(cleanText);
     showToast("Auto-fill complete! Please review the extracted data.");
@@ -231,8 +231,27 @@ const parseOCRText = (text) => {
     elements.narrative.upkeep.value = "";
   }
 
-  // 7. Blank out the rich description and behaviors as requested
-  elements.narrative.behaviors.value = '';
+  // 7. Behavior Titles isolated
+  const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
+  if (behaviorMatch) {
+    // Cut off the bottom server info
+    let bText = behaviorMatch[1].split(/(?:May be considered a rulebreak|Basic Info|Can Symbiote|Elysian)/i)[0].trim();
+    let lines = bText.split('\n').map(l => l.trim()).filter(l => l);
+    let bNames = [];
+    
+    lines.forEach(line => {
+      // Heuristic for a title: short line, no period at the end
+      if (line.length > 2 && line.length < 55 && !line.match(/[.!?]$/)) {
+          bNames.push(line);
+      }
+    });
+    
+    elements.narrative.behaviors.value = bNames.join('\n');
+  } else {
+    elements.narrative.behaviors.value = '';
+  }
+
+  // 8. Leave the rich text body blank as requested
   elements.narrative.body.innerHTML = '';
 };
 
