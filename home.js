@@ -433,4 +433,4 @@ const init = async () => {
   renderCommands();
 };
 
-document.addEventListener('DOMContentLoaded', init);;
+document.addEventListener('DOMContentLoaded', init);
