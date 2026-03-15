@@ -74,7 +74,6 @@ const formatLines = (text) => text.split('\n').map((item) => item.trim()).filter
 const generateId = () => 'crea_' + Math.random().toString(36).substr(2, 9);
 
 // --- Base64 Image Compression Engine ---
-// Sir, this compresses uploads to prevent LocalStorage quota overflow.
 const compressAndLoadImage = (file) => {
   if (!file || !file.type.startsWith('image/')) return;
   
@@ -85,32 +84,23 @@ const compressAndLoadImage = (file) => {
     img.src = event.target.result;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 400; // Optimal for UI display
-      const MAX_HEIGHT = 400;
-      let width = img.width;
-      let height = img.height;
-
-      if (width > height) {
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
-        }
-      } else {
-        if (height > MAX_HEIGHT) {
-          width *= MAX_HEIGHT / height;
-          height = MAX_HEIGHT;
-        }
-      }
-
-      canvas.width = width;
-      canvas.height = height;
+      const SIZE = 400; // Optimal UI display size
+      canvas.width = SIZE;
+      canvas.height = SIZE;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
+
+      // Calculate 1:1 Center Crop
+      const minDim = Math.min(img.width, img.height);
+      const sx = (img.width - minDim) / 2;
+      const sy = (img.height - minDim) / 2;
+
+      // Draw the cropped center into the 400x400 canvas
+      ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, SIZE, SIZE);
       
       // Compress to high-quality JPEG Base64
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       elements.core.image.value = dataUrl;
-      showToast('Profile image successfully compressed and loaded.');
+      showToast('Profile image auto-cropped and loaded.');
     };
   };
 };
@@ -193,19 +183,21 @@ const processImage = async (file) => {
 };
 
 const parseOCRText = (text) => {
-  let creatureName = 'Creature Profile';
-
-  // 1. Name
-  const nameMatch = text.match(/^\s*([A-Za-z]+)/);
-  if (nameMatch) {
-    creatureName = nameMatch[1].trim();
-    elements.core.name.value = creatureName;
+  // 1. Name (Look for first word before Tier, Carnivore, Herbivore, etc)
+  const nameMatch = text.match(/^\s*([A-Za-z\s]+?)(?:Tier|Carnivore|Herbivore|Land|Semi-Aquatic|Group)/i);
+  if (nameMatch && nameMatch[1].trim().length > 1) {
+    elements.core.name.value = nameMatch[1].trim();
+  } else {
+    // Fallback if specific words aren't present
+    const firstWord = text.match(/^\s*([A-Za-z]+)/);
+    if (firstWord) elements.core.name.value = firstWord[1];
   }
 
-  // 2. Tier Formatting (Tier 3 -> T3)
-  const tierMatch = text.match(/Tier\s*(\d+)/i);
+  // 2. Tier (Handles "Tier 1", "Tier I", "Tier1")
+  const tierMatch = text.match(/Tier\s*([1-5Iil]+)/i);
   if (tierMatch) {
-    elements.core.tier.value = 'T' + tierMatch[1];
+    let tVal = tierMatch[1].toUpperCase().replace(/[IL]/g, '1');
+    elements.core.tier.value = 'T' + tVal;
   } else if (text.match(/Apex/i)) {
     elements.core.tier.value = 'Apex';
   }
@@ -214,70 +206,34 @@ const parseOCRText = (text) => {
   const groupMatch = text.match(/Group:\s*(\d+)/i);
   if (groupMatch) elements.core.group.value = groupMatch[1];
 
-  // 4. Habitat (Extract and Comma-Separate, swapping periods/newlines for commas)
-  const habitatMatch = text.match(/HABITATS([\s\S]*?)(?:Courting|PREFERRED FOODS|Active Time)/i);
+  // 4. Habitats (Comma separated cleanup)
+  const habitatMatch = text.match(/HABITATS?\s*([\s\S]*?)(?:PREFERRED FOODS|Active Time|Upkeep|Nesting|Food|BEHAVIORS)/i);
   if (habitatMatch) {
-      let habs = habitatMatch[1].replace(/RIPARIA HABITATS/ig, '').replace(/GONDWA HABITATS/ig, '');
-      habs = habs.split(/[\n\.]+|\s{3,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
-      elements.narrative.habitat.value = habs;
+    let habs = habitatMatch[1].replace(/RIPARIA|GONDWA|PANJURA|HABITATS/ig, '');
+    // Split by 2+ spaces or newlines to isolate the pills, strip trailing punctuation
+    let habArr = habs.split(/[\n]+|\s{2,}/).map(s => s.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, ''));
+    elements.narrative.habitat.value = habArr.filter(s => s.length > 2).join(', ');
   }
 
-  // 5. Preferred Foods (Extract and Comma-Separate)
-  const foodMatch = text.match(/PREFERRED FOODS([\s\S]*?)(?:Active Time|Upkeep|Nesting|Courting)/i);
+  // 5. Foods (Comma separated cleanup)
+  const foodMatch = text.match(/PREFERRED FOODS?\s*([\s\S]*?)(?:Active Time|Upkeep|Nesting|Food|BEHAVIORS)/i);
   if (foodMatch) {
-      let foods = foodMatch[1].replace(/\(Critter\)/g, '');
-      foods = foods.split(/[\n\.]+|\s{3,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
-      elements.narrative.foods.value = foods;
+    let foodArr = foodMatch[1].split(/[\n]+|\s{2,}/).map(s => s.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z)]+$/g, ''));
+    elements.narrative.foods.value = foodArr.filter(s => s.length > 2).join(', ');
   }
 
-  // 6. Upkeep Tasks
-  const upkeepMatch = text.match(/Upkeep([\s\S]*?)(?:Nesting|Courting|Food|BEHAVIORS)/i);
+  // 6. Upkeep / Active Time combined
+  const upkeepMatch = text.match(/(?:Upkeep|Active Time)\s*([\s\S]*?)(?:Nesting|Food|BEHAVIORS)/i);
   if (upkeepMatch) {
-      elements.narrative.upkeep.value = upkeepMatch[1].trim().replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
+    let uTxt = upkeepMatch[1].replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    elements.narrative.upkeep.value = uTxt;
+  } else {
+    elements.narrative.upkeep.value = "";
   }
 
-  // 7. Comprehensive Rich Text Body Integration
-  let richTextHtml = `<h2 style="color: var(--primary);">${creatureName} Overview</h2>`;
-  richTextHtml += `<hr style="border-top: 1px solid var(--border); margin: 15px 0;">`;
-  richTextHtml += `<ul>`;
-  if (elements.core.tier.value) richTextHtml += `<li><strong>Tier:</strong> ${elements.core.tier.value}</li>`;
-  if (text.match(/Carnivore/i)) richTextHtml += `<li><strong>Diet:</strong> Carnivore (${elements.narrative.foods.value})</li>`;
-  else if (text.match(/Herbivore/i)) richTextHtml += `<li><strong>Diet:</strong> Herbivore (${elements.narrative.foods.value})</li>`;
-  if (groupMatch) richTextHtml += `<li><strong>Group Limit:</strong> ${groupMatch[1]}</li>`;
-  if (elements.narrative.habitat.value) richTextHtml += `<li><strong>Habitats:</strong> ${elements.narrative.habitat.value}</li>`;
-  richTextHtml += `</ul>`;
-
-  if (elements.narrative.upkeep.value) {
-    richTextHtml += `<h3 style="color: var(--primary); margin-top: 20px;">Activity & Upkeep</h3>`;
-    richTextHtml += `<p>${elements.narrative.upkeep.value}</p>`;
-  }
-
-  const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
-  if (behaviorMatch) {
-      // Clean bottom-of-image bot text
-      let bText = behaviorMatch[1].split(/May be considered a rulebreak|Basic Info/i)[0].trim();
-      
-      let lines = bText.split('\n').map(l => l.trim()).filter(l => l);
-      let bNames = [];
-      
-      richTextHtml += `<h3 style="color: var(--primary); margin-top: 20px;">Detailed Behaviors</h3>`;
-      
-      lines.forEach(line => {
-        // If the line is short and doesn't end with a period, it is likely a title
-        if (line.length > 2 && line.length < 50 && !line.match(/[.!?]$/)) {
-            bNames.push(line);
-            richTextHtml += `<h4 style="margin-top: 15px; margin-bottom: 5px;">${line}</h4>`;
-        } else {
-            richTextHtml += `<p style="margin-bottom: 5px;">${line}</p>`;
-        }
-      });
-      
-      // Inject isolated titles into the input box
-      elements.narrative.behaviors.value = bNames.join('\n');
-  }
-  
-  // Inject the fully built HTML into the rich text editor
-  elements.narrative.body.innerHTML = richTextHtml;
+  // 7. Blank out the rich description and behaviors as requested
+  elements.narrative.behaviors.value = '';
+  elements.narrative.body.innerHTML = '';
 };
 
 // --- Form Syncing ---
