@@ -91,7 +91,7 @@ const syncForm = (encounter) => {
     
     // Default to the currently active dinosaur from the dashboard if one exists
     const activeId = localStorage.getItem('eahaActiveCreature');
-    const activeCreature = db.creatures ? db.creatures.find(c => c.id === activeId) : null;
+    const activeCreature = (db.creatures && activeId) ? db.creatures.find(c => c.id === activeId) : null;
     
     if (activeCreature && Array.from(elements.myCreature.options).some(opt => opt.value === activeCreature.name)) {
       elements.myCreature.value = activeCreature.name;
