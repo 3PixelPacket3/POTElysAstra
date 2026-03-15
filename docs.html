@@ -92,6 +92,26 @@
               <label class="toggle"><input type="checkbox" id="creatureCritter"><span>Is Critter (AI)</span></label>
             </div>
           </div>
+
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border); margin-top: 20px;">
+            <h2 style="color: var(--accent);">Equipped Modifiers</h2>
+            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Select your active Role, Mutation, and Genetic. These will automatically apply to your stats on the Dashboard and in the Simulator.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              <label class="field">
+                <span style="color: var(--accent);">Role</span>
+                <select id="creatureRole" style="cursor: pointer; background: color-mix(in srgb, var(--accent) 10%, var(--bg)); border-color: var(--accent);"></select>
+              </label>
+              <label class="field">
+                <span style="color: var(--info);">Mutation</span>
+                <select id="creatureMutation" style="cursor: pointer; background: color-mix(in srgb, var(--info) 10%, var(--bg)); border-color: var(--info);"></select>
+              </label>
+              <label class="field">
+                <span style="color: var(--success);">Genetic</span>
+                <select id="creatureGenetic" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+              </label>
+            </div>
+          </div>
+
         </div>
 
         <div class="panel hidden" data-panel="stats">
