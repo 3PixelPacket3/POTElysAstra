@@ -1,17 +1,25 @@
 // settings.js
 
 // --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {} };
+let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
+
+// --- LocalStorage Keys ---
+const PRESETS_KEY = 'eahaPostPresets';
+const LIFELINES_KEY = 'eahaLifelines';
+const COMMANDS_KEY = 'eahaCommands';
+const ACTIVE_CREA_KEY = 'eahaActiveCreature';
+const TIME_ZONE_KEY = 'eahaTimeZone';
 
 // --- DOM Elements ---
 const elements = {
+  statCreatures: document.getElementById('statCreatures'),
+  statRules: document.getElementById('statRules'),
+  statPresets: document.getElementById('statPresets'),
+  statEncounters: document.getElementById('statEncounters'),
   exportBtn: document.getElementById('exportBtn'),
-  importFile: document.getElementById('importFile'),
-  resetBtn: document.getElementById('resetBtn'),
-  
-  countCreatures: document.getElementById('countCreatures'),
-  countRules: document.getElementById('countRules'),
-  countPresets: document.getElementById('countPresets')
+  importInput: document.getElementById('importInput'),
+  importBtn: document.getElementById('importBtn'),
+  resetBtn: document.getElementById('resetBtn')
 };
 
 // --- Utilities ---
@@ -24,56 +32,43 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// --- UI Updates ---
-const updateDashboardStats = () => {
-  elements.countCreatures.textContent = db.creatures ? db.creatures.length : 0;
-  elements.countRules.textContent = db.rules ? db.rules.length : 0;
+// --- Dashboard Logic ---
+const updateDashboard = () => {
+  elements.statCreatures.textContent = db.creatures ? db.creatures.length : 0;
+  elements.statRules.textContent = db.rules ? db.rules.length : 0;
   
-  // Count Post Builder Presets stored separately in local storage
-  const presets = JSON.parse(localStorage.getItem('eahaPostPresets')) || {};
-  elements.countPresets.textContent = Object.keys(presets).length;
+  // Encounter Log Metric
+  elements.statEncounters.textContent = db.encounters ? db.encounters.length : 0;
+  
+  // Custom Presets Metric
+  const presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
+  elements.statPresets.textContent = Object.keys(presets).length;
 };
 
-// --- Database Operations ---
-
-// 1. Export JSON Backup
+// --- Export / Import Logic ---
 const exportDatabase = () => {
-  try {
-    // We want to export the master DB, plus the Post Builder presets and Lifelines
-    const fullBackup = {
-      database: db,
-      postPresets: JSON.parse(localStorage.getItem('eahaPostPresets')) || {},
-      lifelines: JSON.parse(localStorage.getItem('eahaLifelines')) || {},
-      quickCommands: JSON.parse(localStorage.getItem('eahaCommands')) || []
-    };
+  // Bundle the master DB and all individual LocalStorage keys into one payload
+  const exportData = {
+    database: db,
+    eahaPostPresets: JSON.parse(localStorage.getItem(PRESETS_KEY)) || {},
+    eahaLifelines: JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {},
+    eahaCommands: JSON.parse(localStorage.getItem(COMMANDS_KEY)) || [],
+    eahaActiveCreature: localStorage.getItem(ACTIVE_CREA_KEY) || 'none',
+    eahaTimeZone: localStorage.getItem(TIME_ZONE_KEY) || 'local'
+  };
 
-    const dataStr = JSON.stringify(fullBackup, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    
-    // Generate filename with current date
-    const date = new Date();
-    const dateString = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
-    const filename = `EAHA-Master-Backup-${dateString}.json`;
-
-    // Trigger download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showToast('Database exported successfully.');
-  } catch (error) {
-    console.error("Jarvis Error: Export failed.", error);
-    showToast('Failed to export database.', 'error');
-  }
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+  const downloadAnchorNode = document.createElement('a');
+  downloadAnchorNode.setAttribute("href", dataStr);
+  downloadAnchorNode.setAttribute("download", `eaha_backup_${new Date().toISOString().split('T')[0]}.json`);
+  document.body.appendChild(downloadAnchorNode);
+  downloadAnchorNode.click();
+  downloadAnchorNode.remove();
+  
+  showToast('Database exported successfully.');
 };
 
-// 2. Import JSON Backup
-const importDatabase = (event) => {
+const importDatabase = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -82,61 +77,50 @@ const importDatabase = (event) => {
     try {
       const importedData = JSON.parse(e.target.result);
       
-      // Basic validation to ensure it's an EAHA backup file
+      // Validate Payload
       if (!importedData.database) {
-        throw new Error("Invalid file structure. Missing 'database' object.");
+        throw new Error("Invalid EAHA backup file.");
       }
 
-      // Save imported data to LocalStorage
-      await EAHADataStore.saveData(importedData.database);
-      
-      if (importedData.postPresets) {
-        localStorage.setItem('eahaPostPresets', JSON.stringify(importedData.postPresets));
-      }
-      if (importedData.lifelines) {
-        localStorage.setItem('eahaLifelines', JSON.stringify(importedData.lifelines));
-      }
-      if (importedData.quickCommands && importedData.quickCommands.length > 0) {
-        localStorage.setItem('eahaCommands', JSON.stringify(importedData.quickCommands));
-      }
-
-      // Update local memory and UI
+      // Restore Master Database
       db = importedData.database;
-      updateDashboardStats();
-      showToast('Backup restored successfully!');
-      
-      // Clear the file input so the same file can be selected again if needed
-      elements.importFile.value = '';
+      await EAHADataStore.saveData(db);
 
+      // Restore LocalStorage Keys
+      if (importedData.eahaPostPresets) localStorage.setItem(PRESETS_KEY, JSON.stringify(importedData.eahaPostPresets));
+      if (importedData.eahaLifelines) localStorage.setItem(LIFELINES_KEY, JSON.stringify(importedData.eahaLifelines));
+      if (importedData.eahaCommands) localStorage.setItem(COMMANDS_KEY, JSON.stringify(importedData.eahaCommands));
+      if (importedData.eahaActiveCreature) localStorage.setItem(ACTIVE_CREA_KEY, importedData.eahaActiveCreature);
+      if (importedData.eahaTimeZone) localStorage.setItem(TIME_ZONE_KEY, importedData.eahaTimeZone);
+
+      updateDashboard();
+      showToast('Database imported successfully! Memory restored.');
     } catch (error) {
-      console.error("Jarvis Error: Import failed.", error);
-      showToast('Failed to read backup file. Ensure it is a valid EAHA JSON.', 'error');
-      elements.importFile.value = '';
+      console.error('Import Error:', error);
+      showToast('Failed to import data. The file may be corrupted.', 'error');
     }
   };
-  
   reader.readAsText(file);
+  
+  // Clear the input so the same file can be selected again if needed
+  event.target.value = '';
 };
 
-// 3. Factory Reset
-const performFactoryReset = async () => {
-  if (confirm("WARNING: This will completely wipe your local database and restore it from the base-data.json file. Any un-exported changes will be permanently lost.\n\nAre you absolutely sure?")) {
-    try {
-      db = await EAHADataStore.resetToBase();
-      
-      // Optional: Clear peripheral data as well
-      if(confirm("Would you also like to wipe your saved Post Builder Presets and Lifeline progress?")) {
-          localStorage.removeItem('eahaPostPresets');
-          localStorage.removeItem('eahaLifelines');
-          localStorage.removeItem('eahaCommands');
-      }
-
-      updateDashboardStats();
-      showToast('Factory Reset complete. System restored to default.');
-    } catch (error) {
-      console.error("Jarvis Error: Reset failed.", error);
-      showToast('Reset failed. Check console for details.', 'error');
-    }
+const resetDatabase = async () => {
+  if (confirm('WARNING: This will erase ALL local creatures, rules, and stats. Are you absolutely certain?')) {
+    // Clear the master DB
+    db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
+    await EAHADataStore.saveData(db);
+    
+    // Clear all EAHA specific LocalStorage keys
+    localStorage.removeItem(PRESETS_KEY);
+    localStorage.removeItem(LIFELINES_KEY);
+    localStorage.removeItem(COMMANDS_KEY);
+    localStorage.removeItem(ACTIVE_CREA_KEY);
+    localStorage.removeItem(TIME_ZONE_KEY);
+    
+    updateDashboard();
+    showToast('Database wiped clean.', 'error');
   }
 };
 
@@ -148,12 +132,13 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
 
-  updateDashboardStats();
+  updateDashboard();
 
   // Bind Listeners
   elements.exportBtn.addEventListener('click', exportDatabase);
-  elements.importFile.addEventListener('change', importDatabase);
-  elements.resetBtn.addEventListener('click', performFactoryReset);
+  elements.importBtn.addEventListener('click', () => elements.importInput.click());
+  elements.importInput.addEventListener('change', importDatabase);
+  elements.resetBtn.addEventListener('click', resetDatabase);
 };
 
 document.addEventListener('DOMContentLoaded', init);
