@@ -21,6 +21,7 @@ const elements = {
   exportBtn: document.getElementById('exportBtn'),
   importInput: document.getElementById('importInput'),
   importBtn: document.getElementById('importBtn'),
+  updateBtn: document.getElementById('updateBtn'), // NEW
   resetBtn: document.getElementById('resetBtn')
 };
 
@@ -30,6 +31,7 @@ const showToast = (message, type = 'success') => {
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
   if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else if (type === 'info') toast.style.backgroundColor = 'var(--info)';
   else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
@@ -41,14 +43,12 @@ const updateDashboard = () => {
   elements.statEncounters.textContent = db.encounters ? db.encounters.length : 0;
   elements.statPins.textContent = db.pins ? db.pins.length : 0;
   
-  // Custom Presets Metric
   const presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
   elements.statPresets.textContent = Object.keys(presets).length;
 };
 
 // --- Export / Import Logic (Personal Backups) ---
 const exportDatabase = () => {
-  // Bundle the master DB and all individual LocalStorage keys into one payload
   const exportData = {
     database: db,
     eahaPostPresets: JSON.parse(localStorage.getItem(PRESETS_KEY)) || {},
@@ -77,18 +77,11 @@ const importDatabase = async (event) => {
   reader.onload = async (e) => {
     try {
       const importedData = JSON.parse(e.target.result);
-      
-      // Validate Payload
-      if (!importedData.database) {
-        throw new Error("Invalid EAHA backup file.");
-      }
+      if (!importedData.database) throw new Error("Invalid EAHA backup file.");
 
-      // RESTORE MASTER DATABASE: Directly overwrite the database (NO STRIPPING!)
-      // This ensures all personal pins, encounters, and custom stats are perfectly restored.
       db = importedData.database;
       await EAHADataStore.saveData(db);
 
-      // RESTORE LOCALSTORAGE KEYS:
       if (importedData.eahaPostPresets) localStorage.setItem(PRESETS_KEY, JSON.stringify(importedData.eahaPostPresets));
       if (importedData.eahaLifelines) localStorage.setItem(LIFELINES_KEY, JSON.stringify(importedData.eahaLifelines));
       if (importedData.eahaCommands) localStorage.setItem(COMMANDS_KEY, JSON.stringify(importedData.eahaCommands));
@@ -104,9 +97,23 @@ const importDatabase = async (event) => {
     }
   };
   reader.readAsText(file);
-  
-  // Clear the input so the same file can be selected again if needed
   event.target.value = '';
+};
+
+// --- App Update Logic (Merge) ---
+const updateApp = async () => {
+  if (confirm('This will download the latest official Elys Astra updates (Rules, Creatures, Commands) and merge them into your database without harming your personal logs or map markers. Proceed?')) {
+    showToast('Fetching updates...', 'info');
+    const result = await EAHADataStore.mergeWithBase();
+    
+    if (result.success) {
+      db = await EAHADataStore.getData(); 
+      updateDashboard();
+      showToast('App Updated successfully!', 'success');
+    } else {
+      showToast('Failed to fetch the update file. JSON.json may be missing.', 'error');
+    }
+  }
 };
 
 // --- Factory Reset Logic (Base JSON Loader) ---
@@ -133,6 +140,7 @@ const init = async () => {
   elements.exportBtn.addEventListener('click', exportDatabase);
   elements.importBtn.addEventListener('click', () => elements.importInput.click());
   elements.importInput.addEventListener('change', importDatabase);
+  elements.updateBtn.addEventListener('click', updateApp);
   elements.resetBtn.addEventListener('click', resetDatabase);
 };
 
