@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Lineage Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn" href="about.html">Stats</a>
+      <a class="nav-btn" href="combat.html">Combat Log</a>
+      <a class="nav-btn" href="map.html">Tactical Map</a>
+      <a class="nav-btn active" href="lineage.html">Lineage</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em;">Pack Lineages</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Track generations, nesting outcomes, and family survival rates.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <button class="btn full-width" id="createLineageBtn">+ Found New Bloodline</button>
+        <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
+        <input type="text" id="lineageSearch" placeholder="Search packs or species...">
+      </div>
+      
+      <div class="preset-list" id="lineageList" style="display: flex; flex-direction: column; gap: 8px;">
+        </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2;">
+      
+      <div id="lineagePlaceholder" style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">
+        Select a Bloodline from the roster or create a new one to view the family tree.
+      </div>
+
+      <div id="lineageWorkspace" class="is-hidden">
+        
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 25px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+            <div>
+              <h1 id="packNameDisplay" style="color: var(--text); margin: 0 0 5px 0;">Pack Name</h1>
+              <span id="speciesDisplay" style="background: var(--bg-alt); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; color: var(--primary);">Species</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn" id="addMemberBtn">🥚 Add Hatchling / Member</button>
+              <button class="btn btn-ghost" id="deleteLineageBtn" style="color: var(--danger); border-color: var(--danger);">Erase Bloodline</button>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--muted);">Total History</strong>
+              <span id="statTotal" style="display: block; font-size: 2em; font-weight: 800; color: var(--text); margin-top: 5px;">0</span>
+            </div>
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--success);">Currently Alive</strong>
+              <span id="statAlive" style="display: block; font-size: 2em; font-weight: 800; color: var(--success); margin-top: 5px;">0</span>
+            </div>
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--danger);">Deceased</strong>
+              <span id="statDead" style="display: block; font-size: 2em; font-weight: 800; color: var(--danger); margin-top: 5px;">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="treeContainer" style="background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 25px;">
+          </div>
+
+      </div>
+
+    </section>
+  </main>
+
+  <div id="packModal" class="modal-overlay is-hidden">
+    <div class="card" style="width: 100%; max-width: 450px; border-top: 5px solid var(--primary);">
+      <h2 style="color: var(--primary); margin-bottom: 15px;">Establish Bloodline</h2>
+      <div class="form-grid">
+        <label class="field">
+          <span>Pack / Bloodline Name</span>
+          <input type="text" id="newPackName" placeholder="e.g., The Ashen Claws">
+        </label>
+        <label class="field">
+          <span>Species</span>
+          <select id="newPackSpecies" style="cursor: pointer;"></select>
+        </label>
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn" id="savePackBtn" style="flex: 1;">Create</button>
+        <button class="btn btn-ghost" id="cancelPackBtn" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="memberModal" class="modal-overlay is-hidden">
+    <div class="card" style="width: 100%; max-width: 450px; border-top: 5px solid #10b981;">
+      <h2 style="color: #10b981; margin-bottom: 15px;">Add Family Member</h2>
+      <div class="form-grid">
+        <label class="field">
+          <span>Dinosaur / Player Name</span>
+          <input type="text" id="newMemberName" placeholder="e.g., Scarface">
+        </label>
+        <label class="field">
+          <span>Generation Number</span>
+          <input type="number" id="newMemberGen" value="1" min="1">
+          <small class="muted" style="display: block; margin-top: 5px;">Gen 1 = Founders. Gen 2 = First Hatchlings, etc.</small>
+        </label>
+        <label class="field">
+          <span>Role / Notes</span>
+          <input type="text" id="newMemberNotes" placeholder="e.g., Alpha Male, Hatched at Impact Crater">
+        </label>
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn" id="saveMemberBtn" style="flex: 1; background: #10b981; border-color: #10b981;">Add to Tree</button>
+        <button class="btn btn-ghost" id="cancelMemberBtn" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+  
+  <script src="data-store.js"></script>
+  <script src="lineage.js"></script>
+</body>
+</html>
