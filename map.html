@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Tactical Map Room</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .map-container {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: crosshair;
+    }
+    .map-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none; /* Let clicks pass to container */
+    }
+    .map-pin {
+      position: absolute;
+      transform: translate(-50%, -100%); /* Centers the bottom of the pin on the click */
+      font-size: 1.5em;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
+    }
+    .map-pin:hover {
+      transform: translate(-50%, -110%) scale(1.2);
+      z-index: 10;
+    }
+    .pin-label {
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-alt);
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.5em;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      border: 1px solid var(--border);
+    }
+    .map-pin:hover .pin-label {
+      opacity: 1;
+    }
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn" href="about.html">Stats</a>
+      <a class="nav-btn" href="combat.html">Combat Log</a>
+      <a class="nav-btn active" href="map.html">Tactical Map</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em;">Reconnaissance</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Click anywhere on the map to drop a tactical marker. Use this to track resources or hostile zones.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <input type="text" id="pinSearch" placeholder="Search markers...">
+        <select id="pinFilter" class="full-width" style="cursor: pointer;">
+          <option value="all">All Markers</option>
+          <option value="🥩">🥩 Food Sources</option>
+          <option value="💧">💧 Water Sources</option>
+          <option value="⚔️">⚔️ Combat Zones</option>
+          <option value="📍">📍 General Points</option>
+          <option value="🚩">🚩 Quest Zones</option>
+        </select>
+        <button class="btn btn-ghost full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">Clear All Markers</button>
+      </div>
+      
+      <div class="preset-list" id="pinList" style="display: flex; flex-direction: column; gap: 8px;">
+        </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2; display: flex; flex-direction: column; align-items: center;">
+      <div class="card" style="box-shadow: none; border: 2px solid var(--border); padding: 15px; margin-bottom: 20px; width: 100%; text-align: center;">
+        <h2 style="color: var(--primary); margin-bottom: 5px;">Gondwa Sector Map</h2>
+        <p class="muted" style="font-size: 0.9em;">Coordinates are synced automatically. Hover over pins for details.</p>
+      </div>
+
+      <div class="map-container" id="mapContainer">
+        <img class="map-image" src="https://preview.redd.it/gondwa-f-w-map-v12-17-v0-kii6vijomi6a1.jpg?width=1080&crop=smart&auto=webp&s=1d4cd8a9fa3342779693654195eb29ee258daaf9" alt="Gondwa Map">
+        <div id="pinLayer"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="pinModal" class="modal-overlay is-hidden">
+    <div class="card" style="width: 100%; max-width: 400px; border-top: 5px solid var(--primary);">
+      <h2 style="color: var(--primary); margin-bottom: 15px;">Deploy Tactical Marker</h2>
+      <div class="form-grid">
+        <label class="field">
+          <span>Marker Type</span>
+          <select id="newPinType" style="font-size: 1.1em; cursor: pointer;">
+            <option value="🥩">🥩 Food Node (Melon, Salt, Corpse)</option>
+            <option value="💧">💧 Water Source (Fresh)</option>
+            <option value="⚔️">⚔️ Combat / Body Down Zone</option>
+            <option value="🚩">🚩 High-Yield Quest Area</option>
+            <option value="📍">📍 General Interest</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Location / Detail Label</span>
+          <input type="text" id="newPinLabel" placeholder="e.g., Impact Crater Melon Patch">
+        </label>
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn" id="savePinBtn" style="flex: 1;">Deploy</button>
+        <button class="btn btn-ghost" id="cancelPinBtn" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+  
+  <script src="data-store.js"></script>
+  <script src="map.js"></script>
+</body>
+</html>
