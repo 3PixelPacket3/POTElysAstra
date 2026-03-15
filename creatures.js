@@ -356,7 +356,7 @@ const gatherForm = () => {
   };
 };
 
-// --- View Renderer (CLEAN UI UPGRADE) ---
+// --- View Renderer (CLEAN UI UPGRADE WITH DROPDOWNS & WORD WRAP) ---
 const setView = (creature) => {
   if (!creature) {
     elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a creature from the roster to view its profile.</div>';
@@ -384,15 +384,19 @@ const setView = (creature) => {
 
     if (primaryStats.length > 0) {
       customStatsHtml += `
-        <h4 style="margin-bottom: 15px; margin-top: 25px; color: var(--danger); border-bottom: 1px solid var(--border); padding-bottom: 5px;">Primary Combat Mechanics</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px;">
-          ${primaryStats.map(stat => `
-            <div class="stat-card" style="background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border-color: var(--danger);" title="Full Array: ${stat.value || '-'}">
-              <strong style="color: var(--danger); font-size: 0.9em;">${stat.name}</strong>
-              <span style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
-            </div>
-          `).join('')}
-        </div>
+        <details open style="background: color-mix(in srgb, var(--danger) 5%, var(--bg)); padding: 15px; border-radius: 12px; border: 1px solid var(--danger); margin-bottom: 20px; margin-top: 20px;">
+          <summary style="color: var(--danger); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
+            Primary Combat Mechanics (${primaryStats.length} variables)
+          </summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px;">
+            ${primaryStats.map(stat => `
+              <div class="stat-card" style="background: var(--bg); border-color: var(--danger);" title="Full Array: ${stat.value || '-'}">
+                <strong style="color: var(--danger); font-size: 0.85em; display: block; overflow-wrap: anywhere; word-break: break-word;">${stat.name}</strong>
+                <span style="display: block; font-size: 1.1em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
       `;
     }
 
@@ -400,12 +404,12 @@ const setView = (creature) => {
       customStatsHtml += `
         <details style="background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 30px;">
           <summary style="color: var(--primary); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
-            View Advanced Variables (${advancedStats.length} hidden)
+            Advanced Matrix Variables (${advancedStats.length} hidden)
           </summary>
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px;">
             ${advancedStats.map(stat => `
               <div class="stat-card" style="background: var(--bg); border-color: var(--border);" title="Full Array: ${stat.value || '-'}">
-                <strong style="color: var(--primary); font-size: 0.85em;">${stat.name}</strong>
+                <strong style="color: var(--primary); font-size: 0.85em; display: block; overflow-wrap: anywhere; word-break: break-word;">${stat.name}</strong>
                 <span style="display: block; font-size: 1.1em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
               </div>
             `).join('')}
@@ -433,12 +437,30 @@ const setView = (creature) => {
     <div style="background: var(--bg); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 30px;">
       <h3 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">Core Statistics (Adult Matrix)</h3>
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px;">
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.health || '-'}"><strong style="color: var(--muted);">Health</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.health)}</span></div>
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.combatWeight || '-'}"><strong style="color: var(--muted);">Weight</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.combatWeight)}</span></div>
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.armor || '-'}"><strong style="color: var(--muted);">Armor</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.armor)}</span></div>
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.carryCapacity || '-'}"><strong style="color: var(--muted);">Capacity</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.carryCapacity)}</span></div>
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.stamina || '-'}"><strong style="color: var(--muted);">Stamina</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.stamina)}</span></div>
-        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.speed || '-'}"><strong style="color: var(--muted);">Speed</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.speed)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.health || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Health</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.health)}</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.combatWeight || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Weight</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.combatWeight)}</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.armor || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Armor</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.armor)}</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.carryCapacity || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Capacity</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.carryCapacity)}</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.stamina || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Stamina</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.stamina)}</span>
+        </div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.speed || '-'}">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Speed</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.speed)}</span>
+        </div>
       </div>
       
       ${customStatsHtml}
