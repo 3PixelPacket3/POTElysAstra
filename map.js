@@ -44,6 +44,7 @@ const elements = {
 
   // Sync Radar Modal
   syncModal: document.getElementById('syncModal'),
+  snipContainer: document.getElementById('snipContainer'), // Added to fix click target
   snipImageDisplay: document.getElementById('snipImageDisplay'),
   snipCrosshair: document.getElementById('snipCrosshair'),
   confirmSyncBtn: document.getElementById('confirmSyncBtn'),
@@ -161,8 +162,9 @@ window.addEventListener('paste', (e) => {
   }
 });
 
-// 3. Radar Calibration (Clicking the Snip)
-elements.snipImageDisplay.addEventListener('click', (e) => {
+// 3. Radar Calibration (Clicking the Snip container)
+// We listen on the container because the image itself has pointer-events: none in CSS
+elements.snipContainer.addEventListener('click', (e) => {
   const rect = elements.snipImageDisplay.getBoundingClientRect();
   
   // Calculate precise percentage of the click relative to the image
