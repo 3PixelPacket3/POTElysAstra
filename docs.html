@@ -13,7 +13,7 @@
       <a class="nav-btn" href="index.html">Dashboard</a>
       <a class="nav-btn" href="apps.html">Post Builder</a>
       <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
-      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn active" href="docs.html">Creature Profiles</a>
       <a class="nav-btn" href="about.html">Stats</a>
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
@@ -65,7 +65,7 @@
 
         <section class="builder-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
           <button class="tab active" data-tab="core" style="background: var(--bg-alt); border-radius: 50px; padding: 8px 20px;">Core Identity</button>
-          <button class="tab" data-tab="stats" style="background: var(--bg-alt); border-radius: 50px; padding: 8px 20px;">Game Stats</button>
+          <button class="tab" data-tab="stats" style="background: var(--bg-alt); border-radius: 50px; padding: 8px 20px;">Game Stats (5-Stage)</button>
           <button class="tab" data-tab="narrative" style="background: var(--bg-alt); border-radius: 50px; padding: 8px 20px;">Ecology & Rules</button>
         </section>
 
@@ -95,25 +95,33 @@
         </div>
 
         <div class="panel hidden" data-panel="stats">
+          
+          <div class="card" style="box-shadow: none; border: 2px dashed #10b981; background: color-mix(in srgb, #10b981 5%, var(--bg)); margin-bottom: 20px;">
+            <h3 style="color: #10b981; margin-bottom: 10px;">⚡ Raw Matrix Importer</h3>
+            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Paste your raw Attribute and Combat data here (e.g. <code>Core.MaxHealth",Values=(10,20,30,40,50))</code>). Order does not matter. The system will automatically extract the 5-stage growth arrays and sort them into Base and Custom stats.</p>
+            <textarea id="rawStatImportArea" rows="6" placeholder="Paste raw code blocks here..." style="font-family: monospace; font-size: 0.85em; background: var(--bg-alt);"></textarea>
+            <button class="btn" id="processRawStatsBtn" style="margin-top: 10px; background: #10b981; border-color: #10b981;">Process Data Matrix</button>
+          </div>
+
           <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
-            <h2 style="color: var(--primary);">Base Stats</h2>
-            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Primary combat and survival metrics.</p>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-              <label class="field"><span>Health</span><input type="number" id="statHealth"></label>
-              <label class="field"><span>Combat Weight</span><input type="number" id="statCombatWeight"></label>
-              <label class="field"><span>Armor</span><input type="number" id="statArmor"></label>
-              <label class="field"><span>Carry Capacity</span><input type="number" id="statCarryCapacity"></label>
-              <label class="field"><span>Stamina</span><input type="number" id="statStamina"></label>
-              <label class="field"><span>Movement Speed</span><input type="number" step="0.01" id="statSpeed"></label>
+            <h2 style="color: var(--primary);">Base Stats (5-Stage Arrays)</h2>
+            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Values represent: Hatchling, Baby, Adolescent, Sub-Adult, Adult. Separate by commas.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+              <label class="field"><span>Health</span><input type="text" id="statHealth" placeholder="v1, v2, v3, v4, v5"></label>
+              <label class="field"><span>Combat Weight</span><input type="text" id="statCombatWeight" placeholder="v1, v2, v3, v4, v5"></label>
+              <label class="field"><span>Armor</span><input type="text" id="statArmor" placeholder="v1, v2, v3, v4, v5"></label>
+              <label class="field"><span>Carry Capacity</span><input type="text" id="statCarryCapacity" placeholder="v1, v2, v3, v4, v5"></label>
+              <label class="field"><span>Stamina</span><input type="text" id="statStamina" placeholder="v1, v2, v3, v4, v5"></label>
+              <label class="field"><span>Movement Speed</span><input type="text" id="statSpeed" placeholder="v1, v2, v3, v4, v5"></label>
             </div>
           </div>
           
           <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
             <div class="card-header" style="margin-bottom: 5px;">
-              <h2 style="margin: 0; color: var(--primary);">Custom Stats</h2>
+              <h2 style="margin: 0; color: var(--primary);">Custom Stats (Combat & Abilities)</h2>
               <button class="btn btn-sm" id="addCustomStatBtn">+ Add Stat</button>
             </div>
-            <p class="muted" style="margin-bottom: 20px; font-size: 0.85em;">Track specific bleed thresholds, venom rates, or turn radius.</p>
+            <p class="muted" style="margin-bottom: 20px; font-size: 0.85em;">Dynamic mechanics imported from raw combat sheets. You can manually add, edit, or delete these.</p>
             <div id="customStatsContainer" style="display: flex; flex-direction: column; gap: 10px;">
               </div>
           </div>
