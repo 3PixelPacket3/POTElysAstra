@@ -137,8 +137,8 @@ const processImage = async (file) => {
   try {
     const result = await Tesseract.recognize(file, 'eng');
     
-    // Clean out emojis, bot artifacts, and non-ASCII symbols for pure parsing
-    const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "");
+    // Clean out emojis, bot artifacts, non-ASCII symbols, and tildes (~~)
+    const cleanText = result.data.text.replace(/[^\x00-\x7F]/g, "").replace(/~/g, "");
     
     parseOCRText(cleanText);
     showToast("Auto-fill complete! Please review the extracted data.");
@@ -149,9 +149,14 @@ const processImage = async (file) => {
 };
 
 const parseOCRText = (text) => {
+  let creatureName = 'Creature Profile';
+
   // 1. Name
   const nameMatch = text.match(/^\s*([A-Za-z]+)/);
-  if (nameMatch) elements.core.name.value = nameMatch[1].trim();
+  if (nameMatch) {
+    creatureName = nameMatch[1].trim();
+    elements.core.name.value = creatureName;
+  }
 
   // 2. Tier Formatting (Tier 3 -> T3)
   const tierMatch = text.match(/Tier\s*(\d+)/i);
@@ -165,11 +170,11 @@ const parseOCRText = (text) => {
   const groupMatch = text.match(/Group:\s*(\d+)/i);
   if (groupMatch) elements.core.group.value = groupMatch[1];
 
-  // 4. Habitat (Extract and Comma-Separate)
+  // 4. Habitat (Extract and Comma-Separate, swapping periods/newlines for commas)
   const habitatMatch = text.match(/HABITATS([\s\S]*?)(?:Courting|PREFERRED FOODS|Active Time)/i);
   if (habitatMatch) {
       let habs = habitatMatch[1].replace(/RIPARIA HABITATS/ig, '').replace(/GONDWA HABITATS/ig, '');
-      habs = habs.split(/[\n]+|\s{2,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
+      habs = habs.split(/[\n\.]+|\s{3,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
       elements.narrative.habitat.value = habs;
   }
 
@@ -177,7 +182,7 @@ const parseOCRText = (text) => {
   const foodMatch = text.match(/PREFERRED FOODS([\s\S]*?)(?:Active Time|Upkeep|Nesting|Courting)/i);
   if (foodMatch) {
       let foods = foodMatch[1].replace(/\(Critter\)/g, '');
-      foods = foods.split(/[\n]+|\s{2,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
+      foods = foods.split(/[\n\.]+|\s{3,}/).map(s => s.trim()).filter(s => s.length > 2).join(', ');
       elements.narrative.foods.value = foods;
   }
 
@@ -187,41 +192,40 @@ const parseOCRText = (text) => {
       elements.narrative.upkeep.value = upkeepMatch[1].trim().replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
   }
 
-  // 7. Behaviors & Rich Text Body Integration
-  let richTextHtml = `<h3>Profile Summary</h3><ul>`;
-  if (tierMatch) richTextHtml += `<li><strong>Tier:</strong> T${tierMatch[1]}</li>`;
-  if (text.match(/Carnivore/i)) richTextHtml += `<li><strong>Diet:</strong> Carnivore</li>`;
-  else if (text.match(/Herbivore/i)) richTextHtml += `<li><strong>Diet:</strong> Herbivore</li>`;
+  // 7. Comprehensive Rich Text Body Integration
+  let richTextHtml = `<h2 style="color: var(--primary);">${creatureName} Overview</h2>`;
+  richTextHtml += `<hr style="border-top: 1px solid var(--border); margin: 15px 0;">`;
+  richTextHtml += `<ul>`;
+  if (elements.core.tier.value) richTextHtml += `<li><strong>Tier:</strong> ${elements.core.tier.value}</li>`;
+  if (text.match(/Carnivore/i)) richTextHtml += `<li><strong>Diet:</strong> Carnivore (${elements.narrative.foods.value})</li>`;
+  else if (text.match(/Herbivore/i)) richTextHtml += `<li><strong>Diet:</strong> Herbivore (${elements.narrative.foods.value})</li>`;
   if (groupMatch) richTextHtml += `<li><strong>Group Limit:</strong> ${groupMatch[1]}</li>`;
-  richTextHtml += `</ul><hr><br>`;
+  if (elements.narrative.habitat.value) richTextHtml += `<li><strong>Habitats:</strong> ${elements.narrative.habitat.value}</li>`;
+  richTextHtml += `</ul>`;
+
+  if (elements.narrative.upkeep.value) {
+    richTextHtml += `<h3 style="color: var(--primary); margin-top: 20px;">Activity & Upkeep</h3>`;
+    richTextHtml += `<p>${elements.narrative.upkeep.value}</p>`;
+  }
 
   const behaviorMatch = text.match(/BEHAVIORS([\s\S]*)/i);
   if (behaviorMatch) {
       // Clean bottom-of-image bot text
       let bText = behaviorMatch[1].split(/May be considered a rulebreak|Basic Info/i)[0].trim();
       
-      // Split into distinct blocks by double newlines to separate Titles from Descriptions
-      let blocks = bText.split(/\n\s*\n/);
+      let lines = bText.split('\n').map(l => l.trim()).filter(l => l);
       let bNames = [];
       
-      richTextHtml += `<h3>Detailed Behaviors</h3>`;
+      richTextHtml += `<h3 style="color: var(--primary); margin-top: 20px;">Detailed Behaviors</h3>`;
       
-      blocks.forEach(block => {
-          let lines = block.split('\n').map(l => l.trim()).filter(l => l);
-          if(lines.length > 0) {
-              let bTitle = lines[0]; 
-              
-              // Only consider it a title if it's reasonably short (avoids paragraph continuation issues)
-              if (bTitle.length < 45) {
-                  bNames.push(bTitle);
-                  richTextHtml += `<h4>${bTitle}</h4>`;
-                  if(lines.length > 1) {
-                      richTextHtml += `<p>${lines.slice(1).join(' ')}</p><br>`;
-                  }
-              } else {
-                  richTextHtml += `<p>${lines.join(' ')}</p><br>`;
-              }
-          }
+      lines.forEach(line => {
+        // If the line is short and doesn't end with a period, it is likely a title
+        if (line.length > 2 && line.length < 50 && !line.match(/[.!?]$/)) {
+            bNames.push(line);
+            richTextHtml += `<h4 style="margin-top: 15px; margin-bottom: 5px;">${line}</h4>`;
+        } else {
+            richTextHtml += `<p style="margin-bottom: 5px;">${line}</p>`;
+        }
       });
       
       // Inject isolated titles into the input box
@@ -231,7 +235,6 @@ const parseOCRText = (text) => {
   // Inject the fully built HTML into the rich text editor
   elements.narrative.body.innerHTML = richTextHtml;
 };
-
 
 // --- Form Syncing ---
 const syncForm = (creature) => {
@@ -395,8 +398,11 @@ const renderList = () => {
   filtered.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
+    // Force Pointer CSS and disable text selection for cleaner UI
+    item.style.cursor = 'pointer';
+    item.style.userSelect = 'none'; 
     item.innerHTML = `
-      <div style="display: flex; flex-direction: column;">
+      <div style="display: flex; flex-direction: column; pointer-events: none;">
         <strong style="font-size: 1.1em; color: ${currentCreatureId === creature.id ? 'var(--primary)' : 'var(--text)'};">${creature.name}</strong>
         <span class="muted" style="font-size: 0.85em; font-weight: 500;">${creature.tier || 'Unknown'} ${creature.modded ? ' • Modded' : ''}</span>
       </div>
@@ -405,7 +411,7 @@ const renderList = () => {
       currentCreatureId = creature.id;
       syncForm(creature);
       setView(creature);
-      setMode('view'); // Enforce view mode when clicking the list
+      setMode('view'); 
       renderList(); 
     });
     elements.list.appendChild(item);
