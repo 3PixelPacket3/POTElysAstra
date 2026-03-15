@@ -7,6 +7,7 @@ let currentEncounterId = null;
 // Chart instances for memory management
 let charts = {
   outcome: null,
+  cod: null,
   location: null,
   hunted: null
 };
@@ -38,7 +39,15 @@ const elements = {
   dashTotal: document.getElementById('dashTotal'),
   dashKills: document.getElementById('dashKills'),
   dashDeaths: document.getElementById('dashDeaths'),
-  dashDangerZone: document.getElementById('dashDangerZone')
+  dashDangerZone: document.getElementById('dashDangerZone'),
+
+  // Quick Log Elements
+  quickOpponent: document.getElementById('quickOpponent'),
+  quickLocation: document.getElementById('quickLocation'),
+  quickWin: document.getElementById('quickWinBtn'),
+  quickLoss: document.getElementById('quickLossBtn'),
+  quickStarve: document.getElementById('quickStarveBtn'),
+  quickThirst: document.getElementById('quickThirstBtn')
 };
 
 // --- Utilities ---
@@ -77,9 +86,19 @@ const populateCreatureDropdown = () => {
 // --- Form Syncing ---
 const syncForm = (encounter) => {
   if (!encounter) {
-    elements.outcome.value = 'Victory';
+    elements.outcome.value = 'Victory (Kill)';
     elements.date.value = new Date().toISOString().split('T')[0];
-    elements.myCreature.value = 'Unknown';
+    
+    // Default to the currently active dinosaur from the dashboard if one exists
+    const activeId = localStorage.getItem('eahaActiveCreature');
+    const activeCreature = db.creatures ? db.creatures.find(c => c.id === activeId) : null;
+    
+    if (activeCreature && Array.from(elements.myCreature.options).some(opt => opt.value === activeCreature.name)) {
+      elements.myCreature.value = activeCreature.name;
+    } else {
+      elements.myCreature.value = 'Unknown';
+    }
+    
     elements.opponent.value = '';
     elements.location.value = '';
     elements.notes.value = '';
@@ -88,10 +107,9 @@ const syncForm = (encounter) => {
     return;
   }
 
-  elements.outcome.value = encounter.outcome || 'Victory';
+  elements.outcome.value = encounter.outcome || 'Victory (Kill)';
   elements.date.value = encounter.date || '';
   
-  // Verify the creature still exists in the dropdown, otherwise default to Unknown
   if (Array.from(elements.myCreature.options).some(opt => opt.value === encounter.myCreature)) {
     elements.myCreature.value = encounter.myCreature;
   } else {
@@ -138,7 +156,13 @@ const renderList = () => {
   const filtered = sortedEncounters.filter(e => {
     const textToSearch = `${e.opponent} ${e.location} ${e.myCreature}`.toLowerCase();
     const matchesSearch = textToSearch.includes(searchTerm);
-    const matchesFilter = filter === 'all' || e.outcome === filter;
+    
+    // Handle the generic "Defeat" filter to catch all death types
+    let matchesFilter = false;
+    if (filter === 'all') matchesFilter = true;
+    else if (filter === 'Defeat' && e.outcome.includes('Defeat')) matchesFilter = true;
+    else if (e.outcome === filter) matchesFilter = true;
+    
     return matchesSearch && matchesFilter;
   });
 
@@ -155,9 +179,13 @@ const renderList = () => {
     
     let color = 'var(--text)';
     let icon = '⚔️';
-    if (enc.outcome === 'Victory') { color = 'var(--success)'; icon = '👑'; }
-    if (enc.outcome === 'Defeat') { color = 'var(--danger)'; icon = '💀'; }
-    if (enc.outcome === 'Draw') { color = 'var(--info)'; icon = '🏃'; }
+    
+    if (enc.outcome.includes('Victory')) { color = 'var(--success)'; icon = '👑'; }
+    if (enc.outcome.includes('Defeat (PvP)')) { color = 'var(--danger)'; icon = '💀'; }
+    if (enc.outcome.includes('Starvation')) { color = '#eab308'; icon = '🍖'; }
+    if (enc.outcome.includes('Dehydration')) { color = '#3b82f6'; icon = '💧'; }
+    if (enc.outcome.includes('Environment')) { color = 'var(--danger)'; icon = '⛰️'; }
+    if (enc.outcome.includes('Draw')) { color = 'var(--info)'; icon = '🏃'; }
 
     item.innerHTML = `
       <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
@@ -208,15 +236,49 @@ const deleteEncounter = async () => {
   showToast('Log Erased.', 'error');
 };
 
+// --- Quick Log Handling ---
+const handleQuickLog = async (outcomeType) => {
+  const opp = elements.quickOpponent.value.trim();
+  const loc = elements.quickLocation.value.trim();
+  
+  // Figure out the active creature
+  const activeId = localStorage.getItem('eahaActiveCreature');
+  const activeCreature = (db.creatures && activeId) ? db.creatures.find(c => c.id === activeId) : null;
+  const myCreaName = activeCreature ? activeCreature.name : 'Unknown';
+
+  const newLog = {
+    id: generateId(),
+    outcome: outcomeType,
+    date: new Date().toISOString().split('T')[0],
+    myCreature: myCreaName,
+    opponent: opp || (outcomeType.includes('Starve') || outcomeType.includes('Dehydrat') ? 'Nature' : 'Unknown'),
+    location: loc || 'Unknown',
+    notes: 'Logged via Quick Dashboard.',
+    timestamp: Date.now()
+  };
+
+  if(!db.encounters) db.encounters = [];
+  db.encounters.push(newLog);
+  await EAHADataStore.saveData(db);
+  
+  // Clear quick inputs
+  elements.quickOpponent.value = '';
+  elements.quickLocation.value = '';
+  
+  renderList();
+  updateDashboard();
+  showToast(`Quick Log Saved: ${outcomeType}`);
+};
+
 // --- Chart.js Analytics Engine ---
 const updateDashboard = () => {
   const encs = db.encounters || [];
   
   // 1. Core Top-Line Stats
   const total = encs.length;
-  const kills = encs.filter(e => e.outcome === 'Victory').length;
-  const deaths = encs.filter(e => e.outcome === 'Defeat').length;
-  const draws = encs.filter(e => e.outcome === 'Draw').length;
+  const kills = encs.filter(e => e.outcome.includes('Victory')).length;
+  const deaths = encs.filter(e => e.outcome.includes('Defeat')).length;
+  const draws = encs.filter(e => e.outcome.includes('Draw')).length;
   
   elements.dashTotal.textContent = total;
   elements.dashKills.textContent = kills;
@@ -224,7 +286,7 @@ const updateDashboard = () => {
   
   // 2. Location Analytics (Find Deadliest Zone)
   const deathLocations = {};
-  encs.filter(e => e.outcome === 'Defeat').forEach(e => {
+  encs.filter(e => e.outcome.includes('Defeat')).forEach(e => {
     const loc = e.location || 'Unknown';
     deathLocations[loc] = (deathLocations[loc] || 0) + 1;
   });
@@ -267,6 +329,35 @@ const updateDashboard = () => {
     }
   });
 
+  // --- CHART: Cause of Death (Pie) ---
+  if (charts.cod) charts.cod.destroy();
+  const ctxCod = document.getElementById('codChart').getContext('2d');
+  
+  const pvpDeaths = encs.filter(e => e.outcome === 'Defeat (PvP)').length;
+  const starveDeaths = encs.filter(e => e.outcome === 'Defeat (Starvation)').length;
+  const thirstDeaths = encs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
+  const envDeaths = encs.filter(e => e.outcome === 'Defeat (Environment)').length;
+
+  charts.cod = new Chart(ctxCod, {
+    type: 'pie',
+    data: {
+      labels: ['PvP', 'Starvation', 'Dehydration', 'Environment'],
+      datasets: [{
+        data: [pvpDeaths, starveDeaths, thirstDeaths, envDeaths],
+        backgroundColor: ['#ef4444', '#eab308', '#3b82f6', '#8b5cf6'],
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right' }
+      }
+    }
+  });
+
   // --- CHART: Fatalities by Location (Bar) ---
   if (charts.location) charts.location.destroy();
   const ctxLocation = document.getElementById('locationChart').getContext('2d');
@@ -304,7 +395,7 @@ const updateDashboard = () => {
   const ctxHunted = document.getElementById('huntedChart').getContext('2d');
   
   const huntedSpecies = {};
-  encs.filter(e => e.outcome === 'Victory').forEach(e => {
+  encs.filter(e => e.outcome.includes('Victory')).forEach(e => {
     const opp = e.opponent || 'Unknown';
     huntedSpecies[opp] = (huntedSpecies[opp] || 0) + 1;
   });
@@ -373,6 +464,12 @@ const init = async () => {
 
   elements.saveBtn.addEventListener('click', saveEncounter);
   elements.deleteBtn.addEventListener('click', deleteEncounter);
+
+  // Quick Log Bindings
+  elements.quickWin.addEventListener('click', () => handleQuickLog('Victory (Kill)'));
+  elements.quickLoss.addEventListener('click', () => handleQuickLog('Defeat (PvP)'));
+  elements.quickStarve.addEventListener('click', () => handleQuickLog('Defeat (Starvation)'));
+  elements.quickThirst.addEventListener('click', () => handleQuickLog('Defeat (Dehydration)'));
 
   // Boot State
   setViewMode('dashboard');
