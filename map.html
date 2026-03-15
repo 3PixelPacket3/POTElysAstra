@@ -6,31 +6,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
   <style>
-    /* Map Window & Overlay Styles */
+    /* Map Window & Overlay Styles - INCREASED SIZE */
     .map-window {
       position: relative;
       width: 100%;
-      height: 65vh;
-      min-height: 500px;
+      height: 80vh; /* Increased from 65vh to make the map significantly larger */
+      min-height: 600px;
       border-radius: 12px;
       overflow: hidden;
       border: 2px solid var(--border);
-      background: #0f1115; /* Dark background behind map */
+      background: #0f1115;
       cursor: grab;
     }
-    .map-window.pin-mode {
-      cursor: crosshair;
-    }
-    .map-window:active:not(.pin-mode) {
-      cursor: grabbing;
-    }
+    .map-window.pin-mode { cursor: crosshair; }
+    .map-window:active:not(.pin-mode) { cursor: grabbing; }
     
     .map-transform {
       position: absolute;
       top: 0; left: 0;
       width: 100%;
       transform-origin: 0 0;
-      /* CSS variable for inverse scaling of pins */
       --map-scale: 1; 
     }
     
@@ -38,7 +33,7 @@
       display: block;
       width: 100%;
       height: auto;
-      pointer-events: auto; /* Allow clicks on image for precise offset calculation */
+      pointer-events: auto; 
       user-select: none;
       -webkit-user-drag: none;
     }
@@ -46,16 +41,15 @@
     #pinLayer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Let clicks pass through to image when pinning */
+      pointer-events: none; 
     }
 
     .map-pin {
       position: absolute;
-      /* Inverse scale ensures pins don't become massive when zooming in */
       transform: translate(-50%, -100%) scale(calc(1 / var(--map-scale)));
       font-size: 1.5em;
       cursor: pointer;
-      pointer-events: auto; /* Allow clicking pins to delete/view */
+      pointer-events: auto; 
       transition: filter 0.2s ease;
       filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
       z-index: 5;
@@ -83,20 +77,18 @@
       border: 1px solid var(--border);
       box-shadow: 0 4px 6px rgba(0,0,0,0.5);
     }
-    .map-pin:hover .pin-label {
-      opacity: 1;
-    }
+    .map-pin:hover .pin-label { opacity: 1; }
 
     /* Modal Styles */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.85);
       display: flex;
       justify-content: center;
       align-items: center;
       z-index: 100;
-      backdrop-filter: blur(3px);
+      backdrop-filter: blur(4px);
     }
 
     /* Control Toolbar */
@@ -129,13 +121,34 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-    .toolbar-btn.active {
-      background: var(--primary);
-      color: #fff;
+    .toolbar-btn.active { background: var(--primary); color: #fff; }
+    .toolbar-btn:hover:not(.active) { background: color-mix(in srgb, var(--primary) 20%, transparent); color: var(--text); }
+    
+    /* Snip Sync Radar Overlay */
+    .snip-container {
+      position: relative;
+      max-width: 100%;
+      max-height: 60vh;
+      overflow: hidden;
+      border: 2px solid var(--primary);
+      border-radius: 8px;
+      cursor: crosshair;
     }
-    .toolbar-btn:hover:not(.active) {
-      background: color-mix(in srgb, var(--primary) 20%, transparent);
-      color: var(--text);
+    .snip-image {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+    .snip-crosshair {
+      position: absolute;
+      width: 20px; height: 20px;
+      border: 2px solid #0ea5e9;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 0 10px #0ea5e9, inset 0 0 10px #0ea5e9;
+      background: rgba(14, 165, 233, 0.3);
     }
   </style>
 </head>
@@ -159,9 +172,12 @@
     
     <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
       <h2 style="font-size: 1.5em;">Reconnaissance</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Toggle "Drop Marker" mode and click the map to log kills, deaths, or resources.</p>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Paste (Ctrl+V) a fully zoomed-out screenshot of your in-game map to sync your location automatically.</p>
       
       <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <input type="file" id="uploadSnipInput" accept="image/*" style="display: none;">
+        <label for="uploadSnipInput" class="btn full-width" style="text-align: center; cursor: pointer;">📸 Upload Map Snip</label>
+        <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
         <input type="text" id="pinSearch" placeholder="Search markers...">
         <select id="pinFilter" class="full-width" style="cursor: pointer;">
           <option value="all">All Markers</option>
@@ -185,7 +201,7 @@
       <div class="map-toolbar">
         <div class="toolbar-group">
           <button id="modePanBtn" class="toolbar-btn active">🤚 Navigation</button>
-          <button id="modePinBtn" class="toolbar-btn">📍 Drop Marker</button>
+          <button id="modePinBtn" class="toolbar-btn">📍 Manual Marker</button>
         </div>
         <div class="toolbar-group">
           <button id="zoomOutBtn" class="toolbar-btn">🔍 -</button>
@@ -200,10 +216,27 @@
           <div id="pinLayer"></div>
         </div>
       </div>
-      <p class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Scroll wheel to zoom. Click and drag to pan.</p>
+      <p class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Scroll wheel to zoom. Click and drag to pan. <strong>Ctrl+V</strong> to paste map screenshot.</p>
 
     </section>
   </main>
+
+  <div id="syncModal" class="modal-overlay is-hidden">
+    <div class="card" style="width: 100%; max-width: 800px; border-top: 5px solid #0ea5e9;">
+      <h2 style="color: #0ea5e9; margin-bottom: 5px;">Radar Sync Engaged</h2>
+      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Click directly on your player arrow in the image below to set the marker's precise coordinates.</p>
+      
+      <div class="snip-container" id="snipContainer">
+        <img id="snipImageDisplay" class="snip-image" src="" alt="Uploaded Snip">
+        <div id="snipCrosshair" class="snip-crosshair is-hidden"></div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn" id="confirmSyncBtn" style="flex: 1; background: #0ea5e9; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3);">Sync Location to Map</button>
+        <button class="btn btn-ghost" id="cancelSyncBtn" style="flex: 1;">Abort Sync</button>
+      </div>
+    </div>
+  </div>
 
   <div id="pinModal" class="modal-overlay is-hidden">
     <div class="card" style="width: 100%; max-width: 450px; border-top: 5px solid var(--primary);">
