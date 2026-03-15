@@ -73,7 +73,16 @@
               <label class="field"><span>Name</span><input type="text" id="creatureName" placeholder="e.g., Tyrannosaurus Rex"></label>
               <label class="field"><span>Tier</span><input type="text" id="creatureTierInput" placeholder="T2, Apex, etc."></label>
               <label class="field"><span>Group Size</span><input type="text" id="creatureGroup" placeholder="e.g., 2 Adults, 3 Juvies"></label>
-              <label class="field"><span>Image URL</span><input type="text" id="creatureImage" placeholder="images/trex.png"></label>
+              
+              <label class="field" id="profileImageDropZone">
+                <span>Image URL or Upload File</span>
+                <div style="display: flex; gap: 10px;">
+                  <input type="text" id="creatureImage" placeholder="Paste image URL or Drag & Drop an image here..." style="flex: 1;">
+                  <input type="file" id="creatureImageUpload" accept="image/*" style="display: none;">
+                  <label for="creatureImageUpload" class="btn btn-ghost" style="padding: 12px; cursor: pointer; border-radius: 12px;" title="Upload Image File">📁</label>
+                </div>
+              </label>
+
             </div>
             <div style="display: flex; gap: 20px; margin-top: 20px; background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
               <label class="toggle"><input type="checkbox" id="creatureModded"><span>Is Modded</span></label>
