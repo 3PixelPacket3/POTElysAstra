@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EAHA | JSON Backup & Restore</title>
+  <title>EAHA | Database & Backups</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top-nav">
+  <header class="top-nav">
     <div class="brand">Elys Astra Helper Application</div>
     <nav class="nav-links">
       <a class="nav-btn" href="index.html">Dashboard</a>
@@ -18,71 +18,47 @@
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
       <a class="nav-btn" href="lineage.html">Lineage</a>
-      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn active" href="settings.html">JSON Backup</a>
       <a class="nav-btn" href="guide.html">About</a>
     </nav>
   </header>
 
-  <main class="page builder-workspace" style="max-width: 900px; margin: 0 auto; display: block;">
-    
-    <div class="card" style="border-top: 5px solid var(--primary); margin-bottom: 25px;">
-      <h2 style="font-size: 2em; color: var(--primary); margin-bottom: 10px;">Database Management</h2>
-      <p class="muted" style="font-size: 1.05em; line-height: 1.5; margin-bottom: 25px;">
-        EAHA runs entirely in your browser's local memory. If you clear your browser cache, you will lose your data. 
-        <strong>Export your JSON backup frequently</strong> to secure your rules, creature profiles, lifelines, tactical markers, and combat logs.
-      </p>
-
-      <h3 style="color: var(--text); margin-bottom: 15px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Current Memory Status</h3>
+  <main class="page builder-workspace">
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em; margin-bottom: 10px;">Data Management</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Control your IndexedDB engine. Secure your profiles, logs, and map markers.</p>
       
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
-        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
-          <strong style="color: var(--muted);">Creature Profiles</strong>
-          <span id="statCreatures" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
-        </div>
-        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
-          <strong style="color: var(--muted);">Rule Documents</strong>
-          <span id="statRules" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
-        </div>
-        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
-          <strong style="color: var(--muted);">Custom Presets</strong>
-          <span id="statPresets" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
-        </div>
-        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
-          <strong style="color: var(--muted);">Combat Logs</strong>
-          <span id="statEncounters" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
-        </div>
-        <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
-          <strong style="color: var(--muted);">Tactical Markers</strong>
-          <span id="statPins" style="display: block; font-size: 2.5em; font-weight: 800; color: var(--primary); margin-top: 5px;">0</span>
-        </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981;">⬇️ Export Personal Backup</button>
+        <input type="file" id="importDataInput" accept=".json" style="display: none;">
+        <label for="importDataInput" class="btn btn-ghost full-width" style="text-align: center; cursor: pointer;">⬆️ Import Personal Backup</label>
+      </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2;">
+      
+      <div class="card" style="border-top: 5px solid var(--info); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
+        <h2 style="color: var(--info); margin-bottom: 15px;">Server Synchronization (Merge)</h2>
+        <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
+          Clicking the button below will download the official <code>JSON.json</code> baseline file from your server. It will safely merge new rules, creature profiles, and stats into your app <strong>without</strong> overwriting your custom map markers, custom combat stats, or lineage logs.
+        </p>
+        <button class="btn" id="mergeBaseBtn" style="background: var(--info); border-color: var(--info); font-size: 1.1em; padding: 15px 30px;">🔄 Check for App Updates (Merge JSON)</button>
+        <p id="mergeStatus" style="margin-top: 15px; font-weight: bold;"></p>
       </div>
 
-      <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-        <button id="exportBtn" class="btn" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📥 Export Personal Backup</button>
-        
-        <input type="file" id="importInput" accept=".json" style="display: none;">
-        <button id="importBtn" class="btn btn-ghost" style="flex: 1; min-width: 200px; font-size: 1.1em; padding: 15px;">📤 Import Personal Backup</button>
+      <div class="card" style="border-top: 5px solid var(--danger); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border);">
+        <h2 style="color: var(--danger); margin-bottom: 15px;">Danger Zone: Factory Reset</h2>
+        <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
+          This will completely purge your high-capacity IndexedDB storage. All personal custom stats, map markers, lineage family trees, and combat logs will be permanently incinerated. The app will be rebuilt using only the official staging file. <strong>Ensure you have exported a personal backup first!</strong>
+        </p>
+        <button class="btn btn-ghost" id="factoryResetBtn" style="color: var(--danger); border-color: var(--danger); font-size: 1.1em; padding: 15px 30px;">⚠️ Purge Database & Factory Reset</button>
       </div>
-    </div>
 
-    <div class="card" style="border-top: 5px solid #10b981; margin-bottom: 25px; box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);">
-      <h3 style="color: #10b981; margin-bottom: 10px;">System Updates</h3>
-      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em; line-height: 1.5;">When server staff push a new EAHA update, click below to fetch the newest Rules, Creature Profiles, and Commands. This merges the official updates into your app <strong>without</strong> overwriting your custom stats, combat logs, or map markers.</p>
-      <button id="updateBtn" class="btn" style="background: #10b981; border-color: #10b981; color: #fff;">🔄 Check for App Updates</button>
-    </div>
-
-    <div class="card" style="box-shadow: none; border: 2px dashed var(--danger); background: color-mix(in srgb, var(--danger) 5%, transparent);">
-      <h3 style="color: var(--danger); margin-bottom: 10px;">Danger Zone: Factory Reset</h3>
-      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Resetting the database will wipe your personal combat logs, map markers, lifelines, and stats, replacing the system with the default baseline. Ensure you have exported your personal backup first.</p>
-      <button id="resetBtn" class="btn btn-sm" style="background: transparent; border: 1px solid var(--danger); color: var(--danger);">Factory Reset to Baseline</button>
-    </div>
-
+    </section>
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <footer style="text-align: center; padding: 30px; color: var(--muted); font-size: 0.95em; font-weight: 500;">
-    © 2026 Elys Astra Helper Application Created by PixelPacket
-  </footer>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
   
   <script src="data-store.js"></script>
   <script src="settings.js"></script>
