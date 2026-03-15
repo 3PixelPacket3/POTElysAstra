@@ -48,9 +48,12 @@ const elements = {
   calcResult: document.getElementById('calcResultDisplay'),
   calcFormula: document.getElementById('calcFormulaDisplay'),
 
-  // Threat Assessment Simulator (NEW)
+  // Threat Assessment Simulator
   fighterA: document.getElementById('fighterASelect'),
+  fighterAStage: document.getElementById('fighterAStage'),
   fighterB: document.getElementById('fighterBSelect'),
+  fighterBStage: document.getElementById('fighterBStage'),
+  
   simOutputA: document.getElementById('simOutputA'),
   simOutputB: document.getElementById('simOutputB'),
   advantageBanner: document.getElementById('advantageBanner'),
@@ -66,6 +69,22 @@ const showToast = (message, type = 'success') => {
   if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
   else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
+};
+
+// Helper to safely extract a 5-stage array from a string
+const getStatArray = (valStr) => {
+  if (!valStr) return [0, 0, 0, 0, 0];
+  const parts = String(valStr).split(',').map(s => parseFloat(s.trim()));
+  // If the array is shorter than 5, duplicate the last value to fill it out
+  while (parts.length < 5) parts.push(parts[parts.length - 1] || 0);
+  return parts;
+};
+
+// Helper to grab the adult (last) stat from the array for a clean view
+const getAdultStat = (valStr) => {
+  if (!valStr) return '-';
+  const parts = String(valStr).split(',');
+  return parts[parts.length - 1].trim(); 
 };
 
 // --- Mode Toggle ---
@@ -101,8 +120,8 @@ const renderEditCustomStatRow = (name = '', value = '') => {
   row.className = 'custom-stat-row';
   
   row.innerHTML = `
-    <input type="text" class="stat-name" placeholder="Stat Name (e.g., Bleed Heal)" value="${name}" style="flex: 1;">
-    <input type="text" class="stat-value" placeholder="Value" value="${value}" style="flex: 1;">
+    <input type="text" class="stat-name" placeholder="Stat Name" value="${name}" style="flex: 1;">
+    <input type="text" class="stat-value" placeholder="v1, v2, v3, v4, v5" value="${value}" style="flex: 2;">
     <button type="button" class="btn btn-ghost delete-stat-btn" style="color: var(--danger); border-color: transparent; padding: 10px;">✕</button>
   `;
   
@@ -133,28 +152,29 @@ const setView = (creature) => {
     elements.image.style.display = 'none';
   }
 
-  // 2. Render Base Stats (View Mode)
+  // 2. Render Base Stats (View Mode - Showing Adult Matrix Default)
   const baseStats = creature.stats?.base || {};
   const statLabels = {
     health: 'Health', combatWeight: 'Combat Weight', armor: 'Armor',
-    carryCapacity: 'Carry Capacity', stamina: 'Stamina', speed: 'Speed'
+    carryCapacity: 'Capacity', stamina: 'Stamina', speed: 'Speed'
   };
 
   elements.baseGrid.innerHTML = Object.keys(statLabels).map(key => `
-    <div class="stat-card" style="background: var(--bg); border-color: var(--border);">
+    <div class="stat-card" style="background: var(--bg); border-color: var(--border);" title="Full Array: ${baseStats[key] || '-'}">
       <strong style="color: var(--muted);">${statLabels[key]}</strong>
-      <span style="display: block; font-size: 1.5em; font-weight: 800; color: var(--text); margin-top: 5px;">${baseStats[key] || '-'}</span>
+      <span style="display: block; font-size: 1.5em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(baseStats[key])}</span>
+      <div style="font-size: 0.7em; color: var(--muted); margin-top: 4px;">Adult / Max</div>
     </div>
   `).join('');
 
-  // 3. Render Custom Stats (View Mode)
+  // 3. Render Custom Stats (View Mode - Showing Adult Matrix Default)
   const customStats = creature.stats?.custom || [];
   if (customStats.length > 0) {
     elements.customWrapper.classList.remove('is-hidden');
     elements.customGrid.innerHTML = customStats.map(stat => `
-      <div class="stat-card" style="background: color-mix(in srgb, var(--primary) 10%, var(--bg)); border-color: var(--primary);">
+      <div class="stat-card" style="background: color-mix(in srgb, var(--primary) 10%, var(--bg)); border-color: var(--primary);" title="Full Array: ${stat.value || '-'}">
         <strong style="color: var(--primary);">${stat.name}</strong>
-        <span style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">${stat.value}</span>
+        <span style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
       </div>
     `).join('');
   } else {
@@ -187,12 +207,12 @@ const saveStats = async () => {
 
   // Gather Base Stats
   creature.stats.base = {
-    health: elements.editHealth.value,
-    combatWeight: elements.editWeight.value,
-    armor: elements.editArmor.value,
-    carryCapacity: elements.editCarry.value,
-    stamina: elements.editStamina.value,
-    speed: elements.editSpeed.value
+    health: elements.editHealth.value.trim(),
+    combatWeight: elements.editWeight.value.trim(),
+    armor: elements.editArmor.value.trim(),
+    carryCapacity: elements.editCarry.value.trim(),
+    stamina: elements.editStamina.value.trim(),
+    speed: elements.editSpeed.value.trim()
   };
 
   // Gather Custom Stats
@@ -204,24 +224,22 @@ const saveStats = async () => {
   });
   creature.stats.custom = customStats;
 
-  // Save to Database
   await EAHADataStore.saveData(db);
   showToast('Stats Updated Successfully.');
   
-  // Refresh UI
   setView(creature);
   setMode('view');
   
-  // Update Simulator Dropdowns if names changed
   if (elements.fighterA) populateDropdowns();
 };
 
-// --- Sandbox Calculator Logic ---
+// --- Sandbox Calculator Logic (5-Stage Array Math) ---
 const resetCalculator = () => {
   elements.calcMod.value = '';
   elements.calcResult.textContent = '---';
   elements.calcResult.style.color = 'var(--text)';
   elements.calcFormula.textContent = 'Select a stat and apply a percentage modifier.';
+  elements.calcResult.style.fontSize = '2em';
 };
 
 const applyCalculation = () => {
@@ -240,35 +258,38 @@ const applyCalculation = () => {
   }
 
   const baseValueStr = creature.stats?.base?.[targetKey];
-  const baseValue = parseFloat(baseValueStr);
+  const baseValues = getStatArray(baseValueStr);
 
-  if (isNaN(baseValue)) {
-    showToast(`Base ${targetKey} is not a valid number for this creature.`, 'error');
+  if (baseValues.every(v => isNaN(v) || v === 0)) {
+    showToast(`Base ${targetKey} array is empty or invalid for this creature.`, 'error');
     return;
   }
 
-  const delta = baseValue * (modifierValue / 100);
-  const result = baseValue + delta;
+  // Map the percentage buff/debuff across the entire 5-stage array
+  const results = baseValues.map(v => {
+    if (isNaN(v)) return 0;
+    const delta = v * (modifierValue / 100);
+    return parseFloat((v + delta).toFixed(2));
+  });
 
-  const formattedResult = parseFloat(result.toFixed(2));
-  const formattedDelta = parseFloat(Math.abs(delta).toFixed(2));
+  const formattedResult = results.join(', ');
   const sign = modifierValue >= 0 ? '+' : '-';
 
   elements.calcResult.textContent = formattedResult;
   elements.calcResult.style.color = modifierValue >= 0 ? 'var(--success)' : 'var(--danger)';
+  elements.calcResult.style.fontSize = '1.3em'; // Shrink slightly to fit the full array cleanly
   
   const statName = elements.calcTarget.options[elements.calcTarget.selectedIndex].text;
-  elements.calcFormula.textContent = `Formula: ${baseValue} ${sign} ${Math.abs(modifierValue)}% (${formattedDelta}) = ${formattedResult} ${statName}`;
+  elements.calcFormula.textContent = `Formula applied across 5-stage matrix: Base ${sign} ${Math.abs(modifierValue)}% = ${statName}`;
 };
 
-// --- Threat Assessment Simulator Logic (NEW) ---
+// --- Threat Assessment Simulator Logic (5-Stage Math) ---
 const populateDropdowns = () => {
   if (!elements.fighterA || !elements.fighterB) return;
   
   const defaultOptionA = new Option("Select Your Dinosaur...", "none");
   const defaultOptionB = new Option("Select Opponent Dinosaur...", "none");
   
-  // Save current selections to persist through re-renders
   const currentA = elements.fighterA.value;
   const currentB = elements.fighterB.value;
   
@@ -278,7 +299,6 @@ const populateDropdowns = () => {
   elements.fighterA.appendChild(defaultOptionA);
   elements.fighterB.appendChild(defaultOptionB);
 
-  // Sort alphabetically for easier finding
   const sortedCreatures = [...db.creatures].sort((a, b) => a.name.localeCompare(b.name));
 
   sortedCreatures.forEach(c => {
@@ -286,7 +306,6 @@ const populateDropdowns = () => {
     elements.fighterB.appendChild(new Option(c.name, c.id));
   });
   
-  // Try to restore previous selection, else default to the active lifeline creature
   const activeId = localStorage.getItem('eahaActiveCreature');
   
   if (currentA && currentA !== 'none') {
@@ -306,8 +325,14 @@ const runSimulation = () => {
   const idA = elements.fighterA.value;
   const idB = elements.fighterB.value;
 
+  // Extract the selected growth stage (0 = Hatchling, 4 = Adult)
+  const stageAIndex = elements.fighterAStage ? parseInt(elements.fighterAStage.value, 10) : 4;
+  const stageBIndex = elements.fighterBStage ? parseInt(elements.fighterBStage.value, 10) : 4;
+  
+  const stageNames = ["Hatchling", "Baby", "Adolescent", "Sub-Adult", "Adult"];
+
   if (idA === 'none' || idB === 'none') {
-    elements.advantageBanner.innerHTML = `<span class="muted">Awaiting combatants... Select two dinosaurs to run the numbers.</span>`;
+    elements.advantageBanner.innerHTML = `<span class="muted">Awaiting combatants... Select two dinosaurs and their growth stages to run the numbers.</span>`;
     elements.simOutputA.innerHTML = '';
     elements.simOutputB.innerHTML = '';
     elements.speedComparison.innerHTML = '';
@@ -318,17 +343,18 @@ const runSimulation = () => {
   const dinoA = db.creatures.find(c => c.id === idA);
   const dinoB = db.creatures.find(c => c.id === idB);
 
-  const weightA = parseFloat(dinoA.stats?.base?.combatWeight) || 0;
-  const weightB = parseFloat(dinoB.stats?.base?.combatWeight) || 0;
+  // Extract specific stage stats from the 5-stage arrays
+  const weightA = getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 0;
+  const weightB = getStatArray(dinoB.stats?.base?.combatWeight)[stageBIndex] || 0;
   
-  const healthA = parseFloat(dinoA.stats?.base?.health) || 0;
-  const healthB = parseFloat(dinoB.stats?.base?.health) || 0;
+  const healthA = getStatArray(dinoA.stats?.base?.health)[stageAIndex] || 0;
+  const healthB = getStatArray(dinoB.stats?.base?.health)[stageBIndex] || 0;
   
-  const speedA = parseFloat(dinoA.stats?.base?.speed) || 0;
-  const speedB = parseFloat(dinoB.stats?.base?.speed) || 0;
+  const speedA = getStatArray(dinoA.stats?.base?.speed)[stageAIndex] || 0;
+  const speedB = getStatArray(dinoB.stats?.base?.speed)[stageBIndex] || 0;
   
-  const stamA = parseFloat(dinoA.stats?.base?.stamina) || 0;
-  const stamB = parseFloat(dinoB.stats?.base?.stamina) || 0;
+  const stamA = getStatArray(dinoA.stats?.base?.stamina)[stageAIndex] || 0;
+  const stamB = getStatArray(dinoB.stats?.base?.stamina)[stageBIndex] || 0;
 
   // Path of Titans Combat Weight Math: Damage = Base * (Attacker CW / Defender CW)
   const multiplierA = weightB > 0 ? (weightA / weightB) : 1;
@@ -336,7 +362,8 @@ const runSimulation = () => {
 
   // Render Fighter A Card
   elements.simOutputA.innerHTML = `
-    <h3 style="color: var(--primary); margin-bottom: 10px;">${dinoA.name}</h3>
+    <h3 style="color: var(--primary); margin-bottom: 5px;">${dinoA.name}</h3>
+    <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--primary);">${stageNames[stageAIndex]}</span>
     <div style="font-size: 0.9em; line-height: 1.6;">
       <div><strong>Health:</strong> ${healthA}</div>
       <div><strong>Combat Weight:</strong> ${weightA}</div>
@@ -350,7 +377,8 @@ const runSimulation = () => {
 
   // Render Fighter B Card
   elements.simOutputB.innerHTML = `
-    <h3 style="color: var(--danger); margin-bottom: 10px;">${dinoB.name}</h3>
+    <h3 style="color: var(--danger); margin-bottom: 5px;">${dinoB.name}</h3>
+    <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--danger);">${stageNames[stageBIndex]}</span>
     <div style="font-size: 0.9em; line-height: 1.6;">
       <div><strong>Health:</strong> ${healthB}</div>
       <div><strong>Combat Weight:</strong> ${weightB}</div>
@@ -425,7 +453,6 @@ const renderList = () => {
   filtered.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
-    // Force Pointer CSS and disable text selection for cleaner UI
     item.style.cursor = 'pointer';
     item.style.userSelect = 'none';
     item.innerHTML = `
@@ -437,7 +464,7 @@ const renderList = () => {
     item.addEventListener('click', () => {
       currentCreatureId = creature.id;
       setView(creature);
-      setMode('view'); // Enforce view mode when clicking
+      setMode('view'); 
       renderList(); 
     });
     elements.list.appendChild(item);
@@ -478,6 +505,8 @@ const init = async () => {
     populateDropdowns();
     elements.fighterA.addEventListener('change', runSimulation);
     elements.fighterB.addEventListener('change', runSimulation);
+    if(elements.fighterAStage) elements.fighterAStage.addEventListener('change', runSimulation);
+    if(elements.fighterBStage) elements.fighterBStage.addEventListener('change', runSimulation);
     runSimulation();
   }
 
