@@ -1,31 +1,13 @@
 // settings.js
 
-// --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [] };
-
-// --- LocalStorage Keys ---
-const PRESETS_KEY = 'eahaPostPresets';
-const LIFELINES_KEY = 'eahaLifelines';
-const COMMANDS_KEY = 'eahaCommands';
-const ACTIVE_CREA_KEY = 'eahaActiveCreature';
-const TIME_ZONE_KEY = 'eahaTimeZone';
-
-// --- DOM Elements ---
 const elements = {
-  statCreatures: document.getElementById('statCreatures'),
-  statRules: document.getElementById('statRules'),
-  statPresets: document.getElementById('statPresets'),
-  statEncounters: document.getElementById('statEncounters'),
-  statPins: document.getElementById('statPins'),
-  
-  exportBtn: document.getElementById('exportBtn'),
-  importInput: document.getElementById('importInput'),
-  importBtn: document.getElementById('importBtn'),
-  updateBtn: document.getElementById('updateBtn'), // NEW
-  resetBtn: document.getElementById('resetBtn')
+  exportBtn: document.getElementById('exportDataBtn'),
+  importInput: document.getElementById('importDataInput'),
+  mergeBtn: document.getElementById('mergeBaseBtn'),
+  resetBtn: document.getElementById('factoryResetBtn'),
+  mergeStatus: document.getElementById('mergeStatus')
 };
 
-// --- Utilities ---
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
@@ -36,112 +18,115 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// --- Dashboard Logic ---
-const updateDashboard = () => {
-  elements.statCreatures.textContent = db.creatures ? db.creatures.length : 0;
-  elements.statRules.textContent = db.rules ? db.rules.length : 0;
-  elements.statEncounters.textContent = db.encounters ? db.encounters.length : 0;
-  elements.statPins.textContent = db.pins ? db.pins.length : 0;
-  
-  const presets = JSON.parse(localStorage.getItem(PRESETS_KEY)) || {};
-  elements.statPresets.textContent = Object.keys(presets).length;
-};
+// 1. Export Personal Backup (Now pulls from IndexedDB)
+elements.exportBtn.addEventListener('click', async () => {
+  try {
+    const data = await EAHADataStore.getData();
+    
+    // Bundle the main database + standalone settings (commands, presets)
+    const fullBackup = {
+      database: data,
+      eahaCommands: JSON.parse(localStorage.getItem('eahaCommands')) || [],
+      eahaPostPresets: JSON.parse(localStorage.getItem('eahaPostPresets')) || {},
+      eahaLifelines: JSON.parse(localStorage.getItem('eahaLifelines')) || {},
+      timestamp: new Date().toISOString()
+    };
 
-// --- Export / Import Logic (Personal Backups) ---
-const exportDatabase = () => {
-  const exportData = {
-    database: db,
-    eahaPostPresets: JSON.parse(localStorage.getItem(PRESETS_KEY)) || {},
-    eahaLifelines: JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {},
-    eahaCommands: JSON.parse(localStorage.getItem(COMMANDS_KEY)) || [],
-    eahaActiveCreature: localStorage.getItem(ACTIVE_CREA_KEY) || 'none',
-    eahaTimeZone: localStorage.getItem(TIME_ZONE_KEY) || 'local'
-  };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadAnchorNode.setAttribute("download", `eaha_backup_${dateStr}.json`);
+    
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    
+    showToast('Personal Backup Downloaded Successfully!');
+  } catch (error) {
+    showToast('Failed to export database.', 'error');
+    console.error(error);
+  }
+});
 
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-  const downloadAnchorNode = document.createElement('a');
-  downloadAnchorNode.setAttribute("href", dataStr);
-  downloadAnchorNode.setAttribute("download", `eaha_backup_${new Date().toISOString().split('T')[0]}.json`);
-  document.body.appendChild(downloadAnchorNode);
-  downloadAnchorNode.click();
-  downloadAnchorNode.remove();
-  
-  showToast('Database exported successfully.');
-};
-
-const importDatabase = async (event) => {
-  const file = event.target.files[0];
+// 2. Import Personal Backup (Writes to IndexedDB)
+elements.importInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async (e) => {
+  reader.onload = async (event) => {
     try {
-      const importedData = JSON.parse(e.target.result);
-      if (!importedData.database) throw new Error("Invalid EAHA backup file.");
-
-      db = importedData.database;
-      await EAHADataStore.saveData(db);
-
-      if (importedData.eahaPostPresets) localStorage.setItem(PRESETS_KEY, JSON.stringify(importedData.eahaPostPresets));
-      if (importedData.eahaLifelines) localStorage.setItem(LIFELINES_KEY, JSON.stringify(importedData.eahaLifelines));
-      if (importedData.eahaCommands) localStorage.setItem(COMMANDS_KEY, JSON.stringify(importedData.eahaCommands));
-      if (importedData.eahaActiveCreature) localStorage.setItem(ACTIVE_CREA_KEY, importedData.eahaActiveCreature);
-      if (importedData.eahaTimeZone) localStorage.setItem(TIME_ZONE_KEY, importedData.eahaTimeZone);
-
-      updateDashboard();
-      showToast('Database imported successfully! Memory restored.');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (error) {
-      console.error('Import Error:', error);
-      showToast('Failed to import data. The file may be corrupted.', 'error');
+      const importedData = JSON.parse(event.target.result);
+      
+      if (importedData.database) {
+        // High-Capacity Import
+        await EAHADataStore.saveData(importedData.database);
+        
+        // Restore standalone configs
+        if (importedData.eahaCommands) localStorage.setItem('eahaCommands', JSON.stringify(importedData.eahaCommands));
+        if (importedData.eahaPostPresets) localStorage.setItem('eahaPostPresets', JSON.stringify(importedData.eahaPostPresets));
+        if (importedData.eahaLifelines) localStorage.setItem('eahaLifelines', JSON.stringify(importedData.eahaLifelines));
+        
+        showToast('Personal Backup Restored Successfully! Refreshing...');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        // Fallback for extremely old backups
+        await EAHADataStore.saveData(importedData);
+        showToast('Legacy Backup Restored! Refreshing...');
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    } catch (err) {
+      showToast('Invalid JSON file format.', 'error');
+      console.error(err);
     }
   };
   reader.readAsText(file);
-  event.target.value = '';
-};
+  e.target.value = ''; 
+});
 
-// --- App Update Logic (Merge) ---
-const updateApp = async () => {
-  if (confirm('This will download the latest official Elys Astra updates (Rules, Creatures, Commands) and merge them into your database without harming your personal logs or map markers. Proceed?')) {
-    showToast('Fetching updates...', 'info');
+// 3. Merge Server Base JSON
+elements.mergeBtn.addEventListener('click', async () => {
+  if (!confirm('This will download the latest JSON.json file from the server and merge it with your database. Proceed?')) return;
+  
+  elements.mergeBtn.disabled = true;
+  elements.mergeStatus.textContent = 'Contacting server...';
+  elements.mergeStatus.style.color = 'var(--muted)';
+  
+  try {
     const result = await EAHADataStore.mergeWithBase();
-    
     if (result.success) {
-      db = await EAHADataStore.getData(); 
-      updateDashboard();
-      showToast('App Updated successfully!', 'success');
+      elements.mergeStatus.textContent = `Merge Complete! Added/Updated ${result.changes} records.`;
+      elements.mergeStatus.style.color = 'var(--success)';
+      showToast('App Updated Successfully!');
     } else {
-      showToast('Failed to fetch the update file. JSON.json may be missing.', 'error');
+      elements.mergeStatus.textContent = 'Merge Failed. Check network connection or JSON.json format.';
+      elements.mergeStatus.style.color = 'var(--danger)';
+      showToast('Merge Failed.', 'error');
     }
+  } catch (error) {
+    elements.mergeStatus.textContent = 'Critical Error during merge.';
+    elements.mergeStatus.style.color = 'var(--danger)';
+  } finally {
+    elements.mergeBtn.disabled = false;
   }
-};
+});
 
-// --- Factory Reset Logic (Base JSON Loader) ---
-const resetDatabase = async () => {
-  if (confirm('WARNING: This will reset the application to the server baseline JSON. ALL personal markers, lifelines, combat logs, and custom stats will be erased. Ensure you have exported your personal backup first! Are you absolutely certain?')) {
-    db = await EAHADataStore.resetToBase();
-    updateDashboard();
-    showToast('Database reset to baseline. Reloading system...', 'success');
-    setTimeout(() => window.location.reload(), 1500);
-  }
-};
-
-// --- Initialization ---
-const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+// 4. Factory Reset
+elements.resetBtn.addEventListener('click', async () => {
+  const confirmation = prompt('WARNING: Type "PURGE" to permanently delete all personal data and reset the app.');
+  if (confirmation === 'PURGE') {
+    try {
+      await EAHADataStore.resetToBase();
+      showToast('Database Purged. Rebooting system...', 'error');
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 2000);
+    } catch (error) {
+      showToast('Reset failed.', 'error');
+    }
   } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
+    showToast('Reset aborted.');
   }
-
-  updateDashboard();
-
-  // Bind Listeners
-  elements.exportBtn.addEventListener('click', exportDatabase);
-  elements.importBtn.addEventListener('click', () => elements.importInput.click());
-  elements.importInput.addEventListener('change', importDatabase);
-  elements.updateBtn.addEventListener('click', updateApp);
-  elements.resetBtn.addEventListener('click', resetDatabase);
-};
-
-document.addEventListener('DOMContentLoaded', init);
+});
