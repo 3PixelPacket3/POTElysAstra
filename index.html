@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top-nav">
+  <header class="top-nav">
     <div class="brand">Elys Astra Helper Application</div>
     <nav class="nav-links">
-      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn active" href="index.html">Dashboard</a>
       <a class="nav-btn" href="apps.html">Post Builder</a>
       <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
       <a class="nav-btn" href="docs.html">Creature Profiles</a>
@@ -183,6 +183,13 @@
     <section class="module-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
       <article class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
         <div>
+          <h2 style="font-size: 1.4em; color: var(--primary);">Combat Log</h2>
+          <p class="muted" style="margin-bottom: 20px;">Track your PvP history, identify dangerous map zones, and analyze your hunting efficiency.</p>
+        </div>
+        <a class="btn btn-ghost full-width" href="combat.html">Open Combat Log</a>
+      </article>
+      <article class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
           <h2 style="font-size: 1.4em; color: var(--primary);">Post Builder</h2>
           <p class="muted" style="margin-bottom: 20px;">Create Discord-ready posts with templates, emoji libraries, and live previews.</p>
         </div>
@@ -215,13 +222,6 @@
           <p class="muted" style="margin-bottom: 20px;">Export or import your EAHA dataset and reset to the base staging file.</p>
         </div>
         <a class="btn btn-ghost full-width" href="settings.html">Open Backup</a>
-      </article>
-      <article class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
-        <div>
-          <h2 style="font-size: 1.4em; color: var(--primary);">About EAHA</h2>
-          <p class="muted" style="margin-bottom: 20px;">Read the purpose, workflow tips, and limitations of the offline helper.</p>
-        </div>
-        <a class="btn btn-ghost full-width" href="guide.html">Open About</a>
       </article>
     </section>
   </main>
