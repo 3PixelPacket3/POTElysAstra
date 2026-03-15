@@ -30,6 +30,8 @@ const elements = {
     tier: document.getElementById('creatureTierInput'),
     group: document.getElementById('creatureGroup'),
     image: document.getElementById('creatureImage'),
+    imageUpload: document.getElementById('creatureImageUpload'),
+    imageDropZone: document.getElementById('profileImageDropZone'),
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
@@ -70,6 +72,48 @@ const showToast = (message, type = 'success') => {
 const formatList = (text) => text.split(',').map((item) => item.trim()).filter(Boolean);
 const formatLines = (text) => text.split('\n').map((item) => item.trim()).filter(Boolean);
 const generateId = () => 'crea_' + Math.random().toString(36).substr(2, 9);
+
+// --- Base64 Image Compression Engine ---
+// Sir, this compresses uploads to prevent LocalStorage quota overflow.
+const compressAndLoadImage = (file) => {
+  if (!file || !file.type.startsWith('image/')) return;
+  
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = (event) => {
+    const img = new Image();
+    img.src = event.target.result;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 400; // Optimal for UI display
+      const MAX_HEIGHT = 400;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Compress to high-quality JPEG Base64
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      elements.core.image.value = dataUrl;
+      showToast('Profile image successfully compressed and loaded.');
+    };
+  };
+};
 
 // --- Navigation & Modes ---
 const initTabs = () => {
@@ -495,7 +539,29 @@ const init = async () => {
     elements.tabs[0].click(); 
   });
 
-  // --- OCR Input Bindings ---
+  // --- Image Upload Bindings (Profile Avatar) ---
+  elements.core.imageUpload.addEventListener('change', (e) => {
+    if(e.target.files.length > 0) compressAndLoadImage(e.target.files[0]);
+    e.target.value = ''; 
+  });
+  
+  elements.core.imageDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    elements.core.imageDropZone.style.opacity = '0.7';
+  });
+  elements.core.imageDropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    elements.core.imageDropZone.style.opacity = '1';
+  });
+  elements.core.imageDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    elements.core.imageDropZone.style.opacity = '1';
+    if(e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      compressAndLoadImage(e.dataTransfer.files[0]);
+    }
+  });
+
+  // --- OCR Input Bindings (Magic Auto-Fill) ---
   // 1. Manual Upload
   elements.ocrInput.addEventListener('change', (e) => {
     if(e.target.files.length > 0) processImage(e.target.files[0]);
@@ -522,14 +588,20 @@ const init = async () => {
     }
   });
 
-  // 3. Ctrl+V Paste
+  // 3. Ctrl+V Paste (Handles both Avatar and OCR depending on focus/target)
   window.addEventListener('paste', (e) => {
     if (currentMode === 'edit') {
       const items = (e.clipboardData || e.originalEvent.clipboardData).items;
       for (let index in items) {
         const item = items[index];
         if (item.kind === 'file' && item.type.startsWith('image/')) {
-          processImage(item.getAsFile());
+          // If they are specifically focused on the image URL input, assume avatar upload
+          if (document.activeElement === elements.core.image) {
+            compressAndLoadImage(item.getAsFile());
+          } else {
+            // Otherwise default to the OCR magic scanner
+            processImage(item.getAsFile());
+          }
           break;
         }
       }
