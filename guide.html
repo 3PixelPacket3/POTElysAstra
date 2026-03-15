@@ -18,7 +18,7 @@
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
       <a class="nav-btn" href="settings.html">JSON Backup</a>
-      <a class="nav-btn" href="guide.html">About</a>
+      <a class="nav-btn active" href="guide.html">About</a>
     </nav>
   </header>
 
@@ -26,12 +26,12 @@
     
     <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
       <h2 style="font-size: 1.5em;">Documentation</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Navigate the user manual for the Elys Astra Helper.</p>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Navigate the comprehensive user manual for the Elys Astra Helper.</p>
       
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <a href="#welcome" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Welcome to EAHA</a>
         <a href="#how-it-works" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">How Data Saving Works</a>
-        <a href="#modules" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Module Breakdown</a>
+        <a href="#modules" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Comprehensive Manual</a>
         <a href="#troubleshooting" class="btn btn-ghost full-width" style="text-align: left; border: none; border-bottom: 1px solid var(--border); border-radius: 0;">Troubleshooting</a>
       </div>
     </aside>
@@ -43,7 +43,7 @@
         <section id="welcome" style="margin-bottom: 40px;">
           <h1 style="color: var(--primary); font-size: 2.5em; margin-bottom: 10px;">Welcome to EAHA</h1>
           <p class="muted" style="font-size: 1.1em; line-height: 1.6;">
-            The <strong>Elys Astra Helper Application</strong> is an offline, browser-based toolkit designed specifically for players and staff of the Elys Astra Path of Titans server. It centralizes your survival tracking, post formatting, rule lookup, and statistical analysis into one seamless dashboard.
+            The <strong>Elys Astra Helper Application</strong> is an offline, browser-based toolkit designed specifically for players and staff of the Elys Astra Path of Titans server. It centralizes your survival tracking, post formatting, rule lookup, combat analysis, and tactical mapping into one seamless dashboard.
           </p>
         </section>
 
@@ -60,40 +60,90 @@
         </section>
 
         <section id="modules" style="margin-bottom: 40px;">
-          <h2 style="color: var(--primary); margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Module Breakdown</h2>
+          <h2 style="color: var(--primary); margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Comprehensive Manual</h2>
           
           <div style="display: flex; flex-direction: column; gap: 20px;">
+            
             <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-              <h3 style="color: var(--text); margin-bottom: 5px;">1. Elysian Dashboard</h3>
-              <p class="muted" style="font-size: 0.95em;">Your primary control center. Select an active dinosaur from your database to load its specific upkeep tasks. Use the decay timer to alert you when your Comfort, Hygiene, or Satiation reaches 0%. Also features one-click Quick Commands for Discord.</p>
+              <h3 style="color: var(--text); margin-bottom: 10px;">1. Elysian Dashboard & Lifeline</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Your primary control center for active survival tracking.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Active Dinosaur Selection:</strong> Upon loading, the dashboard defaults to an unassigned state. Use the dropdown to select a creature from your database to load its specific upkeep tasks, diets, and habitats.</li>
+                <li><strong>Vitals & Upkeep Timer:</strong> Track your Comfort, Hygiene, and Satiation. Enter a minute value and click "Start Decay" to have your vitals drain proportionally. Use the new <strong>Reset Timer</strong> button to safely halt the countdown without wiping your current vital percentages.</li>
+                <li><strong>Eldering Progress:</strong> Track your <code>!migrationbuff</code> milestones. The UI will update to show you the current stage (Young, Inexperienced, Experienced, Withering) and alert you when Rebirth tokens are unlocked at 16 migrations.</li>
+                <li><strong>Quick Commands:</strong> Click any command chip to instantly copy it to your clipboard. Toggle "Edit Mode" to delete commands, or use the input box to add new ones.</li>
+              </ul>
             </div>
             
             <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-              <h3 style="color: var(--text); margin-bottom: 5px;">2. Post Builder</h3>
-              <p class="muted" style="font-size: 0.95em;">A drag-and-drop formatting engine for Discord. Use Cookie-Cutter templates to instantly generate event posts, LFG requests, or staff announcements. The live preview automatically formats Discord markdown (like bolding and blockquotes).</p>
+              <h3 style="color: var(--text); margin-bottom: 10px;">2. Post Builder</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">A drag-and-drop formatting engine for Discord announcements and LFG posts.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Cookie-Cutter Templates:</strong> Select a pre-built layout (like Event Setup or Nesting Request) to instantly populate the form.</li>
+                <li><strong>Design Library:</strong> Click bubbly chips to inject custom dividers, server symbols, and status emojis directly into your text.</li>
+                <li><strong>Rich Formatting:</strong> Highlight text and use the toolbar to apply Discord markdown (Bold, Spoilers) or convert your text into unique Unicode fonts (Gothic, Script).</li>
+              </ul>
             </div>
 
             <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-              <h3 style="color: var(--text); margin-bottom: 5px;">3. Rules & Guidelines</h3>
-              <p class="muted" style="font-size: 0.95em;">A fast-search directory for server moderation. Type a keyword like "body down" to instantly pull up the relevant ruling. You can edit, format, and tag rules to build a comprehensive server encyclopedia.</p>
+              <h3 style="color: var(--text); margin-bottom: 10px;">3. Rules & Guidelines</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Your server's offline encyclopedia and moderation tool.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Fast Search:</strong> Search by rule title or keyword tags (e.g., "body down") to instantly pull up rulings.</li>
+                <li><strong>Rich Editing:</strong> Use the rich text editor to format rules with bolding, italics, and bullet points.</li>
+              </ul>
             </div>
 
             <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-              <h3 style="color: var(--text); margin-bottom: 5px;">4. Creature Profiles & Stats</h3>
-              <p class="muted" style="font-size: 0.95em;">Your master database. Any creature added here will automatically appear in the Dashboard dropdown. The Stats tab allows you to view precise combat metrics and use a sandbox calculator to test percentage buffs and nerfs safely.</p>
+              <h3 style="color: var(--text); margin-bottom: 10px;">4. Creature Profiles & Stats</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Maintain detailed lore, biology, and statistical data for every dinosaur.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Magic Auto-Fill (OCR):</strong> Drag and drop (or Ctrl+V) a screenshot of a creature's profile card from Discord. The AI will scan the image and automatically extract the Name, Tier, Diet, Habitats, and Upkeep tasks into the form.</li>
+                <li><strong>Stat Calculator:</strong> Navigate to the <strong>Stats</strong> tab to view a creature's base values. Use the Sandbox Calculator to safely test percentage buffs (e.g., +15% Health) without permanently altering the database.</li>
+              </ul>
             </div>
+
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 10px;">5. Combat Log</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Track your PvP history, identify dangerous map zones, and analyze hunting efficiency.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Quick Logging:</strong> Use the lightning-fast Quick Log section on the dashboard to record a win, loss, or starvation event in one click. It automatically associates the event with your currently active dinosaur.</li>
+                <li><strong>Isolated Analytics:</strong> Use the "All My Dinosaurs" dropdown filter in the sidebar to isolate your dashboard charts. You can view exactly how many kills or deaths a specific dinosaur in your roster has accumulated.</li>
+                <li><strong>Advanced Sorting:</strong> Sort your extensive encounter list by Newest, Oldest, or alphabetically by Dinosaur.</li>
+                <li><strong>Total Deployments Chart:</strong> A dedicated bar chart tracks which dinosaurs you play (and die/kill with) the most.</li>
+              </ul>
+            </div>
+
+            <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+              <h3 style="color: var(--text); margin-bottom: 10px;">6. Tactical Map</h3>
+              <p class="muted" style="font-size: 0.95em; margin-bottom: 10px;">Interactive map of Gondwa for deploying tactical markers.</p>
+              <ul style="margin-left: 20px; font-size: 0.9em; color: var(--muted); line-height: 1.6;">
+                <li><strong>Navigation:</strong> Scroll your mouse wheel to zoom in/out, and click-and-drag to pan across the map.</li>
+                <li><strong>Recon Sync Radar:</strong> Take a fully zoomed-out screenshot of your in-game map. Paste it (Ctrl+V) into the tool. When the radar overlay appears, <strong>click directly on your player arrow within the image</strong> to calculate the precise coordinates and deploy a marker exactly where you are standing.</li>
+                <li><strong>Manual Markers:</strong> Switch to "📍 Manual Marker" mode in the toolbar and click anywhere on the map to deploy food, water, or danger waypoints.</li>
+              </ul>
+            </div>
+
           </div>
         </section>
 
         <section id="troubleshooting">
           <h2 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Troubleshooting</h2>
-          <p style="margin-bottom: 10px; line-height: 1.6;">
+          <p style="margin-bottom: 15px; line-height: 1.6;">
             <strong>Q: My lists are empty and nothing is saving!</strong><br>
             <span class="muted">A: Go to the JSON Backup tab and click "Factory Reset". This forces the app to rebuild its database from the default `base-data.json` file included in your folder.</span>
           </p>
-          <p style="line-height: 1.6;">
+          <p style="margin-bottom: 15px; line-height: 1.6;">
             <strong>Q: Why isn't my Dashboard timer making a sound?</strong><br>
-            <span class="muted">A: The timer relies on standard browser notifications. If you denied notification permissions when your browser prompted you, the alarm will only trigger visually on the screen.</span>
+            <span class="muted">A: The timer relies on standard browser notifications. If you denied notification permissions when your browser prompted you, the alarm will only trigger visually on the screen. Ensure browser notifications are allowed for your local file path.</span>
+          </p>
+          <p style="margin-bottom: 15px; line-height: 1.6;">
+            <strong>Q: I pasted a map snip, but clicking does nothing.</strong><br>
+            <span class="muted">A: Ensure you are clicking directly on the screenshot inside the popup modal. The system needs you to pinpoint the exact location of your arrow to calculate the X/Y percentages.</span>
+          </p>
+          <p style="line-height: 1.6;">
+            <strong>Q: My OCR Auto-Fill is extracting weird symbols.</strong><br>
+            <span class="muted">A: The OCR engine reads pixels. If your Discord screenshot includes the background UI, reactions, or emojis, it may confuse the scanner. Crop your screenshots tightly around the text block for best results.</span>
           </p>
         </section>
 
