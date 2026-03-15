@@ -32,13 +32,25 @@
         <button class="btn full-width" id="viewDashboardBtn" style="background: var(--bg-alt); color: var(--text); border: 1px solid var(--border);">📊 View Analytics Dashboard</button>
         <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
         <input type="text" id="encounterSearch" placeholder="Search opponent, location...">
+        
         <select id="outcomeFilter" class="full-width" style="cursor: pointer;">
           <option value="all">All Outcomes</option>
           <option value="Victory (Kill)">Victories (Kills)</option>
           <option value="Defeat">All Defeats</option>
           <option value="Draw (Escaped)">Draws (Survived/Escaped)</option>
         </select>
-        <button class="btn full-width" id="addEncounterBtn">+ Log Detailed Encounter</button>
+        
+        <select id="creatureFilter" class="full-width" style="cursor: pointer;">
+          <option value="all">All My Dinosaurs (Global Stats)</option>
+          </select>
+
+        <select id="sortFilter" class="full-width" style="cursor: pointer;">
+          <option value="newest">Sort: Newest First</option>
+          <option value="oldest">Sort: Oldest First</option>
+          <option value="dinosaur">Sort: By Dinosaur (A-Z)</option>
+        </select>
+
+        <button class="btn full-width" id="addEncounterBtn" style="margin-top: 5px;">+ Log Detailed Encounter</button>
       </div>
       
       <div class="preset-list" id="encounterList" style="display: flex; flex-direction: column; gap: 8px;">
@@ -101,6 +113,10 @@
           <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
             <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Most Hunted Species (Victories)</h3>
             <canvas id="huntedChart" style="max-height: 220px;"></canvas>
+          </div>
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border); grid-column: 1 / -1;">
+            <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Deployments by Dinosaur (Total Counts)</h3>
+            <canvas id="myDinosChart" style="max-height: 250px;"></canvas>
           </div>
         </div>
       </div>
