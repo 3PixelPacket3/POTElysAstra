@@ -24,7 +24,7 @@ const elements = {
   ocrDropZone: document.getElementById('ocrDropZone'),
   ocrInput: document.getElementById('ocrInput'),
 
-  // Raw Import Matrix (NEW)
+  // Raw Import Matrix
   rawStatImportArea: document.getElementById('rawStatImportArea'),
   processRawStatsBtn: document.getElementById('processRawStatsBtn'),
 
@@ -39,7 +39,7 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
-  // Form Inputs - Stats (Now expects strings of 5-stage arrays)
+  // Form Inputs - Stats
   stats: {
     health: document.getElementById('statHealth'),
     weight: document.getElementById('statCombatWeight'),
@@ -169,69 +169,57 @@ const renderCustomStatRow = (name = '', value = '') => {
   elements.customStatsContainer.appendChild(row);
 };
 
-// --- RAW MATRIX PARSER (NEW) ---
-elements.processRawStatsBtn.addEventListener('click', () => {
-  const rawText = elements.rawStatImportArea.value;
-  if (!rawText.trim()) {
-    showToast('Please paste raw attribute or combat data first.', 'error');
-    return;
-  }
-
-  // Regex matches: Name",Values=(1,2,3,4,5))
-  // Captures Group 1: The stat name (e.g. Core.MaxHealth or BiteDamage)
-  // Captures Group 2: The comma-separated values (e.g. 150,262.5,375,487.5,600)
-  const regex = /([A-Za-z0-9_.]+)",Values=\(([^)]+)\)/g;
-  let match;
-  let customAddedCount = 0;
-
-  while ((match = regex.exec(rawText)) !== null) {
-    const statKey = match[1].trim();
-    const statValues = match[2].trim(); // "150, 262.5, 375..."
-
-    // Route Base Attributes to core inputs
-    if (statKey === 'Core.MaxHealth') {
-      elements.stats.health.value = statValues;
-    } else if (statKey === 'Core.CombatWeight') {
-      elements.stats.weight.value = statValues;
-    } else if (statKey === 'Core.Armor') {
-      elements.stats.armor.value = statValues;
-    } else if (statKey === 'Core.MaxStamina') {
-      elements.stats.stamina.value = statValues;
-    } else if (statKey === 'Core.SprintingSpeedMultiplier' || statKey === 'Core.MovementSpeedMultiplier') {
-      // Prioritize Sprinting if available, else overwrite with Movement
-      if (statKey === 'Core.SprintingSpeedMultiplier' || !elements.stats.speed.value) {
-        elements.stats.speed.value = statValues;
-      }
-    } 
-    // Ignore internal garbage data that isn't useful for players
-    else if (statKey.includes('Core.BodyFoodCorpseThreshold') || statKey.includes('Core.LimpHealthThreshold') || statKey.includes('Core.BodyFoodAmount')) {
-      continue;
+// --- RAW MATRIX PARSER ---
+if(elements.processRawStatsBtn) {
+  elements.processRawStatsBtn.addEventListener('click', () => {
+    const rawText = elements.rawStatImportArea.value;
+    if (!rawText.trim()) {
+      showToast('Please paste raw attribute or combat data first.', 'error');
+      return;
     }
-    // Everything else gets turned into a Custom Stat!
-    else {
-      // Clean up "Core." prefix for nicer display
-      const displayName = statKey.replace('Core.', '');
-      
-      // Check if it already exists to prevent duplicate rows on re-parse
-      let existingRow = null;
-      elements.customStatsContainer.querySelectorAll('.custom-stat-row').forEach(row => {
-        if (row.querySelector('.stat-name').value === displayName) {
-          existingRow = row;
+
+    const regex = /([A-Za-z0-9_.]+)",Values=\(([^)]+)\)/g;
+    let match;
+    let customAddedCount = 0;
+
+    while ((match = regex.exec(rawText)) !== null) {
+      const statKey = match[1].trim();
+      const statValues = match[2].trim();
+
+      if (statKey === 'Core.MaxHealth') elements.stats.health.value = statValues;
+      else if (statKey === 'Core.CombatWeight') elements.stats.weight.value = statValues;
+      else if (statKey === 'Core.Armor') elements.stats.armor.value = statValues;
+      else if (statKey === 'Core.MaxStamina') elements.stats.stamina.value = statValues;
+      else if (statKey === 'Core.SprintingSpeedMultiplier' || statKey === 'Core.MovementSpeedMultiplier') {
+        if (statKey === 'Core.SprintingSpeedMultiplier' || !elements.stats.speed.value) {
+          elements.stats.speed.value = statValues;
         }
-      });
+      } 
+      else if (statKey.includes('Core.BodyFoodCorpseThreshold') || statKey.includes('Core.LimpHealthThreshold') || statKey.includes('Core.BodyFoodAmount')) {
+        continue;
+      }
+      else {
+        const displayName = statKey.replace('Core.', '');
+        let existingRow = null;
+        elements.customStatsContainer.querySelectorAll('.custom-stat-row').forEach(row => {
+          if (row.querySelector('.stat-name').value === displayName) {
+            existingRow = row;
+          }
+        });
 
-      if (existingRow) {
-        existingRow.querySelector('.stat-value').value = statValues;
-      } else {
-        renderCustomStatRow(displayName, statValues);
-        customAddedCount++;
+        if (existingRow) {
+          existingRow.querySelector('.stat-value').value = statValues;
+        } else {
+          renderCustomStatRow(displayName, statValues);
+          customAddedCount++;
+        }
       }
     }
-  }
 
-  showToast(`Data Matrix Processed. ${customAddedCount} custom mechanics extracted.`);
-  elements.rawStatImportArea.value = ''; // clear upon success
-});
+    showToast(`Data Matrix Processed. ${customAddedCount} custom mechanics extracted.`);
+    elements.rawStatImportArea.value = '';
+  });
+}
 
 // --- OCR Parsing Engine ---
 const processImage = async (file) => {
@@ -368,7 +356,7 @@ const gatherForm = () => {
   };
 };
 
-// --- View Renderer (Formats 5-Stage Arrays to show Max/Adult by Default) ---
+// --- View Renderer (CLEAN UI UPGRADE) ---
 const setView = (creature) => {
   if (!creature) {
     elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a creature from the roster to view its profile.</div>';
@@ -377,14 +365,55 @@ const setView = (creature) => {
 
   const baseStats = creature.stats?.base || {};
   const customStats = creature.stats?.custom || [];
-  
-  let customStatsHtml = customStats.map(stat => `
-    <div class="stat-card" style="background: var(--bg-alt); border: none;" title="Full Growth Array: ${stat.value}">
-      <strong style="color: var(--primary);">${stat.name}</strong><br>
-      <span style="font-size: 1.1em; font-weight: 600;">${getAdultStat(stat.value)}</span>
-      <div style="font-size: 0.7em; color: var(--muted); margin-top: 4px;">Adult / Max</div>
-    </div>
-  `).join('');
+
+  // Generate Custom Stats UI (Primary vs Advanced Accordion)
+  let customStatsHtml = '';
+  if (customStats.length > 0) {
+    const primaryKeywords = ['damage', 'bleed', 'bonebreak', 'venom', 'poison', 'cooldown'];
+    const primaryStats = [];
+    const advancedStats = [];
+
+    customStats.forEach(stat => {
+      const lowerName = stat.name.toLowerCase();
+      if (primaryKeywords.some(kw => lowerName.includes(kw))) {
+        primaryStats.push(stat);
+      } else {
+        advancedStats.push(stat);
+      }
+    });
+
+    if (primaryStats.length > 0) {
+      customStatsHtml += `
+        <h4 style="margin-bottom: 15px; margin-top: 25px; color: var(--danger); border-bottom: 1px solid var(--border); padding-bottom: 5px;">Primary Combat Mechanics</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px;">
+          ${primaryStats.map(stat => `
+            <div class="stat-card" style="background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border-color: var(--danger);" title="Full Array: ${stat.value || '-'}">
+              <strong style="color: var(--danger); font-size: 0.9em;">${stat.name}</strong>
+              <span style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    if (advancedStats.length > 0) {
+      customStatsHtml += `
+        <details style="background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 30px;">
+          <summary style="color: var(--primary); font-weight: bold; cursor: pointer; outline: none; user-select: none;">
+            View Advanced Variables (${advancedStats.length} hidden)
+          </summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px;">
+            ${advancedStats.map(stat => `
+              <div class="stat-card" style="background: var(--bg); border-color: var(--border);" title="Full Array: ${stat.value || '-'}">
+                <strong style="color: var(--primary); font-size: 0.85em;">${stat.name}</strong>
+                <span style="display: block; font-size: 1.1em; font-weight: 800; color: var(--text); margin-top: 5px;">${getAdultStat(stat.value)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      `;
+    }
+  }
 
   elements.viewPane.innerHTML = `
     <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: 16px; border: 1px solid var(--border);">
@@ -401,24 +430,19 @@ const setView = (creature) => {
       </div>
     </div>
 
-    <h3 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">Core Statistics (Adult Matrix)</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; margin-bottom: 30px;">
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.health || '-'}"><strong style="color: var(--muted);">Health</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.health)}</span></div>
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.combatWeight || '-'}"><strong style="color: var(--muted);">Weight</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.combatWeight)}</span></div>
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.armor || '-'}"><strong style="color: var(--muted);">Armor</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.armor)}</span></div>
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.carryCapacity || '-'}"><strong style="color: var(--muted);">Capacity</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.carryCapacity)}</span></div>
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.stamina || '-'}"><strong style="color: var(--muted);">Stamina</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.stamina)}</span></div>
-      <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.speed || '-'}"><strong style="color: var(--muted);">Speed</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.speed)}</span></div>
-    </div>
-    
-    ${customStats.length > 0 ? `
-      <div style="margin-bottom: 30px; background: var(--bg); padding: 20px; border-radius: 16px; border: 1px solid var(--border);">
-        <h4 style="margin-bottom: 15px; color: var(--muted);">Custom Mechanics</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px;">
-          ${customStatsHtml}
-        </div>
+    <div style="background: var(--bg); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 30px;">
+      <h3 style="color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px;">Core Statistics (Adult Matrix)</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px;">
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.health || '-'}"><strong style="color: var(--muted);">Health</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.health)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.combatWeight || '-'}"><strong style="color: var(--muted);">Weight</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.combatWeight)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.armor || '-'}"><strong style="color: var(--muted);">Armor</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.armor)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.carryCapacity || '-'}"><strong style="color: var(--muted);">Capacity</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.carryCapacity)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.stamina || '-'}"><strong style="color: var(--muted);">Stamina</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.stamina)}</span></div>
+        <div class="stat-card" style="background: var(--bg);" title="Full Array: ${baseStats.speed || '-'}"><strong style="color: var(--muted);">Speed</strong><br><span style="font-size: 1.2em; font-weight: bold;">${getAdultStat(baseStats.speed)}</span></div>
       </div>
-    ` : ''}
+      
+      ${customStatsHtml}
+    </div>
 
     ${creature.upkeep ? `
     <div style="margin-bottom: 30px; padding: 20px; border-radius: 16px; background: color-mix(in srgb, var(--primary) 10%, transparent); border: 1px solid var(--primary);">
