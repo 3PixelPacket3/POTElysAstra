@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Combat & Hunt Log</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top-nav">
+    <div class="brand">Elys Astra Helper Application</div>
+    <nav class="nav-links">
+      <a class="nav-btn" href="index.html">Dashboard</a>
+      <a class="nav-btn" href="apps.html">Post Builder</a>
+      <a class="nav-btn" href="work.html">Rules &amp; Guidelines</a>
+      <a class="nav-btn" href="docs.html">Creature Profiles</a>
+      <a class="nav-btn" href="about.html">Stats</a>
+      <a class="nav-btn active" href="combat.html">Combat Log</a>
+      <a class="nav-btn" href="settings.html">JSON Backup</a>
+      <a class="nav-btn" href="guide.html">About</a>
+    </nav>
+  </header>
+
+  <main class="page builder-workspace">
+    
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
+      <h2 style="font-size: 1.5em;">Encounter Log</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Track your PvP history, identify dangerous zones, and analyze your hunting efficiency.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <button class="btn full-width" id="viewDashboardBtn" style="background: var(--bg-alt); color: var(--text); border: 1px solid var(--border);">📊 View Analytics Dashboard</button>
+        <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
+        <input type="text" id="encounterSearch" placeholder="Search opponent, location...">
+        <select id="outcomeFilter" class="full-width" style="cursor: pointer;">
+          <option value="all">All Outcomes</option>
+          <option value="Victory">Victories (Kills)</option>
+          <option value="Defeat">Defeats (Deaths)</option>
+          <option value="Draw">Draws (Survived/Escaped)</option>
+        </select>
+        <button class="btn full-width" id="addEncounterBtn">+ Log New Encounter</button>
+      </div>
+      
+      <div class="preset-list" id="encounterList" style="display: flex; flex-direction: column; gap: 8px;">
+        </div>
+    </aside>
+
+    <section class="editor-pane scrollable" style="flex: 2;">
+      
+      <div id="analyticsDashboard" class="is-hidden">
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 20px;">
+          <h2 style="color: var(--primary); margin-bottom: 15px;">Tactical Overview</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--muted);">Total Encounters</strong>
+              <span id="dashTotal" style="display: block; font-size: 2em; font-weight: 800; color: var(--text); margin-top: 5px;">0</span>
+            </div>
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--success);">Total Kills</strong>
+              <span id="dashKills" style="display: block; font-size: 2em; font-weight: 800; color: var(--success); margin-top: 5px;">0</span>
+            </div>
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--danger);">Total Deaths</strong>
+              <span id="dashDeaths" style="display: block; font-size: 2em; font-weight: 800; color: var(--danger); margin-top: 5px;">0</span>
+            </div>
+            <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border);">
+              <strong style="color: var(--info);">Most Dangerous Zone</strong>
+              <span id="dashDangerZone" style="display: block; font-size: 1.2em; font-weight: 800; color: var(--text); margin-top: 5px;">N/A</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Outcome Ratio</h3>
+            <canvas id="outcomeChart" style="max-height: 250px;"></canvas>
+          </div>
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border);">
+            <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Fatalities by Location</h3>
+            <canvas id="locationChart" style="max-height: 250px;"></canvas>
+          </div>
+          <div class="card" style="box-shadow: none; border: 2px solid var(--border); grid-column: 1 / -1;">
+            <h3 style="color: var(--muted); margin-bottom: 15px; font-size: 1em; text-align: center;">Most Hunted Species (Victories)</h3>
+            <canvas id="huntedChart" style="max-height: 250px;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div id="encounterFormView">
+        <div class="card" style="box-shadow: none; border: 2px solid var(--border); border-top: 5px solid var(--primary); margin-bottom: 20px;">
+          <div class="card-header" style="margin-bottom: 15px;">
+            <h2 style="margin: 0; color: var(--primary);">Encounter Details</h2>
+            <span id="encounterDateDisplay" class="muted" style="font-size: 0.85em;">--</span>
+          </div>
+          
+          <div class="form-grid">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <label class="field">
+                <span>Outcome</span>
+                <select id="encOutcome" style="font-weight: bold;">
+                  <option value="Victory">Victory (Got the Kill)</option>
+                  <option value="Defeat">Defeat (Died)</option>
+                  <option value="Draw">Draw (Survived / Escaped)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Date of Encounter</span>
+                <input type="date" id="encDate">
+              </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <label class="field">
+                <span>Your Dinosaur</span>
+                <select id="encMyCreature" style="cursor: pointer;">
+                  <option value="Unknown">Select from Roster...</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Opponent Species</span>
+                <input type="text" id="encOpponent" placeholder="e.g., Spinosaurus, Rex pack">
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Map Location / Zone</span>
+              <input type="text" id="encLocation" placeholder="e.g., Impact Crater, Grand Plains">
+            </label>
+
+            <label class="field">
+              <span>After Action Report (Notes)</span>
+              <textarea id="encNotes" rows="4" placeholder="How did the engagement start? What tactical errors were made?"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; gap: 15px; flex-wrap: wrap; background: transparent; border: none; box-shadow: none; padding: 0;">
+          <button class="btn" id="saveEncounter" style="flex: 1;">Save to Combat Log</button>
+          <button class="btn btn-ghost" id="deleteEncounter" style="border-color: var(--danger); color: var(--danger);">Delete Record</button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 Elys Astra Helper Application Created by PixelPacket</footer>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <script src="data-store.js"></script>
+  <script src="combat.js"></script>
+</body>
+</html>
