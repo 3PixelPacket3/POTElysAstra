@@ -10,7 +10,7 @@ let charts = {
   cod: null,
   location: null,
   hunted: null,
-  myDinos: null // New chart for Total Counts per Dinosaur
+  myDinos: null 
 };
 
 // --- DOM Elements ---
@@ -18,8 +18,8 @@ const elements = {
   list: document.getElementById('encounterList'),
   search: document.getElementById('encounterSearch'),
   filter: document.getElementById('outcomeFilter'),
-  creatureFilter: document.getElementById('creatureFilter'), // New filter for isolated stats
-  sortFilter: document.getElementById('sortFilter'), // New sorter
+  creatureFilter: document.getElementById('creatureFilter'),
+  sortFilter: document.getElementById('sortFilter'),
   addBtn: document.getElementById('addEncounterBtn'),
   dashBtn: document.getElementById('viewDashboardBtn'),
   
@@ -84,7 +84,9 @@ const populateCreatureDropdown = () => {
   }
 
   if (db.creatures && db.creatures.length > 0) {
-    db.creatures.forEach(c => {
+    // Sort alphabetically
+    const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+    sorted.forEach(c => {
       elements.myCreature.appendChild(new Option(c.name, c.name));
       if (elements.creatureFilter) {
         elements.creatureFilter.appendChild(new Option(c.name, c.name));
@@ -117,11 +119,15 @@ const syncForm = (encounter) => {
     return;
   }
 
-  elements.outcome.value = encounter.outcome || 'Victory (Kill)';
-  elements.date.value = encounter.date || '';
+  // Fallback for legacy broken logs
+  const safeOutcome = encounter.outcome || (encounter.type === 'win' ? 'Victory (Kill)' : encounter.type === 'loss' ? 'Defeat (PvP)' : encounter.type === 'starved' ? 'Defeat (Starvation)' : 'Unknown');
+  const safeCreature = encounter.myCreature || (encounter.creatureId && db.creatures.find(c => c.id === encounter.creatureId)?.name) || 'Unknown';
+
+  elements.outcome.value = safeOutcome;
+  elements.date.value = encounter.date || new Date(encounter.timestamp).toISOString().split('T')[0] || '';
   
-  if (Array.from(elements.myCreature.options).some(opt => opt.value === encounter.myCreature)) {
-    elements.myCreature.value = encounter.myCreature;
+  if (Array.from(elements.myCreature.options).some(opt => opt.value === safeCreature)) {
+    elements.myCreature.value = safeCreature;
   } else {
     elements.myCreature.value = 'Unknown';
   }
@@ -130,7 +136,7 @@ const syncForm = (encounter) => {
   elements.location.value = encounter.location || '';
   elements.notes.value = encounter.notes || '';
   
-  const dateStr = encounter.date ? new Date(encounter.date).toLocaleDateString() : '--';
+  const dateStr = encounter.date ? new Date(encounter.date).toLocaleDateString() : (encounter.timestamp ? new Date(encounter.timestamp).toLocaleDateString() : '--');
   elements.dateDisplay.textContent = `Logged on: ${dateStr}`;
   elements.deleteBtn.style.display = 'block';
 };
@@ -144,11 +150,11 @@ const gatherForm = () => {
     opponent: elements.opponent.value.trim(),
     location: elements.location.value.trim(),
     notes: elements.notes.value.trim(),
-    timestamp: Date.now() // For sorting
+    timestamp: Date.now() 
   };
 };
 
-// --- Roster Logic ---
+// --- Log Logic & Safe Parsing ---
 const renderList = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filter = elements.filter.value;
@@ -165,24 +171,36 @@ const renderList = () => {
   // Handle Sorting
   let sortedEncounters = [...db.encounters];
   sortedEncounters.sort((a, b) => {
-    if (sortMode === 'newest') return b.timestamp - a.timestamp;
-    if (sortMode === 'oldest') return a.timestamp - b.timestamp;
-    if (sortMode === 'dinosaur') return (a.myCreature || 'Unknown').localeCompare(b.myCreature || 'Unknown');
+    const timeA = a.timestamp || new Date(a.date).getTime() || 0;
+    const timeB = b.timestamp || new Date(b.date).getTime() || 0;
+    if (sortMode === 'newest') return timeB - timeA;
+    if (sortMode === 'oldest') return timeA - timeB;
+    if (sortMode === 'dinosaur') {
+      const nameA = a.myCreature || 'Unknown';
+      const nameB = b.myCreature || 'Unknown';
+      return nameA.localeCompare(nameB);
+    }
     return 0;
   });
 
   const filtered = sortedEncounters.filter(e => {
-    const textToSearch = `${e.opponent} ${e.location} ${e.myCreature}`.toLowerCase();
+    // Safely parse old logs
+    const safeOutcome = e.outcome || (e.type === 'win' ? 'Victory (Kill)' : e.type === 'loss' ? 'Defeat (PvP)' : e.type === 'starved' ? 'Defeat (Starvation)' : 'Unknown');
+    const safeCreature = e.myCreature || (e.creatureId && db.creatures.find(c => c.id === e.creatureId)?.name) || 'Unknown';
+    const safeOpponent = e.opponent || 'Unknown';
+    const safeLocation = e.location || 'Unknown';
+
+    const textToSearch = `${safeOpponent} ${safeLocation} ${safeCreature}`.toLowerCase();
     const matchesSearch = textToSearch.includes(searchTerm);
     
     // Outcome Filter
     let matchesFilter = false;
     if (filter === 'all') matchesFilter = true;
-    else if (filter === 'Defeat' && e.outcome.includes('Defeat')) matchesFilter = true;
-    else if (e.outcome === filter) matchesFilter = true;
+    else if (filter === 'Defeat' && safeOutcome.includes('Defeat')) matchesFilter = true;
+    else if (safeOutcome === filter) matchesFilter = true;
     
-    // My Dinosaur Filter (Isolated Stats)
-    const matchesCreature = creatureFilter === 'all' || e.myCreature === creatureFilter;
+    // My Dinosaur Filter 
+    const matchesCreature = creatureFilter === 'all' || safeCreature === creatureFilter;
     
     return matchesSearch && matchesFilter && matchesCreature;
   });
@@ -193,6 +211,11 @@ const renderList = () => {
   }
 
   filtered.forEach(enc => {
+    const safeOutcome = enc.outcome || (enc.type === 'win' ? 'Victory (Kill)' : enc.type === 'loss' ? 'Defeat (PvP)' : enc.type === 'starved' ? 'Defeat (Starvation)' : 'Unknown');
+    const safeCreature = enc.myCreature || (enc.creatureId && db.creatures.find(c => c.id === enc.creatureId)?.name) || 'Unknown';
+    const safeOpponent = enc.opponent || 'Unknown';
+    const safeLocation = enc.location || 'Unknown';
+
     const item = document.createElement('div');
     item.className = `list-item ${currentEncounterId === enc.id ? 'active' : ''}`;
     item.style.cursor = 'pointer';
@@ -201,22 +224,22 @@ const renderList = () => {
     let color = 'var(--text)';
     let icon = '⚔️';
     
-    if (enc.outcome.includes('Victory')) { color = 'var(--success)'; icon = '👑'; }
-    if (enc.outcome.includes('Defeat (PvP)')) { color = 'var(--danger)'; icon = '💀'; }
-    if (enc.outcome.includes('Starvation')) { color = '#eab308'; icon = '🍖'; }
-    if (enc.outcome.includes('Dehydration')) { color = '#3b82f6'; icon = '💧'; }
-    if (enc.outcome.includes('Environment')) { color = 'var(--danger)'; icon = '⛰️'; }
-    if (enc.outcome.includes('Draw')) { color = 'var(--info)'; icon = '🏃'; }
+    if (safeOutcome.includes('Victory')) { color = 'var(--success)'; icon = '👑'; }
+    if (safeOutcome.includes('Defeat (PvP)')) { color = 'var(--danger)'; icon = '💀'; }
+    if (safeOutcome.includes('Starvation')) { color = '#eab308'; icon = '🍖'; }
+    if (safeOutcome.includes('Dehydration')) { color = '#3b82f6'; icon = '💧'; }
+    if (safeOutcome.includes('Environment')) { color = 'var(--danger)'; icon = '⛰️'; }
+    if (safeOutcome.includes('Draw')) { color = 'var(--info)'; icon = '🏃'; }
 
     item.innerHTML = `
       <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong style="font-size: 1.05em; color: ${color};">${icon} vs ${enc.opponent || 'Unknown'}</strong>
-          <span style="font-size: 0.75em; color: var(--muted);">${enc.date ? new Date(enc.date).toLocaleDateString() : ''}</span>
+          <strong style="font-size: 1.05em; color: ${color};">${icon} vs ${safeOpponent}</strong>
+          <span style="font-size: 0.75em; color: var(--muted);">${enc.date ? new Date(enc.date).toLocaleDateString() : (enc.timestamp ? new Date(enc.timestamp).toLocaleDateString() : '')}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-          <span style="font-size: 0.85em; color: var(--muted);">📍 ${enc.location || 'Unknown Location'}</span>
-          <span style="font-size: 0.85em; color: var(--primary); font-weight: bold;">${enc.myCreature || ''}</span>
+          <span style="font-size: 0.85em; color: var(--muted);">📍 ${safeLocation}</span>
+          <span style="font-size: 0.85em; color: var(--primary); font-weight: bold;">${safeCreature}</span>
         </div>
       </div>
     `;
@@ -261,12 +284,11 @@ const deleteEncounter = async () => {
   showToast('Log Erased.', 'error');
 };
 
-// --- Quick Log Handling ---
+// --- Quick Log Handling (From Combat Dashboard) ---
 const handleQuickLog = async (outcomeType) => {
   const opp = elements.quickOpponent.value.trim();
   const loc = elements.quickLocation.value.trim();
   
-  // Figure out the active creature
   const activeId = localStorage.getItem('eahaActiveCreature');
   const activeCreature = (db.creatures && activeId) ? db.creatures.find(c => c.id === activeId) : null;
   const myCreaName = activeCreature ? activeCreature.name : 'Unknown';
@@ -299,17 +321,27 @@ const handleQuickLog = async (outcomeType) => {
 const updateDashboard = () => {
   let encs = db.encounters || [];
   
+  // Clean up encounters for the dashboard logic so it doesn't crash on legacy data
+  const safeEncs = encs.map(e => ({
+    ...e,
+    outcome: e.outcome || (e.type === 'win' ? 'Victory (Kill)' : e.type === 'loss' ? 'Defeat (PvP)' : e.type === 'starved' ? 'Defeat (Starvation)' : 'Unknown'),
+    myCreature: e.myCreature || (e.creatureId && db.creatures.find(c => c.id === e.creatureId)?.name) || 'Unknown',
+    opponent: e.opponent || 'Unknown',
+    location: e.location || 'Unknown'
+  }));
+
   // Apply "My Dinosaur" Filter to isolate stats
   const creatureFilter = elements.creatureFilter ? elements.creatureFilter.value : 'all';
+  let filteredEncs = safeEncs;
   if (creatureFilter !== 'all') {
-    encs = encs.filter(e => e.myCreature === creatureFilter);
+    filteredEncs = safeEncs.filter(e => e.myCreature === creatureFilter);
   }
   
   // 1. Core Top-Line Stats
-  const total = encs.length;
-  const kills = encs.filter(e => e.outcome.includes('Victory')).length;
-  const deaths = encs.filter(e => e.outcome.includes('Defeat')).length;
-  const draws = encs.filter(e => e.outcome.includes('Draw')).length;
+  const total = filteredEncs.length;
+  const kills = filteredEncs.filter(e => e.outcome.includes('Victory')).length;
+  const deaths = filteredEncs.filter(e => e.outcome.includes('Defeat')).length;
+  const draws = filteredEncs.filter(e => e.outcome.includes('Draw')).length;
   
   elements.dashTotal.textContent = total;
   elements.dashKills.textContent = kills;
@@ -317,15 +349,14 @@ const updateDashboard = () => {
   
   // 2. Location Analytics (Find Deadliest Zone)
   const deathLocations = {};
-  encs.filter(e => e.outcome.includes('Defeat')).forEach(e => {
-    const loc = e.location || 'Unknown';
-    deathLocations[loc] = (deathLocations[loc] || 0) + 1;
+  filteredEncs.filter(e => e.outcome.includes('Defeat')).forEach(e => {
+    deathLocations[e.location] = (deathLocations[e.location] || 0) + 1;
   });
   
   let deadliestZone = 'N/A';
   let maxDeaths = 0;
   for (const [loc, count] of Object.entries(deathLocations)) {
-    if (count > maxDeaths) {
+    if (count > maxDeaths && loc !== 'Unknown' && loc !== 'Logged via Quick Dashboard') {
       maxDeaths = count;
       deadliestZone = loc;
     }
@@ -334,7 +365,7 @@ const updateDashboard = () => {
   elements.dashDangerZone.style.color = deadliestZone !== 'N/A' ? 'var(--danger)' : 'var(--text)';
 
   // Default font settings for charts
-  Chart.defaults.color = '#a0aec0'; // matches var(--muted)
+  Chart.defaults.color = '#a0aec0'; 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
 
   // --- CHART: Outcome Ratio (Doughnut) ---
@@ -347,7 +378,7 @@ const updateDashboard = () => {
         labels: ['Victories', 'Defeats', 'Draws'],
         datasets: [{
           data: [kills, deaths, draws],
-          backgroundColor: ['#10b981', '#ef4444', '#3b82f6'], // Success, Danger, Info
+          backgroundColor: ['#10b981', '#ef4444', '#3b82f6'], 
           borderWidth: 0,
           hoverOffset: 4
         }]
@@ -366,10 +397,10 @@ const updateDashboard = () => {
   if (charts.cod) charts.cod.destroy();
   const ctxCod = document.getElementById('codChart')?.getContext('2d');
   if (ctxCod) {
-    const pvpDeaths = encs.filter(e => e.outcome === 'Defeat (PvP)').length;
-    const starveDeaths = encs.filter(e => e.outcome === 'Defeat (Starvation)').length;
-    const thirstDeaths = encs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
-    const envDeaths = encs.filter(e => e.outcome === 'Defeat (Environment)').length;
+    const pvpDeaths = filteredEncs.filter(e => e.outcome === 'Defeat (PvP)').length;
+    const starveDeaths = filteredEncs.filter(e => e.outcome === 'Defeat (Starvation)').length;
+    const thirstDeaths = filteredEncs.filter(e => e.outcome === 'Defeat (Dehydration)').length;
+    const envDeaths = filteredEncs.filter(e => e.outcome === 'Defeat (Environment)').length;
 
     charts.cod = new Chart(ctxCod, {
       type: 'pie',
@@ -396,10 +427,10 @@ const updateDashboard = () => {
   if (charts.location) charts.location.destroy();
   const ctxLocation = document.getElementById('locationChart')?.getContext('2d');
   if (ctxLocation) {
-    // Sort locations by death count
     const sortedDeathLocs = Object.entries(deathLocations)
+      .filter(([loc]) => loc !== 'Unknown' && loc !== 'Logged via Quick Dashboard')
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5); // Top 5
+      .slice(0, 5); 
 
     charts.location = new Chart(ctxLocation, {
       type: 'bar',
@@ -430,14 +461,15 @@ const updateDashboard = () => {
   const ctxHunted = document.getElementById('huntedChart')?.getContext('2d');
   if (ctxHunted) {
     const huntedSpecies = {};
-    encs.filter(e => e.outcome.includes('Victory')).forEach(e => {
-      const opp = e.opponent || 'Unknown';
-      huntedSpecies[opp] = (huntedSpecies[opp] || 0) + 1;
+    filteredEncs.filter(e => e.outcome.includes('Victory')).forEach(e => {
+      if (e.opponent && e.opponent !== 'Unknown') {
+        huntedSpecies[e.opponent] = (huntedSpecies[e.opponent] || 0) + 1;
+      }
     });
 
     const sortedHunted = Object.entries(huntedSpecies)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5); // Top 5
+      .slice(0, 5); 
 
     charts.hunted = new Chart(ctxHunted, {
       type: 'bar',
@@ -453,7 +485,7 @@ const updateDashboard = () => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        indexAxis: 'y', // Makes it a horizontal bar chart
+        indexAxis: 'y', 
         scales: {
           x: { beginAtZero: true, ticks: { stepSize: 1 } }
         },
@@ -469,14 +501,13 @@ const updateDashboard = () => {
   const ctxMyDinos = document.getElementById('myDinosChart')?.getContext('2d');
   if (ctxMyDinos) {
     const dinoCounts = {};
-    // For this specific chart, we use the UNFILTERED full database to show total counts across all dinos
-    const fullEncs = db.encounters || [];
-    fullEncs.forEach(e => {
-      const dino = e.myCreature || 'Unknown';
-      dinoCounts[dino] = (dinoCounts[dino] || 0) + 1;
+    // Full Unfiltered Database to show what you play the most
+    safeEncs.forEach(e => {
+      dinoCounts[e.myCreature] = (dinoCounts[e.myCreature] || 0) + 1;
     });
 
     const sortedDinos = Object.entries(dinoCounts)
+      .filter(([dino]) => dino !== 'Unknown')
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
@@ -487,7 +518,7 @@ const updateDashboard = () => {
         datasets: [{
           label: 'Deployments',
           data: sortedDinos.map(d => d[1]),
-          backgroundColor: '#8b5cf6', // Accent Purple
+          backgroundColor: '#8b5cf6', 
           borderRadius: 4
         }]
       },
@@ -513,7 +544,6 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
 
-  // Ensure encounters array exists in older databases
   if (!db.encounters) {
     db.encounters = [];
   }
