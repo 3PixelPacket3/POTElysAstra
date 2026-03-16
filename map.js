@@ -269,8 +269,8 @@ window.addEventListener('paste', (e) => {
     const yUU = parseFloat(match[2]);
     const zUU = parseFloat(match[3]);
 
-    // Map dimensions calculation
-    const mapRadiusUU = 416000; // Expected max distance from Gondwa origin to edge
+    // === CALIBRATION UPDATE: Map dimensions calculation ===
+    const mapRadiusUU = 410000; // Adjusted from 416000 for precise Gondwa pin alignment
 
     // Convert coordinates to percentage for responsive map placement
     let xPercent = ((xUU / mapRadiusUU) * 50) + 50;
