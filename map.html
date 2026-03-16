@@ -185,9 +185,7 @@
       
       <div>
         <h2 style="font-size: 1.5em; margin-bottom: 5px;">Reconnaissance</h2>
-        <p class="muted" style="margin-bottom: 15px; font-size: 0.85em; line-height: 1.4;">Paste (Ctrl+V) an in-game map snip to sync your location automatically.</p>
-        <input type="file" id="uploadSnipInput" accept="image/*" style="display: none;">
-        <label for="uploadSnipInput" class="btn full-width" style="text-align: center; cursor: pointer; margin-bottom: 15px;">📸 Upload Map Snip</label>
+        <p class="muted" style="margin-bottom: 15px; font-size: 0.85em; line-height: 1.4;">Click the map and press <b>Ctrl+V</b> to paste your in-game coordinates (e.g., X=..., Y=..., Z=...) and deploy a marker.</p>
         <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
       </div>
 
@@ -242,9 +240,9 @@
         </div>
       </div>
 
-      <div class="map-window" id="mapWindow">
+      <div class="map-window" id="mapWindow" tabindex="0">
         <div class="map-transform" id="mapTransform">
-          <img class="map-image" id="mapImage" src="https://preview.redd.it/gondwa-f-w-map-v12-17-v0-kii6vijomi6a1.jpg?width=1080&crop=smart&auto=webp&s=1d4cd8a9fa3342779693654195eb29ee258daaf9" alt="Gondwa Map">
+          <img class="map-image" id="mapImage" src="gondwa.jpg" alt="Gondwa Map">
           
           <svg class="route-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
             <polyline id="activeRoutePolyline" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="8,4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
@@ -257,23 +255,6 @@
 
     </section>
   </main>
-
-  <div id="syncModal" class="modal-overlay is-hidden">
-    <div class="card" style="width: 100%; max-width: 800px; border-top: 5px solid #0ea5e9;">
-      <h2 style="color: #0ea5e9; margin-bottom: 5px;">Radar Sync Engaged</h2>
-      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Click directly on your player arrow in the image below to set the marker's precise coordinates.</p>
-      
-      <div class="snip-container" id="snipContainer">
-        <img id="snipImageDisplay" class="snip-image" src="" alt="Uploaded Snip">
-        <div id="snipCrosshair" class="snip-crosshair is-hidden"></div>
-      </div>
-
-      <div style="display: flex; gap: 10px; margin-top: 20px;">
-        <button class="btn" id="confirmSyncBtn" style="flex: 1; background: #0ea5e9; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3);">Sync Location to Map</button>
-        <button class="btn btn-ghost" id="cancelSyncBtn" style="flex: 1;">Abort Sync</button>
-      </div>
-    </div>
-  </div>
 
   <div id="pinModal" class="modal-overlay is-hidden">
     <div class="card" style="width: 100%; max-width: 450px; border-top: 5px solid var(--primary);">
