@@ -189,14 +189,13 @@ const updateBriefingPanel = () => {
   const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
   const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
 
-  // --- NEW: Modifiers & Roles Engine Integration ---
+  // --- Modifiers & Roles Engine Integration (Array Version) ---
   const role = creature.role || 'None';
   const mutation = creature.mutation || 'None';
-  const genetic = creature.genetic || 'None';
+  const genetics = creature.genetics || (creature.genetic && creature.genetic !== 'None' ? [creature.genetic] : []);
   
   const roleDesc = window.EAHAModifiers?.roles?.[role]?.description || '';
   const mutDesc = window.EAHAModifiers?.mutations?.[mutation]?.description || '';
-  const genDesc = window.EAHAModifiers?.genetics?.[genetic]?.description || '';
   
   const currentLife = getActiveLifeline();
   const migrations = currentLife.migrations || 0;
@@ -211,9 +210,20 @@ const updateBriefingPanel = () => {
 
   let modifiersHtml = `<div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; width: 100%;">`;
   
-  if (role !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
-  if (mutation !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
-  if (genetic !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${genetic}</strong><span class="muted">${genDesc}</span></div>`;
+  if (role !== 'None') {
+    modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
+  }
+  
+  if (mutation !== 'None') {
+    modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
+  }
+  
+  genetics.forEach(gen => {
+    if (gen !== 'None') {
+      const genDesc = window.EAHAModifiers?.genetics?.[gen]?.description || '';
+      modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${gen}</strong><span class="muted">${genDesc}</span></div>`;
+    }
+  });
   
   modifiersHtml += `<div style="background: color-mix(in srgb, var(--primary) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--primary); font-size: 0.85em;"><strong style="color: var(--primary); display:block; margin-bottom: 3px;">${stageName}</strong><span class="muted">${elderDesc}</span></div>`;
   modifiersHtml += `</div>`;
