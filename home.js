@@ -7,7 +7,7 @@ const LIFELINES_KEY = 'eahaLifelines';
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
 
 // --- Global State ---
-let db = { creatures: [], encounters: [] }; // Ensure encounters array exists
+let db = { creatures: [], encounters: [] }; 
 let activeCreatureId = null;
 let isEditMode = false;
 
@@ -117,14 +117,13 @@ const populateCreatureDropdown = () => {
     updateVitalsUI();
     updateElderingUI();
     syncExactVitals();
-    updateCombatAnalytics(); // Update analytics when active creature changes
+    updateCombatAnalytics(); 
     return;
   }
 
   select.disabled = false;
   select.appendChild(new Option("-- Select Active Dinosaur --", "none"));
   
-  // Sort alphabetically for easy finding
   const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
   sorted.forEach(c => select.appendChild(new Option(c.name, c.id)));
   
@@ -141,7 +140,7 @@ const populateCreatureDropdown = () => {
   updateVitalsUI();
   updateElderingUI();
   syncExactVitals();
-  updateCombatAnalytics(); // Initial analytics render
+  updateCombatAnalytics(); 
   
   select.addEventListener('change', (e) => {
     activeCreatureId = e.target.value;
@@ -150,7 +149,7 @@ const populateCreatureDropdown = () => {
     updateVitalsUI();
     updateElderingUI();
     syncExactVitals(); 
-    updateCombatAnalytics(); // Update analytics when active creature changes
+    updateCombatAnalytics(); 
     if(activeCreatureId !== 'none') {
       showToast(`Lifeline Sync Engaged: Tracking ${select.options[select.selectedIndex].text}`);
     }
@@ -173,13 +172,11 @@ const updateBriefingPanel = () => {
 
   nameEl.textContent = creature.name;
   
-  // Extract Clean Adult Stats
   const health = getAdultStat(creature.stats?.base?.health);
   const weight = getAdultStat(creature.stats?.base?.combatWeight);
   const speed = getAdultStat(creature.stats?.base?.speed);
   const armor = getAdultStat(creature.stats?.base?.armor) || 1;
   
-  // Extract Arsenal
   const arsenal = getAllAttacks(creature, 4);
   let arsenalHtml = '';
   if (arsenal.length > 0) {
@@ -195,7 +192,6 @@ const updateBriefingPanel = () => {
   const diet = (creature.foods && creature.foods.length > 0) ? creature.foods.join(', ') : "Unknown Diet";
   const habitat = (creature.habitat && creature.habitat.length > 0) ? creature.habitat.join(', ') : "Unknown Habitat";
 
-  // --- Modifiers & Roles Engine Integration (Array Version) ---
   const role = creature.role || 'None';
   const mutation = creature.mutation || 'None';
   const genetics = creature.genetics || (creature.genetic && creature.genetic !== 'None' ? [creature.genetic] : []);
@@ -233,7 +229,6 @@ const updateBriefingPanel = () => {
   
   modifiersHtml += `<div style="background: color-mix(in srgb, var(--primary) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--primary); font-size: 0.85em;"><strong style="color: var(--primary); display:block; margin-bottom: 3px;">${stageName}</strong><span class="muted">${elderDesc}</span></div>`;
   modifiersHtml += `</div>`;
-  // ------------------------------------------------
   
   statsEl.innerHTML = `
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
@@ -297,7 +292,6 @@ const setupLifelineListeners = () => {
     const currentLife = getActiveLifeline();
     currentLife.migrations++;
     updateElderingUI();
-    // Update the Briefing Panel to instantly show the new stage buffs!
     if(activeCreatureId && activeCreatureId !== 'none') updateBriefingPanel();
     saveLifelines();
   });
@@ -546,13 +540,11 @@ const updateDateTime = () => {
 const saveEncounter = async (type) => {
   if (!db.encounters) db.encounters = [];
   
-  // Convert basic "type" into exact match outcomes for the combat logs
   let outcomeText = 'Unknown';
   if (type === 'win') outcomeText = 'Victory (Kill)';
   if (type === 'loss') outcomeText = 'Defeat (PvP)';
   if (type === 'starved') outcomeText = 'Defeat (Starvation)';
   
-  // Grab current dinosaur name, not just its ID, for the combat table
   const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
   const creaName = activeCrea ? activeCrea.name : 'Unknown';
 
@@ -570,10 +562,10 @@ const saveEncounter = async (type) => {
   db.encounters.push(event);
   await EAHADataStore.saveData(db);
   showToast(`${outcomeText} logged successfully.`);
-  updateCombatAnalytics(); // Update charts after a quick log
+  updateCombatAnalytics(); 
 };
 
-// --- === NEW: COMBAT ANALYTICS LOGIC === ---
+// --- === COMBAT ANALYTICS LOGIC === ---
 const updateCombatAnalytics = () => {
   if (!db.encounters) db.encounters = [];
   
@@ -582,7 +574,6 @@ const updateCombatAnalytics = () => {
   let activeKills = 0;
   let activeDeaths = 0;
   
-  // Track causes of death across the whole faction
   const deathCauses = {
     'PvP Combat': 0,
     'Starvation': 0,
@@ -599,12 +590,10 @@ const updateCombatAnalytics = () => {
     const isKill = enc.outcome.includes('Victory');
     const isDeath = enc.outcome.includes('Defeat');
 
-    // Overall stats
     if (isKill) overallKills++;
     if (isDeath) {
       overallDeaths++;
       
-      // Categorize Death Cause
       if (enc.outcome.includes('(PvP)')) deathCauses['PvP Combat']++;
       else if (enc.outcome.includes('(Starvation)')) deathCauses['Starvation']++;
       else if (enc.outcome.includes('(Dehydration)')) deathCauses['Dehydration']++;
@@ -613,21 +602,18 @@ const updateCombatAnalytics = () => {
       else deathCauses['Unknown']++;
     }
 
-    // Active Creature Stats
     if (activeName && enc.myCreature === activeName) {
       if (isKill) activeKills++;
       if (isDeath) activeDeaths++;
     }
   });
 
-  // Calculate Ratios
   const calcKD = (k, d) => d === 0 ? k.toFixed(1) : (k / d).toFixed(2);
   
   document.getElementById('overall-kd').textContent = calcKD(overallKills, overallDeaths);
   document.getElementById('creature-kd').textContent = activeName ? calcKD(activeKills, activeDeaths) : '--';
   document.getElementById('creature-kd').style.color = activeName ? 'var(--primary)' : 'var(--text)';
 
-  // Render Chart.js Pie Chart
   renderDeathChart(deathCauses);
 };
 
@@ -635,18 +621,17 @@ const renderDeathChart = (causesData) => {
   const ctx = document.getElementById('deathCauseChart');
   if (!ctx) return;
 
-  // Filter out causes with 0 occurrences to keep chart clean
   const labels = [];
   const data = [];
   const bgColors = [];
 
   const colorMap = {
-    'PvP Combat': '#ef4444',   // Danger Red
-    'Starvation': '#f59e0b',   // Warning Orange
-    'Dehydration': '#3b82f6',  // Primary Blue
-    'Fall Damage': '#a855f7',  // Purple
-    'Drowning': '#0ea5e9',     // Cyan
-    'Unknown': '#64748b'       // Slate Gray
+    'PvP Combat': '#ef4444',   
+    'Starvation': '#f59e0b',   
+    'Dehydration': '#3b82f6',  
+    'Fall Damage': '#a855f7',  
+    'Drowning': '#0ea5e9',     
+    'Unknown': '#64748b'       
   };
 
   Object.entries(causesData).forEach(([cause, count]) => {
@@ -662,7 +647,6 @@ const renderDeathChart = (causesData) => {
   }
 
   if (data.length === 0) {
-    // Show empty state if no deaths logged
     ctx.style.display = 'none';
     const container = ctx.parentElement;
     if(!document.getElementById('emptyChartMsg')) {
@@ -689,7 +673,7 @@ const renderDeathChart = (causesData) => {
         data: data,
         backgroundColor: bgColors,
         borderWidth: 2,
-        borderColor: '#0f172a' // Match background
+        borderColor: '#0f172a' 
       }]
     },
     options: {
@@ -705,45 +689,6 @@ const renderDeathChart = (causesData) => {
   });
 };
 
-
-// --- === NEW: DISCORD WIDGET LOGIC === ---
-const initDiscordWidget = () => {
-  // IMPORTANT: REPLACE THIS STRING WITH THE ELYS ASTRA DISCORD SERVER ID
-  const DISCORD_SERVER_ID = '1176021136866287636'; 
-  
-  const container = document.getElementById('discord-widget-container');
-  const toggleBtn = document.getElementById('toggle-discord-inline');
-  const popoutBtn = document.getElementById('popout-discord');
-
-  if (!container || !toggleBtn || !popoutBtn) return;
-
-  const widgetUrl = `https://discord.com/widget?id=${DISCORD_SERVER_ID}&theme=dark`;
-
-  // Handle Inline Expand
-  toggleBtn.addEventListener('click', () => {
-    const isHidden = container.classList.contains('is-hidden');
-    
-    if (isHidden) {
-      // Create iframe if it doesn't exist yet to save loading resources on boot
-      if (container.innerHTML.trim() === '') {
-        container.innerHTML = `<iframe src="${widgetUrl}" width="100%" height="400" allowtransparency="true" frameborder="0" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"></iframe>`;
-      }
-      container.classList.remove('is-hidden');
-      toggleBtn.textContent = '▲ Collapse';
-    } else {
-      container.classList.add('is-hidden');
-      toggleBtn.textContent = '▼ Expand';
-    }
-  });
-
-  // Handle Pop-out Window
-  popoutBtn.addEventListener('click', () => {
-    // Open widget in a small pop-up window ideal for secondary monitors
-    window.open(widgetUrl, 'EAHA_Discord_Radar', 'width=350,height=500,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes');
-  });
-};
-
-
 // --- Boot Sequence ---
 const init = async () => {
   if (typeof EAHADataStore !== 'undefined') {
@@ -752,7 +697,6 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing or not loaded.");
   }
 
-  // Bind Quick Log Buttons
   const logWinBtn = document.getElementById('logWinBtn');
   const logLossBtn = document.getElementById('logLossBtn');
   const logStarveBtn = document.getElementById('logStarveBtn');
@@ -772,8 +716,7 @@ const init = async () => {
   setupCommandListeners();
   renderCommands();
 
-  // Initialize New Dashboard Features
-  initDiscordWidget();
+  // Initialize Combat Analytics on boot
   updateCombatAnalytics(); 
 };
 
