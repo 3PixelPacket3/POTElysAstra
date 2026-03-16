@@ -1,9 +1,13 @@
 // map.js
 
 // --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [] };
+let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5} };
 let pendingPin = null; 
 let editingPinId = null; 
+
+// Smart Learn State
+let pendingRawLocation = null;
+let tempCalibrationMarker = null;
 
 // Navigation Engine State
 let scale = 1;
@@ -53,7 +57,12 @@ const elements = {
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
   saveBtn: document.getElementById('savePinBtn'),
-  cancelBtn: document.getElementById('cancelPinBtn')
+  cancelBtn: document.getElementById('cancelPinBtn'),
+
+  // Calibration Tools
+  calibrationTools: document.getElementById('calibrationTools'),
+  confirmDeployBtn: document.getElementById('confirmDeployBtn'),
+  cancelDeployBtn: document.getElementById('cancelDeployBtn')
 };
 
 // --- Utilities ---
@@ -129,7 +138,7 @@ const setMode = (mode) => {
   } else {
     elements.routeTools.classList.add('is-hidden');
     if (activeRoutePoints.length > 0 && !confirm('Discard currently unsaved route?')) {
-      setMode('route'); // Revert if they cancel the mode switch
+      setMode('route'); 
       return;
     }
     activeRoutePoints = [];
@@ -147,7 +156,6 @@ const renderActiveRoute = () => {
     elements.activeRoutePolyline.setAttribute('points', '');
     return;
   }
-  // Convert percentage points into the SVG viewBox coordinates (0-100)
   const pointsStr = activeRoutePoints.map(p => `${p.x},${p.y}`).join(' ');
   elements.activeRoutePolyline.setAttribute('points', pointsStr);
 };
@@ -160,7 +168,6 @@ const renderRoutes = () => {
     return;
   }
 
-  // Sort newest first
   const sortedRoutes = [...db.routes].sort((a, b) => b.timestamp - a.timestamp);
 
   sortedRoutes.forEach(route => {
@@ -178,7 +185,6 @@ const renderRoutes = () => {
       </div>
     `;
 
-    // Click to view route
     item.addEventListener('click', (e) => {
       if (e.target.closest('.delete-route-btn')) return;
       activeRoutePoints = [...route.points];
@@ -187,7 +193,6 @@ const renderRoutes = () => {
       showToast(`Tactical Route Loaded: ${route.name}`);
     });
 
-    // Delete Action
     item.querySelector('.delete-route-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (confirm(`Remove tactical route: ${route.name}?`)) {
@@ -241,7 +246,6 @@ elements.cancelRouteBtn.addEventListener('click', () => {
   setMode('pan');
 });
 
-// Undo last drawn point on right click
 elements.mapWindow.addEventListener('contextmenu', (e) => {
   if (currentMode === 'route') {
     e.preventDefault();
@@ -252,45 +256,108 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
-
-// --- Recon Sync Engine (Coordinate Paste Listener) ---
+// --- Recon Sync Engine (Smart Learn Calibration Loop) ---
 window.addEventListener('paste', (e) => {
-  // Ignore paste events if the user is typing in a text field
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
 
   const pasteData = (e.clipboardData || window.clipboardData).getData('text');
-  
-  // Extract X, Y, Z from standard PoT output format
   const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+),\s*Z=([\d.-]+)/i;
   const match = pasteData.match(coordRegex);
 
   if (match) {
     const xUU = parseFloat(match[1]);
     const yUU = parseFloat(match[2]);
-    const zUU = parseFloat(match[3]);
 
-    // === CALIBRATION UPDATE: Map dimensions calculation ===
-    const mapRadiusUU = 410000; // Adjusted from 416000 for precise Gondwa pin alignment
+    const mapRadiusUU = 410000; 
+    let rawX = ((xUU / mapRadiusUU) * 50) + 50;
+    let rawY = ((yUU / mapRadiusUU) * 50) + 50;
 
-    // Convert coordinates to percentage for responsive map placement
-    let xPercent = ((xUU / mapRadiusUU) * 50) + 50;
-    let yPercent = ((yUU / mapRadiusUU) * 50) + 50;
+    // Load Smart Offset
+    if (!db.mapOffset) db.mapOffset = { x: -1.5, y: -1.5 };
 
-    // Clamp values to ensure marker stays on the image bounds
-    xPercent = Math.max(0, Math.min(xPercent, 100));
-    yPercent = Math.max(0, Math.min(yPercent, 100));
+    let startX = rawX + db.mapOffset.x;
+    let startY = rawY + db.mapOffset.y;
 
-    pendingPin = { x: xPercent, y: yPercent };
+    startX = Math.max(0, Math.min(startX, 100));
+    startY = Math.max(0, Math.min(startY, 100));
+
+    // Store raw math for calibration delta calculation
+    pendingRawLocation = { x: rawX, y: rawY };
+    pendingPin = { x: startX, y: startY };
+
+    // Draw temporary calibration marker
+    if (tempCalibrationMarker) tempCalibrationMarker.remove();
+    tempCalibrationMarker = document.createElement('div');
+    tempCalibrationMarker.className = 'map-pin';
+    tempCalibrationMarker.style.left = `${startX}%`;
+    tempCalibrationMarker.style.top = `${startY}%`;
+    tempCalibrationMarker.style.zIndex = '50';
+    tempCalibrationMarker.style.filter = 'drop-shadow(0px 0px 10px #10b981) brightness(1.5)';
+    tempCalibrationMarker.innerHTML = `🎯<div class="pin-label" style="opacity:1; background:#10b981; color:#fff; pointer-events:none;">Target: Drag to Refine</div>`;
     
+    elements.pinLayer.appendChild(tempCalibrationMarker);
+
+    // Make Temporary Marker Draggable
+    let isDraggingTemp = false;
+    tempCalibrationMarker.addEventListener('mousedown', (dragE) => {
+      if (dragE.button !== 0) return;
+      dragE.stopPropagation();
+      isDraggingTemp = true;
+      const mapRect = elements.mapImage.getBoundingClientRect();
+
+      const onMove = (moveEvent) => {
+        if (!isDraggingTemp) return;
+        let xP = ((moveEvent.clientX - mapRect.left) / mapRect.width) * 100;
+        let yP = ((moveEvent.clientY - mapRect.top) / mapRect.height) * 100;
+        xP = Math.max(0, Math.min(xP, 100));
+        yP = Math.max(0, Math.min(yP, 100));
+        
+        tempCalibrationMarker.style.left = `${xP}%`;
+        tempCalibrationMarker.style.top = `${yP}%`;
+        pendingPin = { x: xP, y: yP }; // Update pending location in real-time
+      };
+
+      const onUp = () => {
+        isDraggingTemp = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+
+    elements.calibrationTools.classList.remove('is-hidden');
+    showToast("Target acquired. Drag the green pin to perfect alignment, then click Confirm.", "info");
+  }
+});
+
+// Calibration Controls
+elements.confirmDeployBtn.addEventListener('click', async () => {
+    // Machine Learning Loop: Calculate new delta and save offset permanently
+    if (pendingRawLocation && pendingPin) {
+        db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
+        db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
+        await EAHADataStore.saveData(db);
+        console.log(`Jarvis Protocol: Map alignment recalibrated. New Offset X: ${db.mapOffset.x.toFixed(3)}, Y: ${db.mapOffset.y.toFixed(3)}`);
+    }
+
+    elements.calibrationTools.classList.add('is-hidden');
+    if (tempCalibrationMarker) tempCalibrationMarker.remove();
+
     if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     setMode('pin');
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
+});
 
-    showToast("Target coordinates acquired. Awaiting confirmation.", "success");
-    console.log(`Jarvis Protocol: Coordinates mapped to ${xPercent.toFixed(2)}% X, ${yPercent.toFixed(2)}% Y.`);
-  }
+elements.cancelDeployBtn.addEventListener('click', () => {
+    elements.calibrationTools.classList.add('is-hidden');
+    if (tempCalibrationMarker) tempCalibrationMarker.remove();
+    pendingPin = null;
+    pendingRawLocation = null;
+    showToast("Targeting aborted.");
 });
 
 
@@ -318,7 +385,6 @@ const renderPins = () => {
   const sortedPins = [...filteredPins].sort((a, b) => b.timestamp - a.timestamp);
 
   sortedPins.forEach(pin => {
-    // 1. Render on Map Overlay
     const mapMarker = document.createElement('div');
     mapMarker.className = 'map-pin';
     mapMarker.style.left = `${pin.x}%`;
@@ -329,7 +395,6 @@ const renderPins = () => {
       <div class="pin-label">${pin.label || 'Marker'}</div>
     `;
     
-    // Drag & Drop Map Marker Logic
     mapMarker.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || currentMode === 'route') return; 
       e.stopPropagation(); 
@@ -363,7 +428,6 @@ const renderPins = () => {
       window.addEventListener('mouseup', onMouseUp);
     });
 
-    // Delete via Right-Click
     mapMarker.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
@@ -375,7 +439,6 @@ const renderPins = () => {
 
     elements.pinLayer.appendChild(mapMarker);
 
-    // 2. Render in Sidebar List
     const listItem = document.createElement('div');
     listItem.className = 'list-item';
     listItem.style.cursor = 'pointer';
@@ -516,6 +579,7 @@ const init = async () => {
 
   if (!db.pins) db.pins = [];
   if (!db.routes) db.routes = [];
+  if (!db.mapOffset) db.mapOffset = {x: -1.5, y: -1.5};
 
   renderPins();
   renderRoutes();
