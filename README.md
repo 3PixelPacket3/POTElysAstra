@@ -12,8 +12,9 @@ EAHA is a specialized, offline-ready tactical dashboard and documentation toolki
 ## 🛠️ Installation
 EAHA is a pure client-side application requiring no backend servers or complex dependencies. 
 1. Clone or download this repository to your local machine.
-2. Unzip the folder.
-3. Double-click `index.html` to open the application in your preferred web browser.
+2. Or click on the URL to navigate
+3. Unzip the folder.
+4. Double-click `index.html` to open the application in your preferred web browser.
 
 ## 💻 Tech Stack
 * **Frontend:** HTML5, CSS3 (Custom Variables/Grid), Vanilla JavaScript (ES6)
