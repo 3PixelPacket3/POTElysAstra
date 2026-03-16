@@ -135,35 +135,68 @@
 
       <div class="card" style="border-top: 5px solid var(--danger); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-top: 25px;">
         <h2 style="color: var(--danger); margin-bottom: 5px;">Threat Assessment Simulator</h2>
-        <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">This module calculates the brutal reality of Path of Titans combat weights. It reveals exactly how much your damage will be scaled down or multiplied based on who you are fighting, at any stage of growth.</p>
+        <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Build tactical scenarios using Roles, Eldering Stages, and Genetics to calculate raw DPS scaling.</p>
         
         <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 250px;">
+          
+          <div style="flex: 1; min-width: 250px; background: color-mix(in srgb, var(--primary) 5%, transparent); padding: 15px; border-radius: 12px; border: 1px solid var(--primary);">
             <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--primary);">Your Dinosaur (Attacker)</label>
-            <select id="fighterASelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 12px; border: 2px solid var(--primary); margin-bottom: 10px;"></select>
-            <select id="fighterAStage" class="full-width" style="font-size: 1em; cursor: pointer; padding: 10px; border: 1px solid var(--primary); background: var(--bg-alt);">
-              <option value="4" selected>Adult</option>
-              <option value="3">Sub-Adult</option>
-              <option value="2">Adolescent</option>
-              <option value="1">Baby</option>
-              <option value="0">Hatchling</option>
-            </select>
+            <select id="fighterASelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 10px; border: 2px solid var(--primary); margin-bottom: 10px;"></select>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+              <select id="fighterAStage" style="font-size: 0.9em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
+                <option value="4" selected>Adult</option>
+                <option value="3">Sub-Adult</option>
+                <option value="2">Adolescent</option>
+                <option value="1">Baby</option>
+                <option value="0">Hatchling</option>
+              </select>
+              <select id="fighterAElder" style="font-size: 0.9em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
+                <option value="0" selected>Stage 0 (Pre-Elder)</option>
+                <option value="1">Stage 1 (Young Elder)</option>
+                <option value="2">Stage 2 (Inexp. Elder)</option>
+                <option value="3">Stage 3 (Exp. Elder)</option>
+                <option value="4">Stage 4 (Withering)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <select id="fighterARole" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--accent) 15%, var(--bg)); border: 1px solid var(--accent); color: var(--text);"></select>
+              <select id="fighterAMutation" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--info) 15%, var(--bg)); border: 1px solid var(--info); color: var(--text);"></select>
+              <select id="fighterAGenetic" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
+            </div>
           </div>
           
           <div style="display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; color: var(--muted); padding: 20px 0;">
             VS
           </div>
 
-          <div style="flex: 1; min-width: 250px;">
+          <div style="flex: 1; min-width: 250px; background: color-mix(in srgb, var(--danger) 5%, transparent); padding: 15px; border-radius: 12px; border: 1px solid var(--danger);">
             <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--danger);">Target (Defender)</label>
-            <select id="fighterBSelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 12px; border: 2px solid var(--danger); margin-bottom: 10px;"></select>
-            <select id="fighterBStage" class="full-width" style="font-size: 1em; cursor: pointer; padding: 10px; border: 1px solid var(--danger); background: var(--bg-alt);">
-              <option value="4" selected>Adult</option>
-              <option value="3">Sub-Adult</option>
-              <option value="2">Adolescent</option>
-              <option value="1">Baby</option>
-              <option value="0">Hatchling</option>
-            </select>
+            <select id="fighterBSelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 10px; border: 2px solid var(--danger); margin-bottom: 10px;"></select>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+              <select id="fighterBStage" style="font-size: 0.9em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
+                <option value="4" selected>Adult</option>
+                <option value="3">Sub-Adult</option>
+                <option value="2">Adolescent</option>
+                <option value="1">Baby</option>
+                <option value="0">Hatchling</option>
+              </select>
+              <select id="fighterBElder" style="font-size: 0.9em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
+                <option value="0" selected>Stage 0 (Pre-Elder)</option>
+                <option value="1">Stage 1 (Young Elder)</option>
+                <option value="2">Stage 2 (Inexp. Elder)</option>
+                <option value="3">Stage 3 (Exp. Elder)</option>
+                <option value="4">Stage 4 (Withering)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <select id="fighterBRole" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--accent) 15%, var(--bg)); border: 1px solid var(--accent); color: var(--text);"></select>
+              <select id="fighterBMutation" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--info) 15%, var(--bg)); border: 1px solid var(--info); color: var(--text);"></select>
+              <select id="fighterBGenetic" style="font-size: 0.9em; cursor: pointer; padding: 8px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
+            </div>
           </div>
         </div>
 
