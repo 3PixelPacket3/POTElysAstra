@@ -36,6 +36,12 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
+  // NEW: Modifiers Inputs
+  modifiers: {
+    role: document.getElementById('creatureRole'),
+    mutation: document.getElementById('creatureMutation'),
+    genetic: document.getElementById('creatureGenetic')
+  },
   stats: {
     health: document.getElementById('statHealth'),
     weight: document.getElementById('statCombatWeight'),
@@ -111,6 +117,26 @@ const getAllAttacks = (dino, stageIndex = 4) => {
   });
   
   return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
+};
+
+// --- Modifiers Engine Initialization ---
+const populateModifiersDropdowns = () => {
+  if (!window.EAHAModifiers) return;
+
+  elements.modifiers.role.innerHTML = '';
+  Object.keys(window.EAHAModifiers.roles).forEach(role => {
+    elements.modifiers.role.appendChild(new Option(role, role));
+  });
+
+  elements.modifiers.mutation.innerHTML = '';
+  Object.keys(window.EAHAModifiers.mutations).forEach(mut => {
+    elements.modifiers.mutation.appendChild(new Option(mut, mut));
+  });
+
+  elements.modifiers.genetic.innerHTML = '';
+  Object.keys(window.EAHAModifiers.genetics).forEach(gen => {
+    elements.modifiers.genetic.appendChild(new Option(gen, gen));
+  });
 };
 
 // --- Base64 Image Compression Engine ---
@@ -331,6 +357,13 @@ const syncForm = (creature) => {
   elements.core.modded.checked = Boolean(creature.modded);
   elements.core.critter.checked = Boolean(creature.critter);
   
+  // Modifiers Sync
+  if (window.EAHAModifiers) {
+    elements.modifiers.role.value = creature.role || 'None';
+    elements.modifiers.mutation.value = creature.mutation || 'None';
+    elements.modifiers.genetic.value = creature.genetic || 'None';
+  }
+  
   const baseStats = creature.stats?.base || {};
   elements.stats.health.value = baseStats.health || '';
   elements.stats.weight.value = baseStats.combatWeight || '';
@@ -366,6 +399,12 @@ const gatherForm = () => {
     imagePath: elements.core.image.value.trim(),
     modded: elements.core.modded.checked,
     critter: elements.core.critter.checked,
+    
+    // Captured Modifiers
+    role: elements.modifiers.role.value,
+    mutation: elements.modifiers.mutation.value,
+    genetic: elements.modifiers.genetic.value,
+
     stats: {
       base: {
         health: elements.stats.health.value,
@@ -385,7 +424,7 @@ const gatherForm = () => {
   };
 };
 
-// --- View Renderer (CLEAN UI UPGRADE WITH DROPDOWNS, WORD WRAP & ARSENAL) ---
+// --- View Renderer ---
 const setView = (creature) => {
   if (!creature) {
     elements.viewPane.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.1em; font-weight: 500;">Select a creature from the roster to view its profile.</div>';
@@ -453,6 +492,24 @@ const setView = (creature) => {
     }
   }
 
+  // Generate HTML for Equipped Modifiers
+  const role = creature.role || 'None';
+  const mutation = creature.mutation || 'None';
+  const genetic = creature.genetic || 'None';
+  
+  let modifiersHtml = '';
+  if (role !== 'None' || mutation !== 'None' || genetic !== 'None') {
+    const roleDesc = window.EAHAModifiers?.roles?.[role]?.description || '';
+    const mutDesc = window.EAHAModifiers?.mutations?.[mutation]?.description || '';
+    const genDesc = window.EAHAModifiers?.genetics?.[genetic]?.description || '';
+
+    modifiersHtml += `<div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; width: 100%;">`;
+    if (role !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
+    if (mutation !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
+    if (genetic !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${genetic}</strong><span class="muted">${genDesc}</span></div>`;
+    modifiersHtml += `</div>`;
+  }
+
   elements.viewPane.innerHTML = `
     <div style="display: flex; gap: 25px; align-items: flex-start; margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: 16px; border: 1px solid var(--border);">
       ${creature.imagePath ? `<img src="${creature.imagePath}" alt="${creature.name}" style="width: 140px; height: 140px; object-fit: cover; border-radius: 12px; border: 2px solid var(--primary);">` : ''}
@@ -465,6 +522,7 @@ const setView = (creature) => {
         </div>
         <p class="muted" style="margin-bottom: 5px;"><strong>Habitat:</strong> ${(creature.habitat || []).join(', ') || 'Unknown'}</p>
         <p class="muted"><strong>Diet:</strong> ${(creature.foods || []).join(', ') || 'Unknown'}</p>
+        ${modifiersHtml}
       </div>
     </div>
 
@@ -572,7 +630,10 @@ const renderList = () => {
     return;
   }
 
-  filtered.forEach(creature => {
+  // Sort alphabetical to make finding dinos easy
+  const sorted = [...filtered].sort((a,b) => a.name.localeCompare(b.name));
+
+  sorted.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
     item.style.cursor = 'pointer';
@@ -651,6 +712,8 @@ const init = async () => {
   } else {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
+
+  populateModifiersDropdowns();
 
   initTabs();
   updateTierOptions();
@@ -745,9 +808,11 @@ const init = async () => {
   });
 
   if (db.creatures && db.creatures.length > 0) {
-    currentCreatureId = db.creatures[0].id;
-    syncForm(db.creatures[0]);
-    setView(db.creatures[0]);
+    // Show the first creature alphabetically on load
+    const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+    currentCreatureId = sorted[0].id;
+    syncForm(sorted[0]);
+    setView(sorted[0]);
   } else {
     setView(null);
   }
