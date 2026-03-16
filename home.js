@@ -709,7 +709,7 @@ const renderDeathChart = (causesData) => {
 // --- === NEW: DISCORD WIDGET LOGIC === ---
 const initDiscordWidget = () => {
   // IMPORTANT: REPLACE THIS STRING WITH THE ELYS ASTRA DISCORD SERVER ID
-  const DISCORD_SERVER_ID = 'YOUR_SERVER_ID_HERE'; 
+  const DISCORD_SERVER_ID = '1176021136866287636'; 
   
   const container = document.getElementById('discord-widget-container');
   const toggleBtn = document.getElementById('toggle-discord-inline');
