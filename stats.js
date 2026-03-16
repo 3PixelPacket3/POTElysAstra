@@ -58,13 +58,13 @@ const elements = {
   fighterAElder: document.getElementById('fighterAElder'),
   fighterARole: document.getElementById('fighterARole'),
   fighterAMutation: document.getElementById('fighterAMutation'),
-  fighterAGenetic: document.getElementById('fighterAGenetic'),
+  fighterAGenetics: document.querySelectorAll('.fighterAGeneticSelect'),
 
   // Threat Assessment Simulator - Modifiers (Fighter B)
   fighterBElder: document.getElementById('fighterBElder'),
   fighterBRole: document.getElementById('fighterBRole'),
   fighterBMutation: document.getElementById('fighterBMutation'),
-  fighterBGenetic: document.getElementById('fighterBGenetic'),
+  fighterBGenetics: document.querySelectorAll('.fighterBGeneticSelect'),
   
   simOutputA: document.getElementById('simOutputA'),
   simOutputB: document.getElementById('simOutputB'),
@@ -118,11 +118,18 @@ const populateModifiersDropdowns = () => {
     elements.fighterBMutation.appendChild(new Option(mut, mut));
   });
 
-  elements.fighterAGenetic.innerHTML = '';
-  elements.fighterBGenetic.innerHTML = '';
-  genetics.forEach(gen => {
-    elements.fighterAGenetic.appendChild(new Option(gen, gen));
-    elements.fighterBGenetic.appendChild(new Option(gen, gen));
+  elements.fighterAGenetics.forEach(select => {
+    select.innerHTML = '<option value="None">None</option>';
+    genetics.forEach(gen => {
+      if (gen !== 'None') select.appendChild(new Option(gen, gen));
+    });
+  });
+
+  elements.fighterBGenetics.forEach(select => {
+    select.innerHTML = '<option value="None">None</option>';
+    genetics.forEach(gen => {
+      if (gen !== 'None') select.appendChild(new Option(gen, gen));
+    });
   });
 };
 
@@ -382,24 +389,38 @@ const populateDropdowns = () => {
   if (currentB && currentB !== 'none') elements.fighterB.value = currentB;
 };
 
-// Modifiers Engine Mathematics Integrator
-const applyModifiersToStats = (baseStatMap, role, mutation, genetic, elderStage) => {
+// Modifiers Engine Mathematics Integrator (Upgraded for Arrays)
+const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elderStage) => {
   const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {} };
   
   const roleObj = modData.roles[role] || {};
   const mutObj = modData.mutations[mutation] || {};
-  const genObj = modData.genetics[genetic] || {};
   const elderObj = modData.eldering[elderStage] || {};
 
+  let genWeight = 0, genHealth = 0, genStamina = 0, genSpeed = 0, genArmor = 0, genTurn = 0;
+
+  // Sum up all benefits from up to 6 distinct genetics
+  (geneticsArray || []).forEach(gen => {
+    if (gen !== 'None') {
+      const gObj = modData.genetics[gen] || {};
+      genWeight += gObj.weight || 0;
+      genHealth += gObj.health || 0;
+      genStamina += gObj.stamina || 0;
+      genSpeed += gObj.speed || 0;
+      genArmor += gObj.armor || 0;
+      genTurn += gObj.turn || 0;
+    }
+  });
+
   // Accumulate all Flat Adds
-  const finalWeight = baseStatMap.weight + (roleObj.weight || 0) + (mutObj.weight || 0) + (genObj.weight || 0) + (elderObj.weight || 0);
-  const finalHealth = baseStatMap.health + (roleObj.health || 0) + (mutObj.health || 0) + (genObj.health || 0) + (elderObj.health || 0);
-  const finalStamina = baseStatMap.stam + (roleObj.stamina || 0) + (mutObj.stamina || 0) + (genObj.stamina || 0) + (elderObj.stamina || 0);
+  const finalWeight = baseStatMap.weight + (roleObj.weight || 0) + (mutObj.weight || 0) + genWeight + (elderObj.weight || 0);
+  const finalHealth = baseStatMap.health + (roleObj.health || 0) + (mutObj.health || 0) + genHealth + (elderObj.health || 0);
+  const finalStamina = baseStatMap.stam + (roleObj.stamina || 0) + (mutObj.stamina || 0) + genStamina + (elderObj.stamina || 0);
   
   // Accumulate Decimals (Speed, Armor, Turn)
-  const finalSpeed = baseStatMap.speed + (roleObj.speed || 0) + (mutObj.speed || 0) + (genObj.speed || 0) + (elderObj.speed || 0);
-  const finalArmor = baseStatMap.armor + (roleObj.armor || 0) + (mutObj.armor || 0) + (genObj.armor || 0) + (elderObj.armor || 0);
-  const finalTurn = baseStatMap.turn + (roleObj.turn || 0) + (mutObj.turn || 0) + (genObj.turn || 0) + (elderObj.turn || 0);
+  const finalSpeed = baseStatMap.speed + (roleObj.speed || 0) + (mutObj.speed || 0) + genSpeed + (elderObj.speed || 0);
+  const finalArmor = baseStatMap.armor + (roleObj.armor || 0) + (mutObj.armor || 0) + genArmor + (elderObj.armor || 0);
+  const finalTurn = baseStatMap.turn + (roleObj.turn || 0) + (mutObj.turn || 0) + genTurn + (elderObj.turn || 0);
 
   return {
     weight: Math.max(1, finalWeight),
@@ -484,12 +505,12 @@ const runSimulation = () => {
 
   const roleA = elements.fighterARole.value;
   const mutA = elements.fighterAMutation.value;
-  const genA = elements.fighterAGenetic.value;
+  const genA = Array.from(elements.fighterAGenetics).map(sel => sel.value);
   const elderA = parseInt(elements.fighterAElder.value, 10);
 
   const roleB = elements.fighterBRole.value;
   const mutB = elements.fighterBMutation.value;
-  const genB = elements.fighterBGenetic.value;
+  const genB = Array.from(elements.fighterBGenetics).map(sel => sel.value);
   const elderB = parseInt(elements.fighterBElder.value, 10);
 
   // Parse Raw Matrix Basics
@@ -739,8 +760,10 @@ const init = async () => {
     
     bindSim(elements.fighterARole); bindSim(elements.fighterBRole);
     bindSim(elements.fighterAMutation); bindSim(elements.fighterBMutation);
-    bindSim(elements.fighterAGenetic); bindSim(elements.fighterBGenetic);
     bindSim(elements.fighterAElder); bindSim(elements.fighterBElder);
+    
+    elements.fighterAGenetics.forEach(bindSim);
+    elements.fighterBGenetics.forEach(bindSim);
 
     runSimulation();
   }
