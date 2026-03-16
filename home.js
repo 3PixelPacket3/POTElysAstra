@@ -7,7 +7,7 @@ const LIFELINES_KEY = 'eahaLifelines';
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
 
 // --- Global State ---
-let db = { creatures: [] };
+let db = { creatures: [], encounters: [] }; // Ensure encounters array exists
 let activeCreatureId = null;
 let isEditMode = false;
 
@@ -30,6 +30,9 @@ const generateDefaultLifeline = () => ({
 
 // Load all saved lifelines (keyed by creature ID)
 let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
+
+// Analytics Chart Instance
+let deathCauseChartInstance = null;
 
 // --- Utilities ---
 const showToast = (message, type = 'success') => {
@@ -114,6 +117,7 @@ const populateCreatureDropdown = () => {
     updateVitalsUI();
     updateElderingUI();
     syncExactVitals();
+    updateCombatAnalytics(); // Update analytics when active creature changes
     return;
   }
 
@@ -137,6 +141,7 @@ const populateCreatureDropdown = () => {
   updateVitalsUI();
   updateElderingUI();
   syncExactVitals();
+  updateCombatAnalytics(); // Initial analytics render
   
   select.addEventListener('change', (e) => {
     activeCreatureId = e.target.value;
@@ -145,6 +150,7 @@ const populateCreatureDropdown = () => {
     updateVitalsUI();
     updateElderingUI();
     syncExactVitals(); 
+    updateCombatAnalytics(); // Update analytics when active creature changes
     if(activeCreatureId !== 'none') {
       showToast(`Lifeline Sync Engaged: Tracking ${select.options[select.selectedIndex].text}`);
     }
@@ -564,7 +570,179 @@ const saveEncounter = async (type) => {
   db.encounters.push(event);
   await EAHADataStore.saveData(db);
   showToast(`${outcomeText} logged successfully.`);
+  updateCombatAnalytics(); // Update charts after a quick log
 };
+
+// --- === NEW: COMBAT ANALYTICS LOGIC === ---
+const updateCombatAnalytics = () => {
+  if (!db.encounters) db.encounters = [];
+  
+  let overallKills = 0;
+  let overallDeaths = 0;
+  let activeKills = 0;
+  let activeDeaths = 0;
+  
+  // Track causes of death across the whole faction
+  const deathCauses = {
+    'PvP Combat': 0,
+    'Starvation': 0,
+    'Dehydration': 0,
+    'Fall Damage': 0,
+    'Drowning': 0,
+    'Unknown': 0
+  };
+
+  const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
+  const activeName = activeCrea ? activeCrea.name : null;
+
+  db.encounters.forEach(enc => {
+    const isKill = enc.outcome.includes('Victory');
+    const isDeath = enc.outcome.includes('Defeat');
+
+    // Overall stats
+    if (isKill) overallKills++;
+    if (isDeath) {
+      overallDeaths++;
+      
+      // Categorize Death Cause
+      if (enc.outcome.includes('(PvP)')) deathCauses['PvP Combat']++;
+      else if (enc.outcome.includes('(Starvation)')) deathCauses['Starvation']++;
+      else if (enc.outcome.includes('(Dehydration)')) deathCauses['Dehydration']++;
+      else if (enc.outcome.includes('(Fall)')) deathCauses['Fall Damage']++;
+      else if (enc.outcome.includes('(Drowned)')) deathCauses['Drowning']++;
+      else deathCauses['Unknown']++;
+    }
+
+    // Active Creature Stats
+    if (activeName && enc.myCreature === activeName) {
+      if (isKill) activeKills++;
+      if (isDeath) activeDeaths++;
+    }
+  });
+
+  // Calculate Ratios
+  const calcKD = (k, d) => d === 0 ? k.toFixed(1) : (k / d).toFixed(2);
+  
+  document.getElementById('overall-kd').textContent = calcKD(overallKills, overallDeaths);
+  document.getElementById('creature-kd').textContent = activeName ? calcKD(activeKills, activeDeaths) : '--';
+  document.getElementById('creature-kd').style.color = activeName ? 'var(--primary)' : 'var(--text)';
+
+  // Render Chart.js Pie Chart
+  renderDeathChart(deathCauses);
+};
+
+const renderDeathChart = (causesData) => {
+  const ctx = document.getElementById('deathCauseChart');
+  if (!ctx) return;
+
+  // Filter out causes with 0 occurrences to keep chart clean
+  const labels = [];
+  const data = [];
+  const bgColors = [];
+
+  const colorMap = {
+    'PvP Combat': '#ef4444',   // Danger Red
+    'Starvation': '#f59e0b',   // Warning Orange
+    'Dehydration': '#3b82f6',  // Primary Blue
+    'Fall Damage': '#a855f7',  // Purple
+    'Drowning': '#0ea5e9',     // Cyan
+    'Unknown': '#64748b'       // Slate Gray
+  };
+
+  Object.entries(causesData).forEach(([cause, count]) => {
+    if (count > 0) {
+      labels.push(cause);
+      data.push(count);
+      bgColors.push(colorMap[cause]);
+    }
+  });
+
+  if (deathCauseChartInstance) {
+    deathCauseChartInstance.destroy();
+  }
+
+  if (data.length === 0) {
+    // Show empty state if no deaths logged
+    ctx.style.display = 'none';
+    const container = ctx.parentElement;
+    if(!document.getElementById('emptyChartMsg')) {
+      const msg = document.createElement('p');
+      msg.id = 'emptyChartMsg';
+      msg.className = 'muted';
+      msg.style.textAlign = 'center';
+      msg.style.marginTop = '80px';
+      msg.textContent = 'No casualties reported. Perfect survival record.';
+      container.appendChild(msg);
+    }
+    return;
+  }
+
+  ctx.style.display = 'block';
+  const emptyMsg = document.getElementById('emptyChartMsg');
+  if(emptyMsg) emptyMsg.remove();
+
+  deathCauseChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: bgColors,
+        borderWidth: 2,
+        borderColor: '#0f172a' // Match background
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#f8fafc', font: { family: 'Courier New' } }
+        }
+      }
+    }
+  });
+};
+
+
+// --- === NEW: DISCORD WIDGET LOGIC === ---
+const initDiscordWidget = () => {
+  // IMPORTANT: REPLACE THIS STRING WITH THE ELYS ASTRA DISCORD SERVER ID
+  const DISCORD_SERVER_ID = 'YOUR_SERVER_ID_HERE'; 
+  
+  const container = document.getElementById('discord-widget-container');
+  const toggleBtn = document.getElementById('toggle-discord-inline');
+  const popoutBtn = document.getElementById('popout-discord');
+
+  if (!container || !toggleBtn || !popoutBtn) return;
+
+  const widgetUrl = `https://discord.com/widget?id=${DISCORD_SERVER_ID}&theme=dark`;
+
+  // Handle Inline Expand
+  toggleBtn.addEventListener('click', () => {
+    const isHidden = container.classList.contains('is-hidden');
+    
+    if (isHidden) {
+      // Create iframe if it doesn't exist yet to save loading resources on boot
+      if (container.innerHTML.trim() === '') {
+        container.innerHTML = `<iframe src="${widgetUrl}" width="100%" height="400" allowtransparency="true" frameborder="0" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"></iframe>`;
+      }
+      container.classList.remove('is-hidden');
+      toggleBtn.textContent = '▲ Collapse';
+    } else {
+      container.classList.add('is-hidden');
+      toggleBtn.textContent = '▼ Expand';
+    }
+  });
+
+  // Handle Pop-out Window
+  popoutBtn.addEventListener('click', () => {
+    // Open widget in a small pop-up window ideal for secondary monitors
+    window.open(widgetUrl, 'EAHA_Discord_Radar', 'width=350,height=500,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes');
+  });
+};
+
 
 // --- Boot Sequence ---
 const init = async () => {
@@ -593,6 +771,10 @@ const init = async () => {
   
   setupCommandListeners();
   renderCommands();
+
+  // Initialize New Dashboard Features
+  initDiscordWidget();
+  updateCombatAnalytics(); 
 };
 
 document.addEventListener('DOMContentLoaded', init);
