@@ -95,7 +95,7 @@
 
           <div class="card" style="box-shadow: none; border: 2px solid var(--border); margin-top: 20px;">
             <h2 style="color: var(--accent);">Equipped Modifiers</h2>
-            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Select your active Role, Mutation, and Genetic. These will automatically apply to your stats on the Dashboard and in the Simulator.</p>
+            <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Select your active Role, Mutation, and Genetics. These will automatically apply to your stats on the Dashboard and in the Simulator.</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
               <label class="field">
                 <span style="color: var(--accent);">Role</span>
@@ -105,10 +105,19 @@
                 <span style="color: var(--info);">Mutation</span>
                 <select id="creatureMutation" style="cursor: pointer; background: color-mix(in srgb, var(--info) 10%, var(--bg)); border-color: var(--info);"></select>
               </label>
-              <label class="field">
-                <span style="color: var(--success);">Genetic</span>
-                <select id="creatureGenetic" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+              
+              <label class="field" style="grid-column: 1 / -1;">
+                <span style="color: var(--success);">Genetics (Equip up to 6)</span>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                  <select class="creatureGeneticSelect" style="cursor: pointer; background: color-mix(in srgb, var(--success) 10%, var(--bg)); border-color: var(--success);"></select>
+                </div>
               </label>
+
             </div>
           </div>
 
