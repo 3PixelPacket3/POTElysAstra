@@ -36,11 +36,11 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
-  // NEW: Modifiers Inputs
+  // Modifiers Inputs (Upgraded for Array)
   modifiers: {
     role: document.getElementById('creatureRole'),
     mutation: document.getElementById('creatureMutation'),
-    genetic: document.getElementById('creatureGenetic')
+    genetics: document.querySelectorAll('.creatureGeneticSelect')
   },
   stats: {
     health: document.getElementById('statHealth'),
@@ -133,9 +133,13 @@ const populateModifiersDropdowns = () => {
     elements.modifiers.mutation.appendChild(new Option(mut, mut));
   });
 
-  elements.modifiers.genetic.innerHTML = '';
-  Object.keys(window.EAHAModifiers.genetics).forEach(gen => {
-    elements.modifiers.genetic.appendChild(new Option(gen, gen));
+  elements.modifiers.genetics.forEach(select => {
+    select.innerHTML = '<option value="None">None</option>';
+    Object.keys(window.EAHAModifiers.genetics).forEach(gen => {
+      if (gen !== 'None') {
+        select.appendChild(new Option(gen, gen));
+      }
+    });
   });
 };
 
@@ -357,11 +361,15 @@ const syncForm = (creature) => {
   elements.core.modded.checked = Boolean(creature.modded);
   elements.core.critter.checked = Boolean(creature.critter);
   
-  // Modifiers Sync
+  // Modifiers Sync (Includes Array Logic)
   if (window.EAHAModifiers) {
     elements.modifiers.role.value = creature.role || 'None';
     elements.modifiers.mutation.value = creature.mutation || 'None';
-    elements.modifiers.genetic.value = creature.genetic || 'None';
+    
+    const savedGenetics = creature.genetics || [];
+    elements.modifiers.genetics.forEach((select, index) => {
+      select.value = savedGenetics[index] || 'None';
+    });
   }
   
   const baseStats = creature.stats?.base || {};
@@ -391,6 +399,8 @@ const gatherForm = () => {
     if (name) customStats.push({ name, value });
   });
 
+  const activeGenetics = Array.from(elements.modifiers.genetics).map(sel => sel.value);
+
   return {
     id: currentCreatureId || generateId(),
     name: elements.core.name.value.trim() || 'Unnamed Creature',
@@ -403,7 +413,7 @@ const gatherForm = () => {
     // Captured Modifiers
     role: elements.modifiers.role.value,
     mutation: elements.modifiers.mutation.value,
-    genetic: elements.modifiers.genetic.value,
+    genetics: activeGenetics,
 
     stats: {
       base: {
@@ -492,21 +502,34 @@ const setView = (creature) => {
     }
   }
 
-  // Generate HTML for Equipped Modifiers
+  // Generate HTML for Equipped Modifiers (Supports 6 Genetics)
   const role = creature.role || 'None';
   const mutation = creature.mutation || 'None';
-  const genetic = creature.genetic || 'None';
+  const genetics = creature.genetics || (creature.genetic && creature.genetic !== 'None' ? [creature.genetic] : []);
   
   let modifiersHtml = '';
-  if (role !== 'None' || mutation !== 'None' || genetic !== 'None') {
-    const roleDesc = window.EAHAModifiers?.roles?.[role]?.description || '';
-    const mutDesc = window.EAHAModifiers?.mutations?.[mutation]?.description || '';
-    const genDesc = window.EAHAModifiers?.genetics?.[genetic]?.description || '';
+  const hasGenetics = genetics.some(g => g !== 'None');
 
+  if (role !== 'None' || mutation !== 'None' || hasGenetics) {
     modifiersHtml += `<div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; width: 100%;">`;
-    if (role !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
-    if (mutation !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
-    if (genetic !== 'None') modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${genetic}</strong><span class="muted">${genDesc}</span></div>`;
+    
+    if (role !== 'None') {
+      const roleDesc = window.EAHAModifiers?.roles?.[role]?.description || '';
+      modifiersHtml += `<div style="background: color-mix(in srgb, var(--accent) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); font-size: 0.85em;"><strong style="color: var(--accent); display:block; margin-bottom: 3px;">Role: ${role}</strong><span class="muted">${roleDesc}</span></div>`;
+    }
+    
+    if (mutation !== 'None') {
+      const mutDesc = window.EAHAModifiers?.mutations?.[mutation]?.description || '';
+      modifiersHtml += `<div style="background: color-mix(in srgb, var(--info) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--info); font-size: 0.85em;"><strong style="color: var(--info); display:block; margin-bottom: 3px;">Mutation: ${mutation}</strong><span class="muted">${mutDesc}</span></div>`;
+    }
+    
+    genetics.forEach(gen => {
+      if (gen !== 'None') {
+        const genDesc = window.EAHAModifiers?.genetics?.[gen]?.description || '';
+        modifiersHtml += `<div style="background: color-mix(in srgb, var(--success) 15%, transparent); padding: 10px; border-radius: 8px; border: 1px solid var(--success); font-size: 0.85em;"><strong style="color: var(--success); display:block; margin-bottom: 3px;">Genetic: ${gen}</strong><span class="muted">${genDesc}</span></div>`;
+      }
+    });
+
     modifiersHtml += `</div>`;
   }
 
@@ -808,7 +831,6 @@ const init = async () => {
   });
 
   if (db.creatures && db.creatures.length > 0) {
-    // Show the first creature alphabetically on load
     const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
     currentCreatureId = sorted[0].id;
     syncForm(sorted[0]);
