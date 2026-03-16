@@ -150,6 +150,28 @@ elements.modePanBtn.addEventListener('click', () => setMode('pan'));
 elements.modePinBtn.addEventListener('click', () => setMode('pin'));
 elements.modeRouteBtn.addEventListener('click', () => setMode('route'));
 
+// === MOBILE TOUCH NAVIGATION PROTOCOL ===
+elements.mapWindow.addEventListener('touchstart', (e) => {
+  if (currentMode !== 'pan' || e.touches.length !== 1) return;
+  isDragging = true;
+  startDragX = e.touches[0].clientX - translateX;
+  startDragY = e.touches[0].clientY - translateY;
+}, { passive: true });
+
+window.addEventListener('touchmove', (e) => {
+  if (!isDragging || currentMode !== 'pan' || e.touches.length !== 1) return;
+  // Prevent default browser scrolling when panning the map
+  if(e.target.closest('#mapWindow')) e.preventDefault(); 
+  
+  translateX = e.touches[0].clientX - startDragX;
+  translateY = e.touches[0].clientY - startDragY;
+  updateTransform();
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+  isDragging = false;
+});
+
 // --- Route Planner Engine ---
 const renderActiveRoute = () => {
   if (activeRoutePoints.length === 0) {
