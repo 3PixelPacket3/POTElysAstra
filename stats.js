@@ -48,11 +48,23 @@ const elements = {
   calcResult: document.getElementById('calcResultDisplay'),
   calcFormula: document.getElementById('calcFormulaDisplay'),
 
-  // Threat Assessment Simulator
+  // Threat Assessment Simulator - Core Elements
   fighterA: document.getElementById('fighterASelect'),
   fighterAStage: document.getElementById('fighterAStage'),
   fighterB: document.getElementById('fighterBSelect'),
   fighterBStage: document.getElementById('fighterBStage'),
+
+  // Threat Assessment Simulator - Modifiers (Fighter A)
+  fighterAElder: document.getElementById('fighterAElder'),
+  fighterARole: document.getElementById('fighterARole'),
+  fighterAMutation: document.getElementById('fighterAMutation'),
+  fighterAGenetic: document.getElementById('fighterAGenetic'),
+
+  // Threat Assessment Simulator - Modifiers (Fighter B)
+  fighterBElder: document.getElementById('fighterBElder'),
+  fighterBRole: document.getElementById('fighterBRole'),
+  fighterBMutation: document.getElementById('fighterBMutation'),
+  fighterBGenetic: document.getElementById('fighterBGenetic'),
   
   simOutputA: document.getElementById('simOutputA'),
   simOutputB: document.getElementById('simOutputB'),
@@ -71,7 +83,6 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// Helper to safely extract a 5-stage array from a string
 const getStatArray = (valStr) => {
   if (!valStr) return [0, 0, 0, 0, 0];
   const parts = String(valStr).split(',').map(s => parseFloat(s.trim()));
@@ -79,11 +90,40 @@ const getStatArray = (valStr) => {
   return parts;
 };
 
-// Helper to grab the adult (last) stat from the array for a clean view
 const getAdultStat = (valStr) => {
   if (!valStr) return '-';
   const parts = String(valStr).split(',');
   return parts[parts.length - 1].trim(); 
+};
+
+// --- Modifiers Initialization ---
+const populateModifiersDropdowns = () => {
+  if (!window.EAHAModifiers || !elements.fighterARole) return;
+
+  const roles = Object.keys(window.EAHAModifiers.roles);
+  const mutations = Object.keys(window.EAHAModifiers.mutations);
+  const genetics = Object.keys(window.EAHAModifiers.genetics);
+
+  elements.fighterARole.innerHTML = '';
+  elements.fighterBRole.innerHTML = '';
+  roles.forEach(role => {
+    elements.fighterARole.appendChild(new Option(role, role));
+    elements.fighterBRole.appendChild(new Option(role, role));
+  });
+
+  elements.fighterAMutation.innerHTML = '';
+  elements.fighterBMutation.innerHTML = '';
+  mutations.forEach(mut => {
+    elements.fighterAMutation.appendChild(new Option(mut, mut));
+    elements.fighterBMutation.appendChild(new Option(mut, mut));
+  });
+
+  elements.fighterAGenetic.innerHTML = '';
+  elements.fighterBGenetic.innerHTML = '';
+  genetics.forEach(gen => {
+    elements.fighterAGenetic.appendChild(new Option(gen, gen));
+    elements.fighterBGenetic.appendChild(new Option(gen, gen));
+  });
 };
 
 // --- Mode Toggle ---
@@ -109,7 +149,6 @@ const setMode = (mode) => {
   }
 };
 
-// --- Dynamic Edit Rows ---
 const renderEditCustomStatRow = (name = '', value = '') => {
   const row = document.createElement('div');
   row.style.display = 'flex';
@@ -168,18 +207,14 @@ const setView = (creature) => {
   
   if (customStats.length > 0) {
     elements.customWrapper.classList.remove('is-hidden');
-    
     const primaryKeywords = ['damage', 'bleed', 'bonebreak', 'venom', 'poison', 'cooldown'];
     const primaryStats = [];
     const advancedStats = [];
 
     customStats.forEach(stat => {
       const lowerName = stat.name.toLowerCase();
-      if (primaryKeywords.some(kw => lowerName.includes(kw))) {
-        primaryStats.push(stat);
-      } else {
-        advancedStats.push(stat);
-      }
+      if (primaryKeywords.some(kw => lowerName.includes(kw))) primaryStats.push(stat);
+      else advancedStats.push(stat);
     });
 
     let htmlOutput = ``;
@@ -347,13 +382,40 @@ const populateDropdowns = () => {
   if (currentB && currentB !== 'none') elements.fighterB.value = currentB;
 };
 
-// Helper for simulator to find dynamic mechanics safely
+// Modifiers Engine Mathematics Integrator
+const applyModifiersToStats = (baseStatMap, role, mutation, genetic, elderStage) => {
+  const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {} };
+  
+  const roleObj = modData.roles[role] || {};
+  const mutObj = modData.mutations[mutation] || {};
+  const genObj = modData.genetics[genetic] || {};
+  const elderObj = modData.eldering[elderStage] || {};
+
+  // Accumulate all Flat Adds
+  const finalWeight = baseStatMap.weight + (roleObj.weight || 0) + (mutObj.weight || 0) + (genObj.weight || 0) + (elderObj.weight || 0);
+  const finalHealth = baseStatMap.health + (roleObj.health || 0) + (mutObj.health || 0) + (genObj.health || 0) + (elderObj.health || 0);
+  const finalStamina = baseStatMap.stam + (roleObj.stamina || 0) + (mutObj.stamina || 0) + (genObj.stamina || 0) + (elderObj.stamina || 0);
+  
+  // Accumulate Decimals (Speed, Armor, Turn)
+  const finalSpeed = baseStatMap.speed + (roleObj.speed || 0) + (mutObj.speed || 0) + (genObj.speed || 0) + (elderObj.speed || 0);
+  const finalArmor = baseStatMap.armor + (roleObj.armor || 0) + (mutObj.armor || 0) + (genObj.armor || 0) + (elderObj.armor || 0);
+  const finalTurn = baseStatMap.turn + (roleObj.turn || 0) + (mutObj.turn || 0) + (genObj.turn || 0) + (elderObj.turn || 0);
+
+  return {
+    weight: Math.max(1, finalWeight),
+    health: Math.max(1, finalHealth),
+    stam: Math.max(1, finalStamina),
+    speed: Math.max(0.1, finalSpeed),
+    armor: Math.max(0.01, finalArmor), // Never divide by zero
+    turn: Math.max(0.1, finalTurn)
+  };
+};
+
 const getCustomStageStat = (dino, statNameSubstring, stageIndex) => {
   const stat = dino.stats?.custom?.find(s => s.name.toLowerCase() === statNameSubstring.toLowerCase() || s.name.toLowerCase().includes(statNameSubstring.toLowerCase()));
   return stat ? getStatArray(stat.value)[stageIndex] : 0;
 };
 
-// MULTI-ATTACK ENGINE: Grabs all attacks and runs the CW/Armor math on every single one
 const getAllAttacks = (dino, stageIndex, multiplier) => {
   const attacks = [];
   const customStats = dino.stats?.custom || [];
@@ -363,10 +425,9 @@ const getAllAttacks = (dino, stageIndex, multiplier) => {
     if (lowerName.includes('damage') && !lowerName.includes('debuff') && !lowerName.includes('multiplier') && !lowerName.includes('buff')) {
       const baseDmg = getStatArray(stat.value)[stageIndex];
       if (baseDmg > 0) {
-        // Attempt to find matching cooldown (e.g. TailDamage -> TailCooldown)
         const prefix = stat.name.replace('Damage', '');
         const cdStat = customStats.find(s => s.name.toLowerCase() === `${prefix.toLowerCase()}cooldown`);
-        const cd = cdStat ? getStatArray(cdStat.value)[stageIndex] : 1.5; // Default 1.5s if not found
+        const cd = cdStat ? getStatArray(cdStat.value)[stageIndex] : 1.5;
 
         const actualDmg = baseDmg * multiplier;
         const dps = (actualDmg / cd).toFixed(1);
@@ -383,11 +444,9 @@ const getAllAttacks = (dino, stageIndex, multiplier) => {
     }
   });
   
-  // Sort by highest DPS
   return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
 };
 
-// Generates visual badges
 const generateBadges = (dino, stageIndex) => {
   let b = '';
   const bleed = getCustomStageStat(dino, 'BleedAmount', stageIndex) || getCustomStageStat(dino, 'Bleed', stageIndex);
@@ -408,11 +467,6 @@ const runSimulation = () => {
   const idA = elements.fighterA.value;
   const idB = elements.fighterB.value;
 
-  const stageAIndex = elements.fighterAStage ? parseInt(elements.fighterAStage.value, 10) : 4;
-  const stageBIndex = elements.fighterBStage ? parseInt(elements.fighterBStage.value, 10) : 4;
-  
-  const stageNames = ["Hatchling", "Baby", "Adolescent", "Sub-Adult", "Adult"];
-
   if (idA === 'none' || idB === 'none') {
     elements.advantageBanner.innerHTML = `<span class="muted">Awaiting combatants... Select two dinosaurs to run the advanced tactical simulation.</span>`;
     elements.simOutputA.innerHTML = '';
@@ -425,31 +479,50 @@ const runSimulation = () => {
   const dinoA = db.creatures.find(c => c.id === idA);
   const dinoB = db.creatures.find(c => c.id === idB);
 
-  // Core Stage Stats
-  const weightA = getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 0;
-  const weightB = getStatArray(dinoB.stats?.base?.combatWeight)[stageBIndex] || 0;
-  
-  const healthA = getStatArray(dinoA.stats?.base?.health)[stageAIndex] || 0;
-  const healthB = getStatArray(dinoB.stats?.base?.health)[stageBIndex] || 0;
-  
-  const speedA = getStatArray(dinoA.stats?.base?.speed)[stageAIndex] || 0;
-  const speedB = getStatArray(dinoB.stats?.base?.speed)[stageBIndex] || 0;
-  
-  const stamA = getStatArray(dinoA.stats?.base?.stamina)[stageAIndex] || 0;
-  const stamB = getStatArray(dinoB.stats?.base?.stamina)[stageBIndex] || 0;
+  const stageAIndex = elements.fighterAStage ? parseInt(elements.fighterAStage.value, 10) : 4;
+  const stageBIndex = elements.fighterBStage ? parseInt(elements.fighterBStage.value, 10) : 4;
 
-  const armorA = getStatArray(dinoA.stats?.base?.armor)[stageAIndex] || 1;
-  const armorB = getStatArray(dinoB.stats?.base?.armor)[stageBIndex] || 1;
+  const roleA = elements.fighterARole.value;
+  const mutA = elements.fighterAMutation.value;
+  const genA = elements.fighterAGenetic.value;
+  const elderA = parseInt(elements.fighterAElder.value, 10);
+
+  const roleB = elements.fighterBRole.value;
+  const mutB = elements.fighterBMutation.value;
+  const genB = elements.fighterBGenetic.value;
+  const elderB = parseInt(elements.fighterBElder.value, 10);
+
+  // Parse Raw Matrix Basics
+  const rawBaseA = {
+    weight: getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 1,
+    health: getStatArray(dinoA.stats?.base?.health)[stageAIndex] || 1,
+    stam: getStatArray(dinoA.stats?.base?.stamina)[stageAIndex] || 1,
+    speed: getStatArray(dinoA.stats?.base?.speed)[stageAIndex] || 1,
+    armor: getStatArray(dinoA.stats?.base?.armor)[stageAIndex] || 1,
+    turn: getCustomStageStat(dinoA, 'TurnRadiusMultiplier', stageAIndex) || 1
+  };
+
+  const rawBaseB = {
+    weight: getStatArray(dinoB.stats?.base?.combatWeight)[stageBIndex] || 1,
+    health: getStatArray(dinoB.stats?.base?.health)[stageBIndex] || 1,
+    stam: getStatArray(dinoB.stats?.base?.stamina)[stageBIndex] || 1,
+    speed: getStatArray(dinoB.stats?.base?.speed)[stageBIndex] || 1,
+    armor: getStatArray(dinoB.stats?.base?.armor)[stageBIndex] || 1,
+    turn: getCustomStageStat(dinoB, 'TurnRadiusMultiplier', stageBIndex) || 1
+  };
+
+  // Run through EAHA Modifiers Engine
+  const finalA = applyModifiersToStats(rawBaseA, roleA, mutA, genA, elderA);
+  const finalB = applyModifiersToStats(rawBaseB, roleB, mutB, genB, elderB);
 
   // Multiplier Math
-  const multiplierA = weightB > 0 ? (weightA / weightB) / armorB : 1;
-  const multiplierB = weightA > 0 ? (weightB / weightA) / armorA : 1;
+  const multiplierA = finalB.weight > 0 ? (finalA.weight / finalB.weight) / finalB.armor : 1;
+  const multiplierB = finalA.weight > 0 ? (finalB.weight / finalA.weight) / finalA.armor : 1;
 
   // Retrieve Arsenal Breakdown
   const arsenalA = getAllAttacks(dinoA, stageAIndex, multiplierA);
   const arsenalB = getAllAttacks(dinoB, stageBIndex, multiplierB);
 
-  // Generate Attack HTML Blocks
   const generateArsenalHtml = (arsenal) => {
     if (arsenal.length === 0) return '<span class="muted" style="font-size:0.85em;">No attack damage data found in matrix.</span>';
     return arsenal.map(atk => `
@@ -465,22 +538,29 @@ const runSimulation = () => {
 
   // Sprint Endurance Math
   const sprintCostA = getCustomStageStat(dinoA, 'StaminaSprintCostPerSecond', stageAIndex);
-  const sprintTimeA = sprintCostA > 0 ? Math.floor(stamA / sprintCostA) + ' sec' : 'Unknown';
+  const sprintTimeA = sprintCostA > 0 ? Math.floor(finalA.stam / sprintCostA) + ' sec' : 'Unknown';
   
   const sprintCostB = getCustomStageStat(dinoB, 'StaminaSprintCostPerSecond', stageBIndex);
-  const sprintTimeB = sprintCostB > 0 ? Math.floor(stamB / sprintCostB) + ' sec' : 'Unknown';
+  const sprintTimeB = sprintCostB > 0 ? Math.floor(finalB.stam / sprintCostB) + ' sec' : 'Unknown';
+
+  const formatDelta = (base, final, isDecimal=false) => {
+    if (base === final) return final;
+    const diff = isDecimal ? (final - base).toFixed(3) : Math.round(final - base);
+    const color = final > base ? 'var(--success)' : 'var(--danger)';
+    const sign = diff > 0 ? '+' : '';
+    return `${isDecimal ? final.toFixed(3) : Math.round(final)} <span style="color:${color}; font-size:0.8em;">(${sign}${diff})</span>`;
+  };
 
   // Render Fighter A Card
   elements.simOutputA.innerHTML = `
     <h3 style="color: var(--primary); margin-bottom: 5px;">${dinoA.name}</h3>
-    <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--primary);">${stageNames[stageAIndex]}</span>
     <div style="margin-bottom: 10px;">${generateBadges(dinoA, stageAIndex)}</div>
     
     <div style="font-size: 0.95em; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-      <div><strong class="muted">Health:</strong><br>${healthA} HP</div>
-      <div><strong class="muted">Weight:</strong><br>${weightA}</div>
-      <div><strong class="muted">Armor:</strong><br>${armorA}</div>
-      <div><strong class="muted">Speed:</strong><br>${speedA}</div>
+      <div><strong class="muted">Health:</strong><br>${formatDelta(rawBaseA.health, finalA.health)} HP</div>
+      <div><strong class="muted">Weight:</strong><br>${formatDelta(rawBaseA.weight, finalA.weight)}</div>
+      <div><strong class="muted">Armor:</strong><br>${formatDelta(rawBaseA.armor, finalA.armor, true)}</div>
+      <div><strong class="muted">Speed:</strong><br>${formatDelta(rawBaseA.speed, finalA.speed, true)}</div>
     </div>
     
     <hr style="border-top: 1px solid var(--border); margin: 15px 0;">
@@ -499,14 +579,13 @@ const runSimulation = () => {
   // Render Fighter B Card
   elements.simOutputB.innerHTML = `
     <h3 style="color: var(--danger); margin-bottom: 5px;">${dinoB.name}</h3>
-    <span style="display: inline-block; background: var(--bg); padding: 3px 10px; border-radius: 50px; font-size: 0.8em; color: var(--muted); margin-bottom: 10px; border: 1px solid var(--danger);">${stageNames[stageBIndex]}</span>
     <div style="margin-bottom: 10px;">${generateBadges(dinoB, stageBIndex)}</div>
     
     <div style="font-size: 0.95em; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-      <div><strong class="muted">Health:</strong><br>${healthB} HP</div>
-      <div><strong class="muted">Weight:</strong><br>${weightB}</div>
-      <div><strong class="muted">Armor:</strong><br>${armorB}</div>
-      <div><strong class="muted">Speed:</strong><br>${speedB}</div>
+      <div><strong class="muted">Health:</strong><br>${formatDelta(rawBaseB.health, finalB.health)} HP</div>
+      <div><strong class="muted">Weight:</strong><br>${formatDelta(rawBaseB.weight, finalB.weight)}</div>
+      <div><strong class="muted">Armor:</strong><br>${formatDelta(rawBaseB.armor, finalB.armor, true)}</div>
+      <div><strong class="muted">Speed:</strong><br>${formatDelta(rawBaseB.speed, finalB.speed, true)}</div>
     </div>
     
     <hr style="border-top: 1px solid var(--border); margin: 15px 0;">
@@ -522,41 +601,38 @@ const runSimulation = () => {
     </div>
   `;
 
-  // Analyze Threat Banner (Factoring highest DPS)
+  // Tactical Advice logic
   let tacticalAdvice = "";
   const bestDpsA = arsenalA.length > 0 ? parseFloat(arsenalA[0].dps) : 0;
   const bestDpsB = arsenalB.length > 0 ? parseFloat(arsenalB[0].dps) : 0;
 
-  if (weightA > weightB && bestDpsA > bestDpsB) {
+  if (finalA.weight > finalB.weight && bestDpsA > bestDpsB) {
     tacticalAdvice = `<strong style="color: var(--success);">OVERWHELMING ADVANTAGE:</strong> You possess both the weight and raw DPS advantage. Facetanking is highly favorable.`;
-  } else if (weightA > weightB && bestDpsA <= bestDpsB) {
+  } else if (finalA.weight > finalB.weight && bestDpsA <= bestDpsB) {
     tacticalAdvice = `<strong style="color: var(--info);">WEIGHT ADVANTAGE, BUT BE CAUTIOUS:</strong> You have the mass, but their attack speed/DPS outpaces yours. Do not miss your strikes.`;
-  } else if (weightA < weightB) {
+  } else if (finalA.weight < finalB.weight) {
     tacticalAdvice = `<strong style="color: var(--danger);">LETHAL THREAT:</strong> Opponent out-weighs you. Facetanking will result in death. Rely on hit-and-run tactics.`;
   } else {
     tacticalAdvice = `<strong style="color: var(--info);">EVEN MATCHUP:</strong> Combat weights are identical. This fight comes down to raw DPS, armor hides, and player skill.`;
   }
 
-  // Turn Radius / Agility Warning
-  const turnA = getCustomStageStat(dinoA, 'TurnRadiusMultiplier', stageAIndex) || 1;
-  const turnB = getCustomStageStat(dinoB, 'TurnRadiusMultiplier', stageBIndex) || 1;
-  if (turnB > turnA) {
-    tacticalAdvice += `<br><span style="color: var(--danger); font-size: 0.9em; display: block; margin-top: 8px;">⚠️ <strong>AGILITY WARNING:</strong> Target has a tighter Turn Radius multiplier (${turnB} vs ${turnA}). Do not let them get behind you.</span>`;
-  } else if (turnA > turnB) {
-    tacticalAdvice += `<br><span style="color: var(--success); font-size: 0.9em; display: block; margin-top: 8px;">🎯 <strong>AGILITY ADVANTAGE:</strong> You can turn tighter than the target (${turnA} vs ${turnB}). Exploit tail-riding maneuvers.</span>`;
+  // Agility Warning
+  if (finalB.turn > finalA.turn) {
+    tacticalAdvice += `<br><span style="color: var(--danger); font-size: 0.9em; display: block; margin-top: 8px;">⚠️ <strong>AGILITY WARNING:</strong> Target has a tighter Turn Radius multiplier (${finalB.turn.toFixed(2)} vs ${finalA.turn.toFixed(2)}). Do not let them get behind you.</span>`;
+  } else if (finalA.turn > finalB.turn) {
+    tacticalAdvice += `<br><span style="color: var(--success); font-size: 0.9em; display: block; margin-top: 8px;">🎯 <strong>AGILITY ADVANTAGE:</strong> You can turn tighter than the target (${finalA.turn.toFixed(2)} vs ${finalB.turn.toFixed(2)}). Exploit tail-riding maneuvers.</span>`;
   }
 
   elements.advantageBanner.innerHTML = tacticalAdvice;
 
-  // Detailed Speed & Endurance Comparison
+  // Speed & Endurance Display
   let enduranceHtml = ``;
-  
-  if (speedA > speedB) {
-    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><strong style="color: var(--success);">Faster Sprint Speed</strong> (${speedA} vs ${speedB}). You control the engagement spacing.</div>`;
-  } else if (speedA < speedB) {
-    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><strong style="color: var(--danger);">Slower Sprint Speed</strong> (${speedA} vs ${speedB}). You cannot outrun them if things go bad.</div>`;
+  if (finalA.speed > finalB.speed) {
+    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><strong style="color: var(--success);">Faster Sprint Speed</strong> (${finalA.speed.toFixed(3)} vs ${finalB.speed.toFixed(3)}). You control the engagement spacing.</div>`;
+  } else if (finalA.speed < finalB.speed) {
+    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><strong style="color: var(--danger);">Slower Sprint Speed</strong> (${finalA.speed.toFixed(3)} vs ${finalB.speed.toFixed(3)}). You cannot outrun them if things go bad.</div>`;
   } else {
-    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><span class="muted">Sprint Speeds are identical (${speedA}).</span></div>`;
+    enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><span class="muted">Sprint Speeds are identical (${finalA.speed.toFixed(3)}).</span></div>`;
   }
 
   enduranceHtml += `<div style="padding: 10px; display: flex; justify-content: space-between; align-items: center;">
@@ -566,7 +642,6 @@ const runSimulation = () => {
   </div>`;
 
   elements.speedComparison.innerHTML = enduranceHtml;
-  elements.staminaComparison.innerHTML = '';
 };
 
 // --- Roster Logic ---
@@ -601,7 +676,9 @@ const renderList = () => {
     return;
   }
 
-  filtered.forEach(creature => {
+  const sorted = [...filtered].sort((a,b) => a.name.localeCompare(b.name));
+
+  sorted.forEach(creature => {
     const item = document.createElement('div');
     item.className = `list-item ${currentCreatureId === creature.id ? 'active' : ''}`;
     item.style.cursor = 'pointer';
@@ -630,6 +707,7 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
 
+  populateModifiersDropdowns();
   updateTierOptions();
   renderList();
 
@@ -652,10 +730,18 @@ const init = async () => {
 
   if(elements.fighterA) {
     populateDropdowns();
-    elements.fighterA.addEventListener('change', runSimulation);
-    elements.fighterB.addEventListener('change', runSimulation);
-    if(elements.fighterAStage) elements.fighterAStage.addEventListener('change', runSimulation);
-    if(elements.fighterBStage) elements.fighterBStage.addEventListener('change', runSimulation);
+    
+    // Bind all the new modifiers so the simulator updates the math instantly when toggled
+    const bindSim = (el) => { if(el) el.addEventListener('change', runSimulation); };
+    
+    bindSim(elements.fighterA); bindSim(elements.fighterB);
+    bindSim(elements.fighterAStage); bindSim(elements.fighterBStage);
+    
+    bindSim(elements.fighterARole); bindSim(elements.fighterBRole);
+    bindSim(elements.fighterAMutation); bindSim(elements.fighterBMutation);
+    bindSim(elements.fighterAGenetic); bindSim(elements.fighterBGenetic);
+    bindSim(elements.fighterAElder); bindSim(elements.fighterBElder);
+
     runSimulation();
   }
 
