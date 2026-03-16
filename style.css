@@ -147,3 +147,54 @@ input[type=range]::-webkit-slider-runnable-track {
 /* Toasts */
 .toast { visibility: hidden; min-width: 250px; background-color: var(--primary); color: #fff; text-align: center; border-radius: 50px; padding: 16px 24px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: bold; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+
+/* === EAHA MOBILE OPTIMIZATION PROTOCOL === */
+@media (max-width: 768px) {
+  /* 1. Swipeable App Navigation */
+  .nav-links {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch; /* Enables buttery smooth iOS momentum scrolling */
+    padding-bottom: 5px;
+    gap: 8px;
+  }
+  .nav-links::-webkit-scrollbar { 
+    display: none; /* Hides the scrollbar for a native app feel */
+  }
+  
+  /* 2. Single-Column Layouts */
+  .dashboard-grid, .form-grid, .preset-sidebar {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Stack Flexbox layouts that are side-by-side on desktop */
+  .builder-workspace {
+    flex-direction: column;
+  }
+  .hero {
+    flex-direction: column;
+    text-align: center;
+  }
+  .hero > div {
+    width: 100%;
+    text-align: center !important;
+    align-items: center !important;
+  }
+
+  /* 3. Touch-Target Padding & Typography */
+  .card { padding: 15px; }
+  h1 { font-size: 1.8em !important; }
+  .kd-display { font-size: 2.5em; }
+  
+  .btn, .toolbar-btn, .nav-btn {
+    padding: 12px 16px; /* Larger hitboxes for thumbs */
+  }
+
+  /* 4. Map Container Fixes */
+  .map-window {
+    height: 60vh;
+    max-height: 500px;
+    aspect-ratio: auto;
+  }
+}
