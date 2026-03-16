@@ -3,7 +3,6 @@
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [] };
 let pendingPin = null; 
-let syncPendingPin = null; 
 let editingPinId = null; 
 
 // Navigation Engine State
@@ -30,7 +29,6 @@ const elements = {
   search: document.getElementById('pinSearch'),
   filter: document.getElementById('pinFilter'),
   clearAllBtn: document.getElementById('clearAllPinsBtn'),
-  uploadSnipInput: document.getElementById('uploadSnipInput'),
   
   // Route Planner Elements
   routeList: document.getElementById('routeList'),
@@ -55,15 +53,7 @@ const elements = {
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
   saveBtn: document.getElementById('savePinBtn'),
-  cancelBtn: document.getElementById('cancelPinBtn'),
-
-  // Sync Radar Modal
-  syncModal: document.getElementById('syncModal'),
-  snipContainer: document.getElementById('snipContainer'),
-  snipImageDisplay: document.getElementById('snipImageDisplay'),
-  snipCrosshair: document.getElementById('snipCrosshair'),
-  confirmSyncBtn: document.getElementById('confirmSyncBtn'),
-  cancelSyncBtn: document.getElementById('cancelSyncBtn')
+  cancelBtn: document.getElementById('cancelPinBtn')
 };
 
 // --- Utilities ---
@@ -263,81 +253,44 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
 });
 
 
-// --- Recon Sync Engine (Image Snip Processing) ---
-const handleImageUpload = (file) => {
-  if (!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    elements.snipImageDisplay.src = e.target.result;
-    elements.syncModal.classList.remove('is-hidden');
-    elements.snipCrosshair.classList.add('is-hidden');
-    syncPendingPin = null;
-    showToast("Snip acquired. Awaiting manual radar calibration.", "info");
-  };
-  reader.readAsDataURL(file);
-};
-
-elements.uploadSnipInput.addEventListener('change', (e) => {
-  if (e.target.files.length > 0) handleImageUpload(e.target.files[0]);
-  e.target.value = ''; 
-});
-
+// --- Recon Sync Engine (Coordinate Paste Listener) ---
 window.addEventListener('paste', (e) => {
+  // Ignore paste events if the user is typing in a text field
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-  for (let item of items) {
-    if (item.kind === 'file' && item.type.startsWith('image/')) {
-      handleImageUpload(item.getAsFile());
-      break;
-    }
-  }
-});
 
-// Radar Calibration with Aspect Ratio Correction
-elements.snipContainer.addEventListener('click', (e) => {
-  const rect = elements.snipImageDisplay.getBoundingClientRect();
-  let xPercent, yPercent;
+  const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+  
+  // Extract X, Y, Z from standard PoT output format
+  const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+),\s*Z=([\d.-]+)/i;
+  const match = pasteData.match(coordRegex);
 
-  if (rect.width > rect.height) {
-    const mapSize = rect.height; 
-    const xOffset = (rect.width - mapSize) / 2; 
-    const adjustedX = e.clientX - rect.left - xOffset;
+  if (match) {
+    const xUU = parseFloat(match[1]);
+    const yUU = parseFloat(match[2]);
+    const zUU = parseFloat(match[3]);
+
+    // Map dimensions calculation
+    const mapRadiusUU = 416000; // Expected max distance from Gondwa origin to edge
+
+    // Convert coordinates to percentage for responsive map placement
+    let xPercent = ((xUU / mapRadiusUU) * 50) + 50;
+    let yPercent = ((yUU / mapRadiusUU) * 50) + 50;
+
+    // Clamp values to ensure marker stays on the image bounds
+    xPercent = Math.max(0, Math.min(xPercent, 100));
+    yPercent = Math.max(0, Math.min(yPercent, 100));
+
+    pendingPin = { x: xPercent, y: yPercent };
     
-    xPercent = (adjustedX / mapSize) * 100;
-    yPercent = ((e.clientY - rect.top) / mapSize) * 100;
-  } else {
-    xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-    yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+    if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
+    elements.newPinLabel.value = '';
+    setMode('pin');
+    elements.modal.classList.remove('is-hidden');
+    elements.newPinLabel.focus();
+
+    showToast("Target coordinates acquired. Awaiting confirmation.", "success");
+    console.log(`Jarvis Protocol: Coordinates mapped to ${xPercent.toFixed(2)}% X, ${yPercent.toFixed(2)}% Y.`);
   }
-
-  syncPendingPin = { x: xPercent, y: yPercent };
-
-  const visualXPercent = ((e.clientX - rect.left) / rect.width) * 100;
-  const visualYPercent = ((e.clientY - rect.top) / rect.height) * 100;
-  
-  elements.snipCrosshair.style.left = `${visualXPercent}%`;
-  elements.snipCrosshair.style.top = `${visualYPercent}%`;
-  elements.snipCrosshair.classList.remove('is-hidden');
-});
-
-elements.confirmSyncBtn.addEventListener('click', () => {
-  if (!syncPendingPin) {
-    showToast("Commander, you must click your location on the map snip first.", "error");
-    return;
-  }
-  elements.syncModal.classList.add('is-hidden');
-  pendingPin = { x: syncPendingPin.x, y: syncPendingPin.y };
-  
-  if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
-  elements.newPinLabel.value = '';
-  setMode('pin'); // Ensure we are in pin mode to catch it
-  elements.modal.classList.remove('is-hidden');
-  elements.newPinLabel.focus();
-});
-
-elements.cancelSyncBtn.addEventListener('click', () => {
-  elements.syncModal.classList.add('is-hidden');
-  syncPendingPin = null;
 });
 
 
