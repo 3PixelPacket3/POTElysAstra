@@ -49,7 +49,6 @@ window.EAHAModifiers = {
     "Armor x Health": { armor: 0.05, health: 50, description: "+0.05 Armor, +50 Health" }
   },
   genetics: {
-    "None": { description: "No genetic equipped." },
     "Speed Genetic": { speed: 0.075, description: "+0.075 Speed" },
     "Turn Genetic": { turn: 0.075, description: "+0.075 Turn Radius" },
     "Survival Genetic": { staminaRegen: 0.1, healRate: 0.1, description: "+0.1 Stamina/Heal Rate" },
@@ -71,7 +70,6 @@ const EAHADataStore = {
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
 
-  // 1. Initialize High-Capacity IndexedDB
   async initDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, 1);
@@ -108,14 +106,11 @@ const EAHADataStore = {
     });
   },
 
-  // 2. Main Retrieval Engine
   async getData() {
     try {
-      // Step A: Try to load from the new high-capacity IndexedDB
       const data = await this.getIndexedData(this.MASTER_KEY);
       if (data) return data;
 
-      // Step B: MIGRATION - If no IndexedDB data exists, check old LocalStorage and move it over
       const localData = localStorage.getItem(this.MASTER_KEY);
       if (localData) {
         console.log("Jarvis: Migrating legacy data to high-capacity storage.");
@@ -127,7 +122,6 @@ const EAHADataStore = {
       console.error("Jarvis Error: IndexedDB retrieval failed.", e);
     }
 
-    // Step C: Fallback to Baseline JSON if completely empty
     return await this.loadBaseJSON();
   },
 
@@ -145,10 +139,10 @@ const EAHADataStore = {
           strippedDb.creatures = fullBackup.database.creatures.map(c => {
             const cleanCreature = { ...c };
             cleanCreature.stats = { base: cleanCreature.stats?.base || {}, custom: [] };
-            // Ensure the new modifier fields exist on load
             cleanCreature.role = cleanCreature.role || 'None';
             cleanCreature.mutation = cleanCreature.mutation || 'None';
-            cleanCreature.genetic = cleanCreature.genetic || 'None';
+            // Array Migration for Genetics
+            cleanCreature.genetics = cleanCreature.genetics || (cleanCreature.genetic && cleanCreature.genetic !== 'None' ? [cleanCreature.genetic] : []);
             return cleanCreature;
           });
         }
@@ -169,7 +163,6 @@ const EAHADataStore = {
     }
   },
 
-  // 3. System Update Engine
   async mergeWithBase() {
     try {
       const response = await fetch('JSON.json');
@@ -203,7 +196,8 @@ const EAHADataStore = {
               cleanCreature.stats = { base: jsonCrea.stats?.base || {}, custom: [] };
               cleanCreature.role = jsonCrea.role || 'None';
               cleanCreature.mutation = jsonCrea.mutation || 'None';
-              cleanCreature.genetic = jsonCrea.genetic || 'None';
+              // Array Migration for Genetics
+              cleanCreature.genetics = jsonCrea.genetics || (jsonCrea.genetic && jsonCrea.genetic !== 'None' ? [jsonCrea.genetic] : []);
               localDb.creatures.push(cleanCreature);
               addedCount++;
             } else {
@@ -216,7 +210,7 @@ const EAHADataStore = {
                 },
                 role: localDb.creatures[existingIndex].role || 'None',
                 mutation: localDb.creatures[existingIndex].mutation || 'None',
-                genetic: localDb.creatures[existingIndex].genetic || 'None'
+                genetics: localDb.creatures[existingIndex].genetics || (localDb.creatures[existingIndex].genetic && localDb.creatures[existingIndex].genetic !== 'None' ? [localDb.creatures[existingIndex].genetic] : [])
               };
             }
           });
@@ -244,7 +238,6 @@ const EAHADataStore = {
     }
   },
 
-  // 4. Save to IndexedDB
   async saveData(dataObj) {
     try {
       await this.setIndexedData(this.MASTER_KEY, dataObj);
@@ -255,9 +248,7 @@ const EAHADataStore = {
     }
   },
 
-  // 5. Factory Reset
   async resetToBase() {
-    // Clear LocalStorage fragments
     localStorage.removeItem(this.MASTER_KEY);
     localStorage.removeItem('eahaPostPresets');
     localStorage.removeItem('eahaLifelines');
@@ -265,7 +256,6 @@ const EAHADataStore = {
     localStorage.removeItem('eahaActiveCreature');
     localStorage.removeItem('eahaTimeZone');
     
-    // Clear IndexedDB Master
     try {
       const db = await this.initDB();
       const transaction = db.transaction([this.STORE_NAME], 'readwrite');
