@@ -43,7 +43,7 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      pointer-events: none; /* Let clicks pass through to the mapImage */
+      pointer-events: none; 
       z-index: 2;
     }
 
@@ -133,33 +133,6 @@
     }
     .toolbar-btn.active { background: var(--primary); color: #fff; }
     .toolbar-btn:hover:not(.active) { background: color-mix(in srgb, var(--primary) 20%, transparent); color: var(--text); }
-    
-    /* Snip Sync Radar Overlay */
-    .snip-container {
-      position: relative;
-      max-width: 100%;
-      max-height: 60vh;
-      overflow: hidden;
-      border: 2px solid var(--primary);
-      border-radius: 8px;
-      cursor: crosshair;
-    }
-    .snip-image {
-      display: block;
-      max-width: 100%;
-      height: auto;
-      pointer-events: none;
-    }
-    .snip-crosshair {
-      position: absolute;
-      width: 20px; height: 20px;
-      border: 2px solid #0ea5e9;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      box-shadow: 0 0 10px #0ea5e9, inset 0 0 10px #0ea5e9;
-      background: rgba(14, 165, 233, 0.3);
-    }
   </style>
 </head>
 <body>
@@ -241,6 +214,13 @@
       </div>
 
       <div class="map-window" id="mapWindow" tabindex="0">
+        
+        <div id="calibrationTools" class="is-hidden" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg); border: 2px solid #10b981; padding: 10px 20px; border-radius: 50px; z-index: 100; display: flex; gap: 15px; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.8);">
+            <span style="font-weight: bold; color: #10b981;">Refine Target Alignment</span>
+            <button id="confirmDeployBtn" class="btn btn-sm" style="background: #10b981; border-color: #10b981; color: #fff;">Confirm & Save</button>
+            <button id="cancelDeployBtn" class="btn btn-ghost btn-sm" style="color: var(--danger); border-color: transparent;">Cancel</button>
+        </div>
+
         <div class="map-transform" id="mapTransform">
           <img class="map-image" id="mapImage" src="gondwa.jpg" alt="Gondwa Map">
           
