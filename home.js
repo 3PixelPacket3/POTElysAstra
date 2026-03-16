@@ -491,7 +491,7 @@ const setupCommandListeners = () => {
     const input = document.getElementById('newCommandInput');
     const newCmd = input.value.trim();
     if (newCmd) {
-      commands.push(newCmd.startsWith('!') ? newCmd : `!${newCmd}`);
+      commands.push(newCmd); // NOTE: Forced "!" prefix removed as requested
       input.value = '';
       saveCommands();
       renderCommands();
@@ -608,12 +608,40 @@ const updateCombatAnalytics = () => {
     }
   });
 
+  // Top Ratios
   const calcKD = (k, d) => d === 0 ? k.toFixed(1) : (k / d).toFixed(2);
-  
   document.getElementById('overall-kd').textContent = calcKD(overallKills, overallDeaths);
   document.getElementById('creature-kd').textContent = activeName ? calcKD(activeKills, activeDeaths) : '--';
   document.getElementById('creature-kd').style.color = activeName ? 'var(--primary)' : 'var(--text)';
 
+  // Calculate Engagement Breakdown Math
+  const totalEncounters = overallKills + overallDeaths;
+  const winPercent = totalEncounters > 0 ? Math.round((overallKills / totalEncounters) * 100) : 0;
+  const lossPercent = totalEncounters > 0 ? Math.round((overallDeaths / totalEncounters) * 100) : 0;
+
+  // Render HTML Breakdown
+  const breakdownEl = document.getElementById('outcomeBreakdown');
+  if (breakdownEl) {
+    breakdownEl.innerHTML = `
+      <div style="background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+        <strong style="color: var(--text); display: block; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px; font-size: 1.1em;">Engagement Split</strong>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 1.05em;">
+          <span style="color: #10b981;">👑 Victories</span>
+          <span style="font-weight: bold;">${overallKills} <span class="muted" style="font-weight: normal; font-size: 0.85em;">(${winPercent}%)</span></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 1.05em;">
+          <span style="color: var(--danger);">💀 Defeats</span>
+          <span style="font-weight: bold;">${overallDeaths} <span class="muted" style="font-weight: normal; font-size: 0.85em;">(${lossPercent}%)</span></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border); font-size: 1.1em;">
+          <span style="color: var(--muted);">Total Logs</span>
+          <span style="font-weight: 800; color: var(--primary);">${totalEncounters}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // Render Chart
   renderDeathChart(deathCauses);
 };
 
