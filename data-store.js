@@ -138,10 +138,13 @@ const EAHADataStore = {
         if (fullBackup.database.creatures) {
           strippedDb.creatures = fullBackup.database.creatures.map(c => {
             const cleanCreature = { ...c };
-            cleanCreature.stats = { base: cleanCreature.stats?.base || {}, custom: [] };
+            // Allow ALL stats (base and custom) to load directly from the JSON
+            cleanCreature.stats = { 
+              base: cleanCreature.stats?.base || {}, 
+              custom: cleanCreature.stats?.custom || [] 
+            };
             cleanCreature.role = cleanCreature.role || 'None';
             cleanCreature.mutation = cleanCreature.mutation || 'None';
-            // Array Migration for Genetics
             cleanCreature.genetics = cleanCreature.genetics || (cleanCreature.genetic && cleanCreature.genetic !== 'None' ? [cleanCreature.genetic] : []);
             return cleanCreature;
           });
@@ -193,20 +196,21 @@ const EAHADataStore = {
             const existingIndex = localDb.creatures.findIndex(c => c.id === jsonCrea.id);
             if (existingIndex === -1) {
               const cleanCreature = { ...jsonCrea };
-              cleanCreature.stats = { base: jsonCrea.stats?.base || {}, custom: [] };
+              cleanCreature.stats = { 
+                base: jsonCrea.stats?.base || {}, 
+                custom: jsonCrea.stats?.custom || [] 
+              };
               cleanCreature.role = jsonCrea.role || 'None';
               cleanCreature.mutation = jsonCrea.mutation || 'None';
-              // Array Migration for Genetics
               cleanCreature.genetics = jsonCrea.genetics || (jsonCrea.genetic && jsonCrea.genetic !== 'None' ? [jsonCrea.genetic] : []);
               localDb.creatures.push(cleanCreature);
               addedCount++;
             } else {
-              const existingCustom = localDb.creatures[existingIndex].stats?.custom || [];
               localDb.creatures[existingIndex] = {
                 ...jsonCrea,
                 stats: {
                   base: jsonCrea.stats?.base || {},
-                  custom: existingCustom
+                  custom: jsonCrea.stats?.custom || [] // Overwrites old custom stats with the master server's custom stats
                 },
                 role: localDb.creatures[existingIndex].role || 'None',
                 mutation: localDb.creatures[existingIndex].mutation || 'None',
