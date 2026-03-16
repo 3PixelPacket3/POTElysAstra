@@ -142,7 +142,10 @@
 </head>
 <body>
 <header class="top-nav">
-    <div class="brand">Elys Astra Helper Application</div>
+    <div class="nav-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <div class="brand">Elys Astra Helper Application</div>
+      <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('active')">☰</button>
+    </div>
     <nav class="nav-links">
       <a class="nav-btn" href="index.html">Dashboard</a>
       <a class="nav-btn" href="apps.html">Post Builder</a>
