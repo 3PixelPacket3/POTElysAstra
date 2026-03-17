@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const syncStatus = document.getElementById('syncStatus');
     const logoutBtn = document.getElementById('logoutBtn');
     const exportDataBtn = document.getElementById('exportDataBtn');
-    const importDataInput = document.getElementById('importDataInput'); // Now in the Admin Zone
+    const importDataInput = document.getElementById('importDataInput');
     const adminZone = document.getElementById('adminZone');
     
     // Account Management Nodes
@@ -23,10 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Populate User Settings
-        displayEmail.value = user.email;
+        if (displayEmail) {
+            displayEmail.value = user.email;
+        }
 
         // Admin Authority Check
-        if (user.email === 'admin@elysastra.com') {
+        if (user.email === 'admin@elysastra.com' && adminZone) {
             adminZone.classList.remove('is-hidden');
         }
     });
@@ -100,21 +102,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 5. Export Personal Local Backup ---
+    // --- 5. Export Full System Backup (Admin Only) ---
     if (exportDataBtn) {
         exportDataBtn.addEventListener('click', async () => {
             const data = await window.EAHADataStore.getData();
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "EAHA_Personal_Backup_" + new Date().toISOString().slice(0,10) + ".json");
+            downloadAnchorNode.setAttribute("download", "EAHA_Full_Backup_" + new Date().toISOString().slice(0,10) + ".json");
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
         });
     }
 
-    // --- 6. Admin Global Baseline Import ---
+    // --- 6. Admin Global Baseline Import (Legacy Unwrapper Active) ---
     if (importDataInput) {
         importDataInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -123,7 +125,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
-                    const importedData = JSON.parse(e.target.result);
+                    let importedData = JSON.parse(e.target.result);
+                    
+                    // JARVIS FIX: Detect and unwrap legacy JSON structures
+                    if (importedData.database) {
+                        importedData = importedData.database;
+                    }
+                    // Ensure core arrays exist to prevent crashes
+                    if (!importedData.creatures) importedData.creatures = [];
+                    if (!importedData.rules) importedData.rules = [];
+
                     // Pushing this will trigger the Admin override we built in data-store.js
                     await window.EAHADataStore.saveData(importedData);
                     alert("Admin Override Complete: Legacy backup successfully pushed to the global baseline.");
