@@ -1,7 +1,8 @@
 import { auth } from './data-store.js';
 import { onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // --- Existing Elements ---
     const syncCloudBtn = document.getElementById('syncCloudBtn');
     const syncStatus = document.getElementById('syncStatus');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -14,17 +15,115 @@ document.addEventListener('DOMContentLoaded', () => {
     const updatePasswordBtn = document.getElementById('updatePasswordBtn');
     const accountMsg = document.getElementById('accountMsg');
 
-    onAuthStateChanged(auth, (user) => {
+    // --- NEW: User Preference Elements ---
+    const userLandingPage = document.getElementById('userLandingPage');
+    const userTheme = document.getElementById('userTheme');
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
+
+    // --- NEW: Admin Configuration Elements ---
+    const adminReleaseNotes = document.getElementById('adminReleaseNotes');
+    const adminMigrations = document.getElementById('adminMigrations');
+    const adminRebirths = document.getElementById('adminRebirths');
+    const saveSystemConfigBtn = document.getElementById('saveSystemConfigBtn');
+
+    // Load Local User Preferences
+    if (userLandingPage) {
+        const savedPage = localStorage.getItem('eaha_landing_page');
+        if (savedPage) userLandingPage.value = savedPage;
+        
+        userLandingPage.addEventListener('change', (e) => {
+            localStorage.setItem('eaha_landing_page', e.target.value);
+            showToast("Default landing page updated.");
+        });
+    }
+
+    if (userTheme) {
+        const savedTheme = localStorage.getItem('eaha_theme') || 'dark';
+        userTheme.value = savedTheme;
+        
+        userTheme.addEventListener('change', (e) => {
+            const theme = e.target.value;
+            localStorage.setItem('eaha_theme', theme);
+            document.body.dataset.theme = theme; // Hooks into CSS if you expand themes later
+            showToast(`Theme set to ${theme} mode.`);
+        });
+    }
+
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', async () => {
+            if (confirm("WARNING: This will wipe your local device cache and log you out. Unsaved custom variables will be lost. Proceed?")) {
+                localStorage.clear();
+                // Nuke the IndexedDB completely
+                try { indexedDB.deleteDatabase('EAHADatabase'); } catch(e) {}
+                await signOut(auth);
+                window.location.replace("login.html");
+            }
+        });
+    }
+
+    // --- Utility Toast ---
+    const showToast = (message, type = 'success') => {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.textContent = message;
+        toast.className = `toast toast-${type} show`;
+        if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+        else toast.style.backgroundColor = 'var(--primary)';
+        setTimeout(() => toast.className = 'toast', 3000);
+    };
+
+    // --- Core Authentication & Data Loading ---
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.replace("login.html");
             return;
         }
         if (displayEmail) displayEmail.value = user.email;
+        
+        // Admin Validation & Loading
         if (user.email === 'admin@elysastra.com' && adminZone) {
             adminZone.classList.remove('is-hidden');
+            
+            // Fetch current database to populate Admin fields
+            const db = await window.EAHADataStore.getData();
+            if (db.system_settings) {
+                if (adminReleaseNotes) adminReleaseNotes.value = db.system_settings.releaseNotes || '';
+                if (adminMigrations) adminMigrations.value = db.system_settings.maxMigrations || 1;
+                if (adminRebirths) adminRebirths.value = db.system_settings.maxRebirths || 3;
+            }
         }
     });
 
+    // --- Admin: Save System Config ---
+    if (saveSystemConfigBtn) {
+        saveSystemConfigBtn.addEventListener('click', async () => {
+            saveSystemConfigBtn.disabled = true;
+            saveSystemConfigBtn.innerText = "Broadcasting...";
+
+            const db = await window.EAHADataStore.getData();
+            
+            // Bundle the new settings
+            db.system_settings = {
+                releaseNotes: adminReleaseNotes.value,
+                maxMigrations: parseInt(adminMigrations.value, 10),
+                maxRebirths: parseInt(adminRebirths.value, 10),
+                lastUpdated: Date.now()
+            };
+
+            const success = await window.EAHADataStore.saveData(db);
+            
+            if (success) {
+                showToast("Global configuration broadcasted to central server.");
+            } else {
+                showToast("Broadcast failed. Check connection.", "error");
+            }
+
+            saveSystemConfigBtn.disabled = false;
+            saveSystemConfigBtn.innerText = "📡 Broadcast Configuration Update";
+        });
+    }
+
+    // --- Existing Security & Sync Logic ---
     if (updatePasswordBtn) {
         updatePasswordBtn.addEventListener('click', async () => {
             const user = auth.currentUser;
@@ -119,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     await window.EAHADataStore.saveData(importedData);
                     
-                    // JARVIS FIX: Aggressively purge local cache so the desktop fetches the fresh cloud data immediately
                     await window.EAHADataStore.resetToCloudBase();
                     
                     alert("Admin Override Complete: Legacy backup successfully pushed to the global baseline.");
