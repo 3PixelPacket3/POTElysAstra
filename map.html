@@ -2,143 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EAHA | Tactical Map Room</title>
+  <title>EAHA | Tactical Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
-  <style>
-    /* === CSS UPDATED TO ELIMINATE BLACK BORDER === */
-    .map-window {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1 / 1; /* Forces perfect square to match Gondwa image */
-      max-height: 75vh;    /* Prevents it from being too huge on desktop screens */
-      margin: 0 auto;      /* Centers the map */
-      border-radius: 12px;
-      overflow: hidden;
-      border: 2px solid var(--border);
-      background: #0f1115;
-      cursor: grab;
-    }
-    .map-window.pin-mode { cursor: crosshair; }
-    .map-window.route-mode { cursor: crosshair; }
-    .map-window:active:not(.pin-mode):not(.route-mode) { cursor: grabbing; }
-    
-    .map-transform {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
-      transform-origin: 0 0;
-      --map-scale: 1; 
-    }
-    
-    .map-image {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      pointer-events: auto; 
-      user-select: none;
-      -webkit-user-drag: none;
-    }
-
-    /* Route Vector Layer */
-    .route-layer {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none; 
-      z-index: 2;
-    }
-
-    /* Pin Layer */
-    #pinLayer {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; 
-      z-index: 3;
-    }
-
-    .map-pin {
-      position: absolute;
-      transform: translate(-50%, -100%) scale(calc(1 / var(--map-scale)));
-      font-size: 1.5em;
-      cursor: pointer;
-      pointer-events: auto; 
-      transition: filter 0.2s ease;
-      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
-    }
-    .map-pin:hover {
-      filter: drop-shadow(0px 4px 8px rgba(0,0,0,1)) brightness(1.2);
-      z-index: 10;
-    }
-    
-    .pin-label {
-      position: absolute;
-      top: -28px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg-alt);
-      color: var(--text);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 0.6em;
-      font-weight: bold;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.2s;
-      border: 1px solid var(--border);
-      box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-    }
-    .map-pin:hover .pin-label { opacity: 1; }
-
-    /* Modal Styles */
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 100;
-      backdrop-filter: blur(4px);
-    }
-
-    /* Control Toolbar */
-    .map-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--bg);
-      padding: 10px 15px;
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .toolbar-group {
-      display: flex;
-      gap: 5px;
-      background: var(--bg-alt);
-      padding: 5px;
-      border-radius: 8px;
-    }
-    .toolbar-btn {
-      background: transparent;
-      border: none;
-      color: var(--muted);
-      padding: 8px 15px;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .toolbar-btn.active { background: var(--primary); color: #fff; }
-    .toolbar-btn:hover:not(.active) { background: color-mix(in srgb, var(--primary) 20%, transparent); color: var(--text); }
-  </style>
 </head>
 <body>
 <header class="top-nav">
@@ -162,131 +29,65 @@
 
   <main class="page builder-workspace">
     
-    <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary); display: flex; flex-direction: column; gap: 20px;">
+    <aside class="preset-sidebar card" style="border-top: 5px solid var(--info);">
+      <h2 style="font-size: 1.5em; margin-bottom: 10px;">Recon Data</h2>
+      <p class="muted" style="margin-bottom: 15px; font-size: 0.9em; line-height: 1.4;">Your saved tactical markers and migration routes.</p>
       
-      <div>
-        <h2 style="font-size: 1.5em; margin-bottom: 5px;">Reconnaissance</h2>
-        <p class="muted" style="margin-bottom: 15px; font-size: 0.85em; line-height: 1.4;">Click the map and press <b>Ctrl+V</b> to paste your in-game coordinates (e.g., X=..., Y=..., Z=...) and deploy a marker.</p>
-        <hr style="border-top: 1px solid var(--border); margin: 5px 0;">
-      </div>
-
-      <div style="flex: 1; display: flex; flex-direction: column; min-height: 200px;">
-        <h3 style="color: var(--text); margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Tactical Routes</h3>
-        <div class="preset-list" id="routeList" style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto;">
-          </div>
-      </div>
-
-      <div style="flex: 1; display: flex; flex-direction: column; min-height: 300px;">
-        <h3 style="color: var(--text); margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Map Markers</h3>
-        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-          <input type="text" id="pinSearch" placeholder="Search markers...">
-          <select id="pinFilter" class="full-width" style="cursor: pointer;">
-            <option value="all">All Markers</option>
-            <option value="👑">👑 PvP Kills</option>
-            <option value="💀">💀 PvP Deaths</option>
-            <option value="🥩">🥩 Food Sources</option>
-            <option value="💧">💧 Water Sources</option>
-            <option value="💎">💎 Homecaves / Waystones</option>
-            <option value="🌿">🌿 Rare Resources</option>
-            <option value="⚠️">⚠️ Danger Zones</option>
-          </select>
-          <button class="btn btn-ghost full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">Clear All Markers</button>
-        </div>
-        <div class="preset-list" id="pinList" style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto;">
-          </div>
-      </div>
-
+      <div id="savedPinsList" class="preset-list" style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;"></div>
+      <hr style="border-color: var(--border); margin: 15px 0;">
+      <div id="savedRoutesList" class="preset-list" style="max-height: 200px; overflow-y: auto;"></div>
     </aside>
 
-    <section class="editor-pane scrollable" style="flex: 2; display: flex; flex-direction: column;">
+    <section class="editor-pane scrollable" style="flex: 2;">
       
-      <div class="map-toolbar">
-        <div class="toolbar-group">
-          <button id="modePanBtn" class="toolbar-btn active">🤚 Navigation</button>
-          <button id="modePinBtn" class="toolbar-btn">📍 Deploy Marker</button>
-          <button id="modeRouteBtn" class="toolbar-btn" style="color: #10b981;">🛤️ Draw Route</button>
-        </div>
-        <div class="toolbar-group">
-          <button id="zoomOutBtn" class="toolbar-btn">🔍 -</button>
-          <button id="resetZoomBtn" class="toolbar-btn">Reset View</button>
-          <button id="zoomInBtn" class="toolbar-btn">🔍 +</button>
-        </div>
-      </div>
-
-      <div id="routeTools" class="is-hidden" style="display: flex; justify-content: space-between; align-items: center; background: color-mix(in srgb, #10b981 10%, var(--bg)); border: 1px solid #10b981; padding: 10px 15px; border-radius: 12px; margin-bottom: 15px;">
-        <span style="color: #10b981; font-weight: bold; font-size: 0.9em;">Route Editing Mode: Click to add waypoints. Right-click map to undo.</span>
-        <div style="display: flex; gap: 10px;">
-          <button id="saveRouteBtn" class="btn btn-sm" style="background: #10b981; border-color: #10b981; color: #fff;">Save Route</button>
-          <button id="cancelRouteBtn" class="btn btn-ghost btn-sm" style="color: var(--danger); border-color: transparent;">Cancel</button>
+      <div class="card" style="border-top: 5px solid var(--primary); margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <h2 style="margin: 0; color: var(--primary);">Gondwa Tactical Map</h2>
+            <div class="chip-group" style="margin: 0;">
+                <button class="chip active" id="btnModeNav" style="background: var(--primary); color: white; border-color: var(--primary);">🤚 Navigation</button>
+                <button class="chip" id="btnModePin">📍 Deploy Marker</button>
+                <button class="chip" id="btnModeRoute">🛤️ Draw Route</button>
+                <button class="btn btn-sm btn-ghost" id="btnClearMap" style="color: var(--danger); border-color: var(--danger); margin-left: 10px;">⚠️ Clear Map</button>
+            </div>
         </div>
       </div>
 
-      <div class="map-window" id="mapWindow" tabindex="0">
-        
-        <div id="calibrationTools" class="is-hidden" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bg); border: 2px solid #10b981; padding: 10px 20px; border-radius: 50px; z-index: 100; display: flex; gap: 15px; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.8);">
-            <span style="font-weight: bold; color: #10b981;">Refine Target Alignment</span>
-            <button id="confirmDeployBtn" class="btn btn-sm" style="background: #10b981; border-color: #10b981; color: #fff;">Confirm & Save</button>
-            <button id="cancelDeployBtn" class="btn btn-ghost btn-sm" style="color: var(--danger); border-color: transparent;">Cancel</button>
-        </div>
-
-        <div class="map-transform" id="mapTransform">
-          <img class="map-image" id="mapImage" src="gondwa.jpg" alt="Gondwa Map">
-          
-          <svg class="route-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polyline id="activeRoutePolyline" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="8,4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-
-          <div id="pinLayer"></div>
-        </div>
+      <div class="card" style="margin-bottom: 15px; padding: 15px; display: flex; gap: 10px; flex-wrap: wrap; border-top: 3px solid var(--info);">
+          <input type="text" id="mobileCoordInput" placeholder="Mobile: Paste X=... Y=... coordinates here" style="flex: 1; min-width: 200px;">
+          <button class="btn" id="mobileCoordBtn" style="background: var(--info); border-color: var(--info);">📍 Plot Coordinates</button>
       </div>
-      <p class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Scroll wheel to zoom. Click and drag to pan.</p>
+
+      <div class="card map-window" style="padding: 0; position: relative; overflow: hidden; background: #000; border-radius: 12px; border: 1px solid var(--border);">
+          <div id="mapContainer" style="position: relative; width: 100%; height: 60vh; cursor: grab; overflow: hidden;">
+              <img id="gondwaMap" src="gondwa.jpg" style="position: absolute; transform-origin: 0 0; transition: transform 0.1s; width: 100%;" alt="Gondwa Map">
+              <div id="pinLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+              <svg id="routeLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;"></svg>
+          </div>
+          <div style="position: absolute; bottom: 15px; right: 15px; display: flex; flex-direction: column; gap: 5px;">
+              <button class="btn btn-sm" id="btnZoomIn" style="width: 40px; height: 40px; padding: 0; font-size: 1.5em; border-radius: 8px; background: rgba(30,41,59,0.9); border: 1px solid var(--border); color: white;">+</button>
+              <button class="btn btn-sm" id="btnZoomOut" style="width: 40px; height: 40px; padding: 0; font-size: 1.5em; border-radius: 8px; background: rgba(30,41,59,0.9); border: 1px solid var(--border); color: white;">-</button>
+          </div>
+      </div>
+      
+      <p class="muted" style="font-size: 0.85em; text-align: center; margin-top: 10px;">
+        Desktop: Press Ctrl+V with a map screenshot or raw text to auto-plot your location.
+      </p>
 
     </section>
   </main>
 
-  <div id="pinModal" class="modal-overlay is-hidden">
-    <div class="card" style="width: 100%; max-width: 450px; border-top: 5px solid var(--primary);">
-      <h2 id="pinModalTitle" style="color: var(--primary); margin-bottom: 15px;">Deploy Tactical Marker</h2>
-      <div class="form-grid">
-        <label class="field">
-          <span>Marker Category</span>
-          <select id="newPinType" style="font-size: 1.1em; cursor: pointer; font-weight: bold;">
-            <option value="👑">👑 Victory (Player Killed)</option>
-            <option value="💀">💀 Defeat (Died Here)</option>
-            <option value="🥩">🥩 Food Node (Melon, Salt, Corpse)</option>
-            <option value="💧">💧 Water Source (Fresh)</option>
-            <option value="💎">💎 Homecave / Waystone</option>
-            <option value="🌿">🌿 Rare Resource / Quest Item</option>
-            <option value="⚠️">⚠️ Danger Hotspot</option>
-            <option value="📍">📍 General Interest</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Location / Detail Label</span>
-          <input type="text" id="newPinLabel" placeholder="e.g., Apex Pack Wiped Me Here">
-        </label>
-      </div>
-      <div style="display: flex; gap: 10px; margin-top: 20px;">
-        <button class="btn" id="savePinBtn" style="flex: 1;">Save Marker</button>
-        <button class="btn btn-ghost" id="cancelPinBtn" style="flex: 1;">Cancel</button>
-      </div>
-    </div>
-  </div>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Created/Maintained by PixelPacket</footer>
   
-  <script src="data-store.js"></script>
-  <script src="map.js"></script>
-</body>
+  <script type="module" src="data-store.js"></script>
+  <script type="module" src="map.js"></script>
+
   <script type="module">
     import { auth } from './data-store.js';
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    
-    // The Security Guard
     onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.replace("login.html");
-      }
+      if (!user) window.location.replace("login.html");
     });
   </script>
+</body>
 </html>
