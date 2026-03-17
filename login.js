@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const authMessage = document.getElementById('authMessage');
 
     // --- THE REVERSE GUARD ---
-    // If Jarvis detects you are already logged in, you are immediately routed to the Dashboard.
     onAuthStateChanged(auth, (user) => {
         if (user) {
             window.location.replace("index.html");
@@ -20,6 +19,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function showMessage(msg, type = 'info') {
         authMessage.innerText = msg;
         authMessage.style.color = `var(--${type})`;
+    }
+
+    // --- USER FRIENDLY ERROR TRANSLATOR ---
+    function getFriendlyErrorMessage(error) {
+        switch (error.code) {
+            case 'auth/api-key-not-valid':
+                return "System Error: Invalid connection key. Please check the database configuration.";
+            case 'auth/invalid-credential':
+            case 'auth/wrong-password':
+            case 'auth/user-not-found':
+                return "Incorrect email or password. Please try again.";
+            case 'auth/email-already-in-use':
+                return "An account is already registered to this email address.";
+            case 'auth/weak-password':
+                return "Your password is too weak. Please use at least 6 characters.";
+            case 'auth/invalid-email':
+                return "Please enter a valid email address.";
+            case 'auth/network-request-failed':
+                return "Network connection failed. Please check your internet.";
+            default:
+                return "An unexpected error occurred. Please try again.";
+        }
     }
 
     // --- LOGIN LOGIC ---
@@ -33,9 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Establishing secure connection...", "info");
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
-                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
-                showMessage("Authentication failed: " + error.message.replace('Firebase: ', ''), "danger");
+                showMessage(getFriendlyErrorMessage(error), "danger");
                 btnLogin.disabled = false;
             }
         });
@@ -52,9 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Forging new credentials...", "info");
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
-                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
-                showMessage("Creation failed: " + error.message.replace('Firebase: ', ''), "danger");
+                showMessage(getFriendlyErrorMessage(error), "danger");
                 btnRegister.disabled = false;
             }
         });
@@ -73,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMessage("Reset link dispatched. Please check your inbox.", "success");
                 btnReset.disabled = false;
             } catch (error) {
-                showMessage("Transmission failed: " + error.message.replace('Firebase: ', ''), "danger");
+                showMessage(getFriendlyErrorMessage(error), "danger");
                 btnReset.disabled = false;
             }
         });
