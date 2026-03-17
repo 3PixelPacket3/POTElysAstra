@@ -1,380 +1,250 @@
-import { auth } from './data-store.js';
-import { onAuthStateChanged, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+// data-store.js
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // --- Existing Elements ---
-    const syncCloudBtn = document.getElementById('syncCloudBtn');
-    const syncStatus = document.getElementById('syncStatus');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const exportDataBtn = document.getElementById('exportDataBtn');
-    const importDataInput = document.getElementById('importDataInput');
-    const adminZone = document.getElementById('adminZone');
-    
-    const displayEmail = document.getElementById('displayEmail');
-    const newPasswordInput = document.getElementById('newPassword');
-    const updatePasswordBtn = document.getElementById('updatePasswordBtn');
-    const accountMsg = document.getElementById('accountMsg');
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // --- User Preference Elements ---
-    const userLandingPage = document.getElementById('userLandingPage');
-    const userTheme = document.getElementById('userTheme');
-    const clearCacheBtn = document.getElementById('clearCacheBtn');
-    const userReleaseNotesDisplay = document.getElementById('userReleaseNotesDisplay');
+// --- FIREBASE CLOUD CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBvnnuCraIUKzsC31kNwxp8b4XpappRQKA",
+  authDomain: "eaha-database.firebaseapp.com",
+  projectId: "eaha-database",
+  storageBucket: "eaha-database.firebasestorage.app",
+  messagingSenderId: "949997364963",
+  appId: "1:949997364963:web:cd25b994d30c4bf73b47d6"
+};
 
-    // --- Admin Configuration Elements ---
-    const adminReleaseNotes = document.getElementById('adminReleaseNotes');
-    const adminMigrations = document.getElementById('adminMigrations');
-    const adminRebirths = document.getElementById('adminRebirths');
-    const saveSystemConfigBtn = document.getElementById('saveSystemConfigBtn');
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-    // --- NEW: Admin Matrix Editor Elements ---
-    const matrixCategorySelect = document.getElementById('matrixCategorySelect');
-    const matrixEntrySelect = document.getElementById('matrixEntrySelect');
-    const matrixEntryName = document.getElementById('matrixEntryName');
-    const matrixEntryDesc = document.getElementById('matrixEntryDesc');
-    const matrixStats = document.querySelectorAll('.matrix-stat');
-    const saveMatrixEntryBtn = document.getElementById('saveMatrixEntryBtn');
-    const deleteMatrixEntryBtn = document.getElementById('deleteMatrixEntryBtn');
+const ADMIN_EMAIL = "admin@elysastra.com"; 
 
-    let localDb = null;
-    let activeModifiers = null;
+// JARVIS NOTE: These are the hardcoded defaults. Mounted to the cloud baseline below.
+window.EAHAModifiers = {
+  roles: {
+    "None": { description: "No role equipped." },
+    "Alpha": { turn: 0.15, description: "turn radius +0.15" },
+    "Banshee": { weight: 375, stamina: 50, health: -100, description: "weight +375, max stamina +50, max health -100" },
+    "Fallen": { speed: 0.25, turn: 0.2, weight: -200, description: "speed +0.25, turn radius +0.2, weight -200" },
+    "Matriarch": { description: "Group size defender buffs. No direct stat changes." },
+    "Repterus": { weight: 150, speed: 0.05, armor: -0.025, description: "weight +150, speed +0.05, armor -0.025" },
+    "Roamer": { weight: 400, armor: 0.1, stamina: 60, health: -150, description: "weight +400, armor +0.1, max stamina +60, max health -150" },
+    "Shepherd": { description: "Increases herd defense size. No direct stat changes." },
+    "Albino": { staminaRegen: 0.2, turn: 0.15, health: -75, armor: -0.05, description: "stamina regen +0.2, turn radius +0.15, max health -75, armor -0.05" },
+    "Melanistic": { knockback: 0.3, armor: 0.05, stamina: -75, description: "knockback +0.3, armor +0.05, max stamina -75" },
+    "Ashen": { speed: 0.1, stamina: 45, carry: 500, description: "speed +0.1, fall resistance +650, max stamina +45, carry capacity +500" },
+    "Cursed": { weight: 100, health: 100, turn: 0.3, description: "weight +100, max health +100, turn radius +0.3" },
+    "Frostbitten": { health: 300, armor: 0.1, speed: 0.1, weight: -400, jump: -0.6, description: "max health +300, armor +0.1, speed +0.1, weight -400, jump -0.6" },
+    "Infested": { health: 175, turn: 0.15, armor: -0.05, speed: -0.05, description: "max health +175, turn radius +0.15, armor -0.05, speed -0.05" },
+    "Nomad": { speed: 0.3, weight: -500, health: -50, description: "speed +0.3, fall resistance +300, weight -500, max health -50" },
+    "Protector": { health: 350, healRate: 0.3, description: "max health +350, health regen +0.3" },
+    "Repterus Mutatus (RMT)": { weight: 300, speed: 0.07, health: -100, armor: -0.05, description: "weight +300, speed +0.07, max health -100, armor -0.05" },
+    "Zephyrion": { weight: 150, speed: 0.25, turn: 0.1, description: "weight +150, speed +0.25, turn radius +0.1" },
+    "Apex": { speed: 0.25, description: "speed +0.25" },
+    "Splicer": { weight: 575, description: "weight +575" },
+    "Vanguard": { armor: 0.25, description: "armor +0.25" },
+    "Bounty Hunter (BH)": { weight: 350, speed: 0.15, turn: 0.2, description: "weight +350, speed +0.15, turn radius +0.2" },
+    "Cannibal": { weight: 395, speed: 0.19, turn: 0.19, description: "combat weight +395, speed +0.19, turn radius +0.19" },
+    "Dark Urge (DU)": { speed: 0.1, turn: 0.25, description: "speed +0.1, turn radius +0.25" },
+    "Gluttony": { carry: 750, armor: 0.15, stamina: 150, speed: -0.3, description: "carry capacity +750, armor +0.15, max stamina +150, speed -0.3" },
+    "Ice Breaker (IB)": { weight: 380, health: 150, armor: 0.2, description: "weight +380, max health +150, armor +0.2" },
+    "Kryptic Plague (KP)": { weight: 300, speed: 0.07, description: "weight +300, speed +0.07" },
+    "Mimic": { health: 150, stamina: 50, armor: 0.01, weight: -150, description: "max health +150, max stamina +50, armor +0.01, weight -150" },
+    "Rabies": { weight: 400, speed: 0.01, turn: 0.01, health: -100, description: "weight +400, speed +0.01, turn radius +0.01, max health -100" },
+    "Ravenous": { speed: 0.25, weight: 250, stamina: -50, description: "speed +0.25, acceleration speed +0.25, weight +250, max stamina -50" },
+    "Sentinel": { turn: 0.25, armor: 0.2, knockback: 0.1, description: "turn radius +0.25, armor +0.2, knockback +0.1" }
+  },
+  mutations: {
+    "None": { description: "No mutation equipped." },
+    "Weight Mutation": { weight: 100, description: "+100 Weight" },
+    "Stamina Mutation": { stamina: 35, description: "+35 Stamina" },
+    "Speed Mutation": { speed: 0.06, description: "+0.06 Speed" },
+    "Armor Mutation": { armor: 0.035, description: "+0.035 Armor" },
+    "Turn Mutation": { turn: 0.035, description: "+0.035 Turn Radius" },
+    "Weight x Stamina": { weight: 150, stamina: 50, description: "+150 Weight, +50 Stamina" },
+    "Weight x Health": { weight: 150, health: 75, description: "+150 Weight, +75 Health" },
+    "Armor x Stamina": { armor: 0.05, stamina: 50, description: "+0.05 Armor, +50 Stamina" },
+    "Armor x Health": { armor: 0.05, health: 50, description: "+0.05 Armor, +50 Health" }
+  },
+  genetics: {
+    "Speed Genetic": { speed: 0.075, description: "+0.075 Speed" },
+    "Turn Genetic": { turn: 0.075, description: "+0.075 Turn Radius" },
+    "Survival Genetic": { staminaRegen: 0.1, healRate: 0.1, description: "+0.1 Stamina/Heal Rate" },
+    "Oxygen Genetic": { oxygen: 15, description: "+15 Oxygen" },
+    "Jump Genetic": { jump: 0.75, description: "+0.75 Jump Height" },
+    "Buff/Nerf Genetic": { buffDuration: 0.25, description: "+0.25 Buff/Nerf Duration" }
+  },
+  eldering: {
+    0: { name: "Stage 0: Pre-Elder", description: "No extra buffs.", health: 0, weight: 0, speed: 0, turn: 0 },
+    1: { name: "Stage 1: Young Elder", description: "+125 health, +350 weight, -0.125 speed, +0.25 turn", health: 125, weight: 350, speed: -0.125, turn: 0.25 },
+    2: { name: "Stage 2: Inexperienced Elder", description: "+125 health, +350 weight, -0.125 speed, +0.25 turn", health: 125, weight: 350, speed: -0.125, turn: 0.25 },
+    3: { name: "Stage 3: Experienced Elder", description: "+250 health, +350 weight, -0.16 speed, +0.25 turn", health: 250, weight: 350, speed: -0.16, turn: 0.25 },
+    4: { name: "Stage 4: Withering Elder", description: "+250 health, +350 weight, -0.195 speed, +0.25 turn (Slow decay active)", health: 250, weight: 350, speed: -0.195, turn: 0.25 }
+  },
+  // JARVIS UPDATE: Global Rebirth Stat Defaults integrated into the Master Matrix
+  rebirths: {
+    0: { description: "No Rebirth", health: 0, stamina: 0, speed: 0 },
+    1: { description: "First Rebirth", health: 50, stamina: 25, speed: 0.02 },
+    2: { description: "Second Rebirth", health: 100, stamina: 50, speed: 0.04 },
+    3: { description: "Third Rebirth", health: 150, stamina: 75, speed: 0.06 }
+  }
+};
 
-    // --- Load Local User Preferences ---
-    if (userLandingPage) {
-        const savedPage = localStorage.getItem('eaha_landing_page');
-        if (savedPage) userLandingPage.value = savedPage;
-        
-        userLandingPage.addEventListener('change', (e) => {
-            localStorage.setItem('eaha_landing_page', e.target.value);
-            showToast("Default landing page updated.");
-        });
-    }
+window.EAHADataStore = {
+  DB_NAME: 'EAHADatabase',
+  STORE_NAME: 'eaha_store',
+  MASTER_KEY: 'eaha_master_db',
 
-    if (userTheme) {
-        const savedTheme = localStorage.getItem('eaha_theme') || 'dark';
-        userTheme.value = savedTheme;
-        
-        userTheme.addEventListener('change', (e) => {
-            const theme = e.target.value;
-            localStorage.setItem('eaha_theme', theme);
-            document.body.dataset.theme = theme; 
-            showToast(`Theme set to ${theme} mode.`);
-        });
-    }
-
-    if (clearCacheBtn) {
-        clearCacheBtn.addEventListener('click', async () => {
-            if (confirm("WARNING: This will wipe your local device cache and log you out. Unsaved custom variables will be lost. Proceed?")) {
-                localStorage.clear();
-                try { indexedDB.deleteDatabase('EAHADatabase'); } catch(e) {}
-                await signOut(auth);
-                window.location.replace("login.html");
-            }
-        });
-    }
-
-    // --- Utility Toast ---
-    const showToast = (message, type = 'success') => {
-        const toast = document.getElementById('toast');
-        if (!toast) return;
-        toast.textContent = message;
-        toast.className = `toast toast-${type} show`;
-        if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
-        else toast.style.backgroundColor = 'var(--primary)';
-        setTimeout(() => toast.className = 'toast', 3000);
-    };
-
-    // --- Core Authentication & Data Loading ---
-    onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-            window.location.replace("login.html");
-            return;
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.DB_NAME, 1);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.STORE_NAME)) {
+          db.createObjectStore(this.STORE_NAME);
         }
-        if (displayEmail) displayEmail.value = user.email;
-        
-        // Fetch current database to populate settings fields
-        localDb = await window.EAHADataStore.getData();
-        activeModifiers = localDb.system_settings?.modifiers || window.EAHAModifiers;
-        
-        // Populate Read-Only Release Notes for ALL users
-        if (userReleaseNotesDisplay) {
-            if (localDb.system_settings && localDb.system_settings.releaseNotes) {
-                userReleaseNotesDisplay.innerHTML = localDb.system_settings.releaseNotes;
-            } else {
-                userReleaseNotesDisplay.innerHTML = '<span class="muted">No release notes available at this time.</span>';
-            }
-        }
-
-        // Admin Validation & Loading
-        if (user.email === 'admin@elysastra.com' && adminZone) {
-            adminZone.classList.remove('is-hidden');
-            
-            if (localDb.system_settings) {
-                if (adminReleaseNotes) adminReleaseNotes.value = localDb.system_settings.releaseNotes || '';
-                if (adminMigrations) adminMigrations.value = localDb.system_settings.maxMigrations || 1;
-                if (adminRebirths) adminRebirths.value = localDb.system_settings.maxRebirths || 3;
-            }
-
-            // Initialize the Matrix Editor
-            if (matrixCategorySelect && matrixEntrySelect) {
-                populateMatrixEntries();
-            }
-        }
+      };
+      request.onsuccess = (event) => resolve(event.target.result);
+      request.onerror = (event) => reject(event.target.error);
     });
+  },
 
-    // --- Admin: Matrix Editor Logic ---
-    const populateMatrixEntries = () => {
-        if (!matrixEntrySelect || !activeModifiers) return;
-        const category = matrixCategorySelect.value;
+  async getIndexedData(key) {
+    const db = await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], 'readonly');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  async setIndexedData(key, value) {
+    const db = await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.put(value, key);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  async getData() {
+    const user = auth.currentUser;
+    if (!user) {
+      console.warn("Jarvis: User not authenticated. Serving local cache only.");
+      return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
+    }
+
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
+
+      const adminRef = doc(db, "system", "admin_baseline");
+      const adminSnap = await getDoc(adminRef);
+      const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [], system_settings: null };
+
+      // Admin baseline overrides rules completely
+      userData.rules = adminData.rules || [];
+      
+      // Mount system settings globally from Admin baseline
+      if (adminData.system_settings) {
+          userData.system_settings = adminData.system_settings;
+          // Dynamically override the window modifiers with the live database ones
+          if (userData.system_settings.modifiers) {
+              window.EAHAModifiers = userData.system_settings.modifiers;
+          }
+      } else {
+          userData.system_settings = this.getEmptyDB().system_settings;
+      }
+      
+      if (adminData.creatures) {
+        adminData.creatures.forEach(adminCrea => {
+          const existingIndex = userData.creatures.findIndex(c => c.id === adminCrea.id);
+          if (existingIndex === -1) {
+            userData.creatures.push(adminCrea); 
+          } else {
+            // Absolute overwrite from Admin
+            userData.creatures[existingIndex] = adminCrea;
+          }
+        });
+      }
+
+      await this.setIndexedData(this.MASTER_KEY, userData);
+      return userData;
+
+    } catch (error) {
+      console.error("Jarvis Error: Cloud Sync failed. Serving local cache.", error);
+      return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
+    }
+  },
+
+  async saveData(dataObj) {
+    const user = auth.currentUser;
+    if (!user) return false;
+
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(userRef, dataObj, { merge: true });
+
+      if (user.email === ADMIN_EMAIL) {
+        console.log("Jarvis: Admin authority recognized. Updating global baseline.");
+        const adminRef = doc(db, "system", "admin_baseline");
         
-        matrixEntrySelect.innerHTML = '<option value="new">-- Create New Entry --</option>';
-        
-        if(activeModifiers[category]) {
-            Object.keys(activeModifiers[category]).forEach(key => {
-                matrixEntrySelect.appendChild(new Option(key, key));
-            });
+        // Data protection failsafe. Never wipe modifiers accidentally.
+        let currentSystemSettings = dataObj.system_settings || {};
+        if (!currentSystemSettings.modifiers) {
+            currentSystemSettings.modifiers = window.EAHAModifiers;
         }
-        clearMatrixForm();
-    };
 
-    const clearMatrixForm = () => {
-        matrixEntryName.value = '';
-        matrixEntryDesc.value = '';
-        matrixStats.forEach(input => input.value = '');
-    };
+        await setDoc(adminRef, {
+          rules: dataObj.rules || [],
+          creatures: dataObj.creatures || [],
+          system_settings: currentSystemSettings
+        }, { merge: true });
+      }
 
-    const loadMatrixEntry = () => {
-        const category = matrixCategorySelect.value;
-        const key = matrixEntrySelect.value;
-        
-        if (key === 'new') {
-            clearMatrixForm();
-            return;
+      await this.setIndexedData(this.MASTER_KEY, dataObj);
+      return true;
+
+    } catch (error) {
+      console.error("Jarvis Error: Could not transmit data to central server.", error);
+      return false;
+    }
+  },
+
+  async syncCloudData() {
+    console.log("Jarvis: Initiating forced sync with central servers...");
+    await this.resetToCloudBase(); 
+    const latestData = await this.getData(); 
+    return { success: true, message: "Cloud synchronization complete." };
+  },
+
+  async resetToCloudBase() {
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            const idb = await this.initDB();
+            const transaction = idb.transaction([this.STORE_NAME], 'readwrite');
+            transaction.objectStore(this.STORE_NAME).delete(this.MASTER_KEY);
+        } catch(e) {}
+    }
+    return await this.getData();
+  },
+
+  getEmptyDB() {
+    return { 
+        creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [],
+        system_settings: {
+            releaseNotes: "Welcome to EAHA Cloud Synchronization. Awaiting Admin Release Notes...",
+            maxMigrations: 1,
+            maxRebirths: 3,
+            modifiers: window.EAHAModifiers 
         }
-        
-        const entry = activeModifiers[category][key];
-        if (!entry) return;
-
-        matrixEntryName.value = key; 
-        matrixEntryDesc.value = entry.description || '';
-        
-        matrixStats.forEach(input => {
-            const statKey = input.dataset.stat;
-            input.value = entry[statKey] !== undefined ? entry[statKey] : '';
-        });
     };
-
-    if (matrixCategorySelect) matrixCategorySelect.addEventListener('change', populateMatrixEntries);
-    if (matrixEntrySelect) matrixEntrySelect.addEventListener('change', loadMatrixEntry);
-
-    if (saveMatrixEntryBtn) {
-        saveMatrixEntryBtn.addEventListener('click', async () => {
-            const category = matrixCategorySelect.value;
-            const originalKey = matrixEntrySelect.value;
-            const newKey = matrixEntryName.value.trim();
-
-            if (!newKey) return showToast("Entry Name / Identifier is required.", "error");
-
-            // Construct the new modifier object
-            const newEntry = { description: matrixEntryDesc.value.trim() };
-            
-            // Map Eldering specifically to preserve its internal name property if needed
-            if (category === 'eldering') newEntry.name = newEntry.description ? `${newKey}: ${newEntry.description}` : newKey;
-
-            matrixStats.forEach(input => {
-                if (input.value !== '') {
-                    newEntry[input.dataset.stat] = parseFloat(input.value);
-                }
-            });
-
-            // If renaming an existing entry, delete the old key
-            if (originalKey !== 'new' && originalKey !== newKey) {
-                delete activeModifiers[category][originalKey];
-            }
-
-            if (!activeModifiers[category]) activeModifiers[category] = {};
-            activeModifiers[category][newKey] = newEntry;
-
-            // Prepare for Cloud Sync
-            localDb.system_settings.modifiers = activeModifiers;
-            window.EAHAModifiers = activeModifiers; // Update immediate global memory
-            
-            saveMatrixEntryBtn.disabled = true;
-            saveMatrixEntryBtn.innerText = "Saving...";
-            
-            const success = await window.EAHADataStore.saveData(localDb);
-            
-            if (success) {
-                showToast(`Matrix updated: ${newKey} saved to cloud.`);
-                populateMatrixEntries();
-                matrixEntrySelect.value = newKey;
-            } else {
-                showToast("Failed to save matrix to cloud.", "error");
-            }
-            
-            saveMatrixEntryBtn.disabled = false;
-            saveMatrixEntryBtn.innerText = "💾 Save Entry to Cloud";
-        });
-    }
-
-    if (deleteMatrixEntryBtn) {
-        deleteMatrixEntryBtn.addEventListener('click', async () => {
-            const category = matrixCategorySelect.value;
-            const key = matrixEntrySelect.value;
-
-            if (key === 'new') return showToast("Cannot delete an unsaved entry.", "error");
-
-            if (!confirm(`WARNING: Are you sure you want to permanently delete '${key}' from ${category}? This will remove it from the global simulator.`)) return;
-
-            delete activeModifiers[category][key];
-            
-            localDb.system_settings.modifiers = activeModifiers;
-            window.EAHAModifiers = activeModifiers;
-
-            deleteMatrixEntryBtn.disabled = true;
-            
-            const success = await window.EAHADataStore.saveData(localDb);
-            
-            if (success) {
-                showToast(`Entry '${key}' deleted from cloud.`);
-                populateMatrixEntries();
-            } else {
-                showToast("Failed to delete entry from cloud.", "error");
-            }
-            
-            deleteMatrixEntryBtn.disabled = false;
-        });
-    }
-
-    // --- Admin: Save System Config ---
-    if (saveSystemConfigBtn) {
-        saveSystemConfigBtn.addEventListener('click', async () => {
-            saveSystemConfigBtn.disabled = true;
-            saveSystemConfigBtn.innerText = "Broadcasting...";
-
-            localDb.system_settings = {
-                releaseNotes: adminReleaseNotes.value,
-                maxMigrations: parseInt(adminMigrations.value, 10),
-                maxRebirths: parseInt(adminRebirths.value, 10),
-                modifiers: activeModifiers, // Failsafe inclusion
-                lastUpdated: Date.now()
-            };
-
-            const success = await window.EAHADataStore.saveData(localDb);
-            
-            if (success) {
-                showToast("Global configuration broadcasted to central server.");
-                if (userReleaseNotesDisplay) userReleaseNotesDisplay.innerHTML = adminReleaseNotes.value;
-            } else {
-                showToast("Broadcast failed. Check connection.", "error");
-            }
-
-            saveSystemConfigBtn.disabled = false;
-            saveSystemConfigBtn.innerText = "📡 Broadcast Configuration Update";
-        });
-    }
-
-    // --- Existing Security & Sync Logic ---
-    if (updatePasswordBtn) {
-        updatePasswordBtn.addEventListener('click', async () => {
-            const user = auth.currentUser;
-            const newPass = newPasswordInput.value;
-
-            if (newPass.length < 6) {
-                accountMsg.innerText = "Password must be at least 6 characters.";
-                accountMsg.style.color = "var(--danger)";
-                return;
-            }
-
-            try {
-                updatePasswordBtn.disabled = true;
-                await updatePassword(user, newPass);
-                accountMsg.innerText = "Password updated successfully.";
-                accountMsg.style.color = "var(--success)";
-                newPasswordInput.value = "";
-            } catch (error) {
-                if(error.code === 'auth/requires-recent-login') {
-                    accountMsg.innerText = "Security protocol requires a fresh login to change password. Please log out and back in.";
-                } else {
-                    accountMsg.innerText = "Error: " + error.message;
-                }
-                accountMsg.style.color = "var(--danger)";
-            } finally {
-                updatePasswordBtn.disabled = false;
-            }
-        });
-    }
-
-    if (syncCloudBtn) {
-        syncCloudBtn.addEventListener('click', async () => {
-            syncCloudBtn.disabled = true;
-            syncCloudBtn.innerText = "Synchronizing...";
-            syncStatus.innerText = "Pulling latest data from central servers...";
-            syncStatus.style.color = "var(--info)";
-
-            const result = await window.EAHADataStore.syncCloudData();
-            
-            if (result.success) {
-                syncStatus.innerText = "Synchronization successful. Reloading environment...";
-                syncStatus.style.color = "var(--success)";
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                syncStatus.innerText = "Synchronization failed. Please check your connection.";
-                syncStatus.style.color = "var(--danger)";
-                syncCloudBtn.disabled = false;
-                syncCloudBtn.innerText = "🔄 Sync with Central Server";
-            }
-        });
-    }
-
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                window.location.replace("login.html");
-            } catch (error) {
-                console.error("Jarvis: Logout failed.", error);
-            }
-        });
-    }
-
-    if (exportDataBtn) {
-        exportDataBtn.addEventListener('click', async () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localDb, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "EAHA_Full_Backup_" + new Date().toISOString().slice(0,10) + ".json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        });
-    }
-
-    if (importDataInput) {
-        importDataInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    let importedData = JSON.parse(e.target.result);
-                    
-                    if (importedData.database) importedData = importedData.database;
-                    if (!importedData.creatures) importedData.creatures = [];
-                    if (!importedData.rules) importedData.rules = [];
-
-                    await window.EAHADataStore.saveData(importedData);
-                    await window.EAHADataStore.resetToCloudBase();
-                    
-                    alert("Admin Override Complete: Legacy backup successfully pushed to the global baseline.");
-                    location.reload();
-                } catch (error) {
-                    console.error("Jarvis: File read error.", error);
-                    alert("Invalid backup file. Restoration aborted.");
-                }
-            };
-            reader.readAsText(file);
-        });
-    }
-});
+  }
+};
