@@ -9,10 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const authMessage = document.getElementById('authMessage');
 
     // --- THE REVERSE GUARD ---
-    // If Jarvis detects you are already logged in, you are immediately routed to the Dashboard.
+    // JARVIS FIX: Checks for user preference before routing, defaults to index.html if none found.
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            window.location.replace("index.html");
+            const landingPage = localStorage.getItem('eaha_landing_page') || 'index.html';
+            window.location.replace(landingPage);
         }
     });
 
