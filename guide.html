@@ -39,7 +39,7 @@
 </head>
 <body>
 <header class="top-nav">
-    <div class="nav-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+    <div class="nav-header">
       <div class="brand">Elys Astra Helper Application</div>
       <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('active')">☰</button>
     </div>
@@ -52,8 +52,8 @@
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
       <a class="nav-btn" href="lineage.html">Lineage</a>
-      <a class="nav-btn" href="settings.html">JSON Backup</a>
-      <a class="nav-btn active" href="guide.html">About</a>
+      <a class="nav-btn" href="settings.html">Settings</a>
+      <a class="nav-btn active" href="guide.html">System Manual</a>
     </nav>
   </header>
 
@@ -79,23 +79,27 @@
       <div class="card" style="border-top: 5px solid var(--primary); box-shadow: none; padding: 40px; margin-bottom: 40px;">
         <h1 style="color: var(--primary); font-size: 3em; margin-bottom: 10px;">EAHA Operations Manual</h1>
         <p class="muted" style="font-size: 1.2em; line-height: 1.6;">
-          Welcome to the Elys Astra Helper Application. This system is a self-contained, highly advanced tactical suite designed to provide immediate analytical advantages, offline record-keeping, and rapid LFG deployments for Path of Titans survival operations.
+          Welcome to the Elys Astra Helper Application. This system is a highly advanced tactical suite designed to provide immediate analytical advantages, cloud-synchronized record-keeping, and rapid LFG deployments for Path of Titans survival operations.
         </p>
       </div>
 
       <section id="architecture" class="guide-section">
-        <h2>1. Core Architecture & Data Preservation</h2>
+        <h2>1. System Architecture & Cloud Synchronization</h2>
         <p>
-          Unlike standard web applications, EAHA does not connect to a remote cloud server. Your privacy and data integrity are absolute. The application operates using a high-capacity <strong>IndexedDB</strong> engine localized entirely within your current web browser. 
+          The Elys Astra Helper Application operates on a secure, serverless cloud architecture. Your data is split into two distinct tiers: Global Data and Personal Data.
         </p>
-        <div class="jarvis-note">
-          <strong>System Directive: Routine Backups</strong>
-          Because your browser acts as the server, clearing your browser's history and cache will permanently incinerate your EAHA database. You must navigate to the <strong>JSON Backup</strong> tab and utilize the "Export Personal Backup" protocol regularly to secure a hard copy of your files.
-        </div>
+        
         <ul>
-          <li><strong>Merge Official Updates:</strong> When server administrators provide an updated <code>JSON.json</code> file, clicking "Check for App Updates" will safely inject the newest server rules and dinosaur profiles into your database <em>without</em> overwriting your personal combat logs or custom map markers.</li>
-          <li><strong>Factory Reset:</strong> This protocol will purge your localized database and forcibly rebuild it from the ground up using only the base <code>JSON.json</code> file. Use this if the system experiences a fatal crash.</li>
+          <li><strong>Global Baseline (Admin Controlled):</strong> Base creature stats, overarching server rules, and system formulas are maintained exclusively by the Administration. When you log in, your application automatically downloads the latest baseline.</li>
+          <li><strong>Personal Data (Private):</strong> Your map markers, custom creature builds, lineage charts, and combat logs are encrypted and tied strictly to your account. No other user can access your personal data.</li>
+          <li><strong>Auto-Save Protocol:</strong> There is no "Save" button. Every modification you make to your personal data is instantly cached locally and synchronized with the cloud backend in real-time.</li>
+          <li><strong>Manual Sync:</strong> Should the Admin announce an update to server rules or base creature stats, navigate to the <strong>Settings</strong> page and click "Sync with Central Server". This will download the new global data without overwriting your personal modifications.</li>
         </ul>
+        
+        <div class="jarvis-note">
+          <strong>Account Security</strong>
+          Your session is secured via encrypted authentication tokens. If you need to update your password, you may do so within the <strong>Settings</strong> panel while logged in. If you are locked out of your account, utilize the "Forgot Password?" protocol on the main gateway to securely reset your credentials via email. 
+        </div>
       </section>
 
       <section id="dashboard" class="guide-section">
@@ -216,12 +220,6 @@
       <section id="troubleshooting" class="guide-section" style="border-color: var(--danger);">
         <h2 style="color: var(--danger);">8. Troubleshooting & Diagnostics</h2>
         
-        <p><strong>Q: My lists are empty and the system isn't saving my profiles!</strong><br>
-        <span class="muted">A: Ensure you are not operating in "Incognito" or "Private Browsing" mode, which strictly prohibits the IndexedDB storage engine from functioning. If the issue persists on a normal browser, execute a Factory Reset in the JSON Backup tab.</span></p>
-        
-        <p><strong>Q: The Matrix Importer ignored a stat I pasted.</strong><br>
-        <span class="muted">A: The parser strictly demands the exact server syntax: <code>Name",Values=(1,2,3,4,5))</code>. If the line is missing a parenthesis, comma, or the quote mark after the name, the Regex scanner will intentionally bypass it to prevent database corruption.</span></p>
-        
         <p><strong>Q: I'm in the Map Room, but I can't click or drag my markers anymore.</strong><br>
         <span class="muted">A: You are likely locked in "Draw Route" mode. Click the "🤚 Navigation" button in the top toolbar to re-engage standard interaction protocols.</span></p>
 
@@ -236,17 +234,13 @@
   </main>
 
   <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Created/Maintained by PixelPacket</footer>
-
+  
   <script type="module">
     import { auth } from './data-store.js';
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    
-    // The Security Guard
     onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.replace("login.html");
-      }
+      if (!user) window.location.replace("login.html");
     });
   </script>
-  
+</body>
 </html>
