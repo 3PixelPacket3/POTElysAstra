@@ -1,19 +1,19 @@
 # 🦖 Elys Astra Helper Application (EAHA)
 
-**The Ultimate Offline Command Hub for Path of Titans Operators**
+**The Ultimate Command Hub for Path of Titans Operators**
 
 ## 📖 Overview
-EAHA is a specialized, zero-dependency, local web application engineered for operators on the *Path of Titans: Elys Astra* server. Built to bypass the need for internet-reliant Discord bots, this toolkit places combat analytics, dynamic map reconnaissance, and vitals tracking directly into the player's hands via their browser's secure local storage.
+Welcome to the Elys Astra Helper Application. This system is a highly advanced tactical suite designed to provide immediate analytical advantages, cloud-synchronized record-keeping, and rapid LFG deployments for Path of Titans survival operations.
 
 ## 🚀 Key Architectural Features
 
 ### 🗺️ Smart-Learn Tactical Map
-* **Clipboard API Integration:** Press `Ctrl + V` anywhere on the map screen to instantly parse raw Unreal Engine `(X,Y,Z)` coordinates from your clipboard.
+* **Clipboard API Integration:** Press `Ctrl + V` anywhere on the map screen to instantly parse raw Unreal Engine `(X,Y,Z)` coordinates from your clipboard or insert a screen shot.
 * **Machine Learning Calibration:** The map engine features a dynamic, drag-and-drop calibration loop. By dragging the target pin to your exact in-game location, the system calculates the mathematical delta and permanently "learns" your screen offset for flawless future pin drops.
 * **Vector Routing:** Draw, save, and overlay multi-point tactical migration routes across Gondwa.
 
 ### ⚔️ Combat Analytics Engine
-* **Offline Ledger:** Log victories, defeats, and environmental deaths to a local database.
+* **Online Ledger:** Log victories, defeats, and environmental deaths to a local database.
 * **Dynamic Visualization:** Utilizing `Chart.js`, the dashboard renders a live Cause of Death radial graph and an Engagement Split (K/D) ratio based on your active creature.
 
 ### 🧬 Elysian Lifeline Tracker
@@ -21,19 +21,23 @@ EAHA is a specialized, zero-dependency, local web application engineered for ope
 * **Eldering Matrix:** Track migration milestones and unlockable Rebirth tokens for Stage 4 Elder dinosaurs.
 
 ### 💾 Immutable Data Sync
-* **Master JSON Merge:** Pull the latest baseline creature stats and server rules from the master `JSON.json` file without overwriting or corrupting your personal tactical map pins and combat logs.
+
+The Elys Astra Helper Application operates on a secure, serverless cloud architecture. Your data is split into two distinct tiers: Global Data and Personal Data.
+
+Global Baseline (Admin Controlled): Base creature stats, overarching server rules, and system formulas are maintained exclusively by the Administration. When you log in, your application automatically downloads the latest baseline.
+Personal Data (Private): Your map markers, custom creature builds, lineage charts, and combat logs are encrypted and tied strictly to your account. No other user can access your personal data.
+Auto-Save Protocol: There is no "Save" button. Every modification you make to your personal data is instantly cached locally and synchronized with the cloud backend in real-time.
+Manual Sync: Should the Admin announce an update to server rules or base creature stats, navigate to the Settings page and click "Sync with Central Server". This will download the new global data without overwriting your personal modifications.
 
 ## 🛠️ Installation & Quick Start
 EAHA requires no backend server, node modules, or complex deployment.
-1. Download or clone this repository to your local machine.
-2. Unzip the directory.
-3. Double-click `index.html` to initialize the dashboard in your default web browser.
+1. Click on the URL and begin.
 
 ## 💻 Tech Stack
 * **Frontend Structure:** HTML5, CSS3 (CSS Variables, Flexbox/Grid layouts)
-* **Logic & DOM Manipulation:** Vanilla JavaScript (ES6+)
+* **Logic & DOM Manipulation:** Vanilla JavaScript (ES6+) + Firestack
 * **Data Visualization:** Chart.js
-* **Persistence Layer:** Browser LocalStorage API & Custom JSON Parsing
+* **Persistence Layer:** Browser LocalStorage API & Custom JSON Parsing + Firestack
 
 ---
 *Developed and maintained by PixelPacket.*
