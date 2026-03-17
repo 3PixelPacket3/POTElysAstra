@@ -60,8 +60,6 @@ const showToast = (message, type = 'success') => {
 
 const generateId = () => 'id_' + Math.random().toString(36).substr(2, 9);
 
-// --- JARVIS MATH FIX: Geometric Coordinate Calculator ---
-// This guarantees pins drop exactly where the mouse clicks, regardless of zoom, pan, or aspect ratio limits.
 const getMapCoordinates = (clientX, clientY) => {
     const mapRect = elements.mapWindow.getBoundingClientRect();
     const mouseX = clientX - mapRect.left;
@@ -97,7 +95,6 @@ elements.mapWindow.addEventListener('wheel', (e) => {
   translateX = mouseX - (mouseX - translateX) * (newScale / scale);
   translateY = mouseY - (mouseY - translateY) * (newScale / scale);
   scale = newScale;
-
   updateTransform();
 }, { passive: false });
 
@@ -131,7 +128,7 @@ const setMode = (mode) => {
 
   if (mode === 'route') {
     elements.routeTools.classList.remove('is-hidden');
-    showToast("Route Mode Engaged: Click map to place waypoints. Right-click to undo.", "info");
+    showToast("Route Mode Engaged: Click map to place waypoints.", "info");
   } else {
     elements.routeTools.classList.add('is-hidden');
     if (activeRoutePoints.length > 0 && !confirm('Discard currently unsaved route?')) {
@@ -298,7 +295,6 @@ const processCoordinates = (text) => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
       };
-
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     });
@@ -386,7 +382,6 @@ const renderPins = () => {
         window.removeEventListener('mouseup', onMouseUp);
         await window.EAHADataStore.saveData(db); 
       };
-
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     });
@@ -433,10 +428,13 @@ const renderPins = () => {
   });
 };
 
-elements.mapImage.addEventListener('click', (e) => {
+// JARVIS FIX: Bound click to mapWindow to guarantee clicks are never blocked by image layers
+elements.mapWindow.addEventListener('click', (e) => {
   if (currentMode === 'pan') return;
+  
+  // Prevent dropping pins if the user was clicking the zoom UI or another pin
+  if (e.target.closest('.zoom-controls') || e.target.closest('.map-pin')) return;
 
-  // Use the new, accurate geometry calculator
   const coords = getMapCoordinates(e.clientX, e.clientY);
 
   if (currentMode === 'pin') {
