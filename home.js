@@ -30,10 +30,7 @@ const generateDefaultLifeline = () => ({
   rebirths: { 1: 'none', 2: 'none', 3: 'none' }
 });
 
-// Load all saved lifelines (keyed by creature ID)
 let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
-
-// Analytics Chart Instance
 let deathCauseChartInstance = null;
 
 // --- Utilities ---
@@ -49,7 +46,6 @@ const showToast = (message, type = 'success') => {
 const saveLifelines = () => localStorage.setItem(LIFELINES_KEY, JSON.stringify(lifelines));
 const saveCommands = () => localStorage.setItem(COMMANDS_KEY, JSON.stringify(commands));
 
-// Matrix Helpers
 const getStatArray = (valStr) => {
   if (!valStr) return [0, 0, 0, 0, 0];
   const parts = String(valStr).split(',').map(s => parseFloat(s.trim()));
@@ -63,7 +59,6 @@ const getAdultStat = (valStr) => {
   return parts[parts.length - 1].trim(); 
 };
 
-// Arsenal Parser for Dashboard
 const getAllAttacks = (dino, stageIndex = 4) => {
   const attacks = [];
   const customStats = dino.stats?.custom || [];
@@ -88,7 +83,6 @@ const getAllAttacks = (dino, stageIndex = 4) => {
   return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
 };
 
-// JARVIS UPGRADE: Quick Threat Calculation Engine
 const runQuickThreat = () => {
     const outputEl = document.getElementById('quickThreatOutput');
     const targetSelect = document.getElementById('quickTargetSelect');
@@ -149,10 +143,8 @@ const runQuickThreat = () => {
     `;
 };
 
-// Get the currently active lifeline, or create one if it doesn't exist
 const getActiveLifeline = () => {
   const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
-  
   if (!lifelines[targetId]) {
     lifelines[targetId] = generateDefaultLifeline();
     saveLifelines();
@@ -167,7 +159,6 @@ const syncExactVitals = () => {
   exactVitals.satiation = currentLife.satiation;
 };
 
-// --- Active Creature Management & Briefing Panel ---
 const populateCreatureDropdown = () => {
   const select = document.getElementById('activeCreatureSelect');
   const targetSelect = document.getElementById('quickTargetSelect');
@@ -210,7 +201,7 @@ const populateCreatureDropdown = () => {
   updateElderingUI();
   syncExactVitals();
   updateCombatAnalytics(); 
-  runQuickThreat(); // Initial scan
+  runQuickThreat(); 
   
   select.addEventListener('change', (e) => {
     activeCreatureId = e.target.value;
@@ -226,9 +217,7 @@ const populateCreatureDropdown = () => {
     }
   });
 
-  if (targetSelect) {
-      targetSelect.addEventListener('change', runQuickThreat);
-  }
+  if (targetSelect) targetSelect.addEventListener('change', runQuickThreat);
 };
 
 const updateBriefingPanel = () => {
@@ -325,7 +314,6 @@ const updateBriefingPanel = () => {
   tasksEl.innerHTML = `<strong style="color: var(--primary);">Required Tasks at 0%:</strong> ${upkeepText}`;
 };
 
-// --- Elysian Lifeline: Vitals Monitor ---
 const updateVitalsUI = () => {
   const currentLife = getActiveLifeline();
   
@@ -403,7 +391,6 @@ const setupLifelineListeners = () => {
   });
 };
 
-// --- Elysian Lifeline: Eldering Tracker ---
 const updateElderingUI = () => {
   const currentLife = getActiveLifeline();
   document.getElementById('migrationCount').textContent = currentLife.migrations;
@@ -434,7 +421,6 @@ const updateElderingUI = () => {
   });
 };
 
-// --- Decay Timer Logic ---
 const updateTimerDisplay = () => {
   const display = document.getElementById('timerDisplay');
   
@@ -519,7 +505,6 @@ document.getElementById('resetTimerBtn').addEventListener('click', () => {
   showToast("Decay timer aborted and reset.");
 });
 
-// --- Quick Commands Logic ---
 const renderCommands = () => {
   const grid = document.getElementById('commandGrid');
   grid.innerHTML = '';
@@ -575,7 +560,6 @@ const setupCommandListeners = () => {
   });
 };
 
-// --- Time & Clock Logic ---
 const timeZones = [
   { label: 'Local Time', value: 'local' },
   { label: 'UTC', value: 'UTC' },
@@ -611,7 +595,6 @@ const updateDateTime = () => {
   document.getElementById('homeDate').textContent = new Intl.DateTimeFormat(undefined, optionsDate).format(now);
 };
 
-// --- Quick Logger (Combat) Logic ---
 const saveEncounter = async (type) => {
   if (!db.encounters) db.encounters = [];
   
@@ -652,7 +635,6 @@ const saveEncounter = async (type) => {
   }
 };
 
-// --- === COMBAT ANALYTICS LOGIC === ---
 const updateCombatAnalytics = () => {
   if (!db.encounters) db.encounters = [];
   
@@ -803,9 +785,7 @@ const renderDeathChart = (causesData) => {
   });
 };
 
-// --- Boot Sequence ---
 const init = async () => {
-  // JARVIS FIX: Ensure the init block correctly awaits the global data store hook
   if (typeof window.EAHADataStore !== 'undefined') {
     db = await window.EAHADataStore.getData();
   } else {
@@ -834,13 +814,11 @@ const init = async () => {
   updateCombatAnalytics(); 
 };
 
-// JARVIS UPGRADE: The Auth Guard Pipeline
+// JARVIS UPGRADE: The Direct Execution Guard
 let hasInitialized = false;
-document.addEventListener('DOMContentLoaded', () => {
-    onAuthStateChanged(auth, async (user) => {
-        if (user && !hasInitialized) {
-            hasInitialized = true;
-            await init();
-        }
-    });
+onAuthStateChanged(auth, async (user) => {
+    if (user && !hasInitialized) {
+        hasInitialized = true;
+        await init();
+    }
 });
