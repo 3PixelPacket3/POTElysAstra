@@ -24,8 +24,10 @@
     .map-pin:hover .pin-label { opacity: 1; bottom: 130%; }
     
     #routeLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    #activeRoutePolyline { fill: none; stroke: var(--danger); stroke-width: calc(4px / var(--map-scale, 1)); stroke-dasharray: calc(10 / var(--map-scale, 1)); animation: march calc(2s * var(--map-scale, 1)) linear infinite; filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8)); }
-    @keyframes march { to { stroke-dashoffset: -20; } }
+    
+    /* JARVIS FIX: The stroke logic was adjusted to match the 0-100 percentage viewBox coordinate system */
+    #activeRoutePolyline { fill: none; stroke: var(--danger); stroke-width: calc(0.6 / var(--map-scale, 1)); stroke-dasharray: calc(1.5 / var(--map-scale, 1)); animation: march calc(2s * var(--map-scale, 1)) linear infinite; filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.8)); }
+    @keyframes march { to { stroke-dashoffset: -3; } }
 
     .zoom-controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
     .zoom-btn { background: rgba(30, 41, 59, 0.85); color: white; border: 1px solid var(--border); width: 45px; height: 45px; border-radius: 12px; font-size: 1.5rem; font-weight: bold; cursor: pointer; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -124,7 +126,7 @@
       <div class="map-window" id="mapWindow">
           <div id="mapTransform">
               <img id="mapImage" src="gondwa.jpg" alt="Gondwa Map" draggable="false">
-              <svg id="routeLayer">
+              <svg id="routeLayer" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <polyline id="activeRoutePolyline" />
               </svg>
               <div id="pinLayer"></div>
