@@ -20,6 +20,7 @@ export const db = getFirestore(app);
 
 const ADMIN_EMAIL = "admin@elysastra.com"; 
 
+// JARVIS NOTE: These are the hardcoded defaults. We will mount these to the cloud baseline below.
 window.EAHAModifiers = {
   roles: {
     "None": { description: "No role equipped." },
@@ -138,10 +139,21 @@ window.EAHADataStore = {
 
       const adminRef = doc(db, "system", "admin_baseline");
       const adminSnap = await getDoc(adminRef);
-      const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [] };
+      const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [], system_settings: null };
 
-      // MERGE LOGIC: Preserves all properties, ensuring Admin baseline overrides base stats and name
+      // Admin baseline overrides base stats and rules completely
       userData.rules = adminData.rules || [];
+      
+      // JARVIS FIX: Mount system settings globally from Admin baseline
+      if (adminData.system_settings) {
+          userData.system_settings = adminData.system_settings;
+          // Dynamically override the window modifiers with the live database ones
+          if (userData.system_settings.modifiers) {
+              window.EAHAModifiers = userData.system_settings.modifiers;
+          }
+      } else {
+          userData.system_settings = this.getEmptyDB().system_settings;
+      }
       
       if (adminData.creatures) {
         adminData.creatures.forEach(adminCrea => {
@@ -149,7 +161,6 @@ window.EAHADataStore = {
           if (existingIndex === -1) {
             userData.creatures.push(adminCrea); 
           } else {
-            // Only force-update the base stats, leave the custom user stats and profile alone
             userData.creatures[existingIndex].stats.base = adminCrea.stats.base;
             userData.creatures[existingIndex].name = adminCrea.name;
           }
@@ -177,10 +188,16 @@ window.EAHADataStore = {
         console.log("Jarvis: Admin authority recognized. Updating global baseline.");
         const adminRef = doc(db, "system", "admin_baseline");
         
-        // JARVIS FIX: Pass the entire creatures array to the baseline. Do not strip properties.
+        // JARVIS FIX: Data protection failsafe. Never wipe modifiers accidentally.
+        let currentSystemSettings = dataObj.system_settings || {};
+        if (!currentSystemSettings.modifiers) {
+            currentSystemSettings.modifiers = window.EAHAModifiers;
+        }
+
         await setDoc(adminRef, {
           rules: dataObj.rules || [],
-          creatures: dataObj.creatures || []
+          creatures: dataObj.creatures || [],
+          system_settings: currentSystemSettings
         }, { merge: true });
       }
 
@@ -195,7 +212,7 @@ window.EAHADataStore = {
 
   async syncCloudData() {
     console.log("Jarvis: Initiating forced sync with central servers...");
-    await this.resetToCloudBase(); // JARVIS FIX: Aggressively clear local IndexedDB cache
+    await this.resetToCloudBase(); 
     const latestData = await this.getData(); 
     return { success: true, message: "Cloud synchronization complete." };
   },
@@ -213,6 +230,14 @@ window.EAHADataStore = {
   },
 
   getEmptyDB() {
-    return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
+    return { 
+        creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [],
+        system_settings: {
+            releaseNotes: "Welcome to EAHA Cloud Synchronization. Awaiting Admin Release Notes...",
+            maxMigrations: 1,
+            maxRebirths: 3,
+            modifiers: window.EAHAModifiers // Staging the modifiers for cloud deployment
+        }
+    };
   }
 };
