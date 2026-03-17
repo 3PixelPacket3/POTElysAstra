@@ -38,7 +38,6 @@ a:hover { color: var(--primary-hover); }
 .top-nav {
   display: flex;
   flex-direction: row; 
-  justify-content: space-between;
   align-items: center;
   padding: 15px 30px;
   background-color: var(--bg-alt);
@@ -49,7 +48,8 @@ a:hover { color: var(--primary-hover); }
 .nav-header { 
   display: flex;
   align-items: center;
-  width: auto; 
+  justify-content: space-between;
+  width: 100%; /* Pushes brand left, hamburger right */
 }
 .brand { font-size: 1.3rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; }
 .mobile-menu-btn {
@@ -61,7 +61,7 @@ a:hover { color: var(--primary-hover); }
   cursor: pointer;
   padding: 5px 10px;
   border-radius: 5px;
-  margin-left: auto;
+  margin-left: 15px; /* Gives breathing room on right edge */
   transition: background 0.2s, color 0.2s;
 }
 .mobile-menu-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
@@ -155,7 +155,6 @@ input:focus, select:focus, textarea:focus {
 }
 textarea { resize: vertical; min-height: 80px; }
 
-/* Mobile Touch Target Fixes */
 select { 
     min-height: 48px; /* Forces all dropdowns to be thick and tappable */
     white-space: normal;
@@ -214,7 +213,7 @@ input[type=range]::-webkit-slider-runnable-track {
 .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
 
 
-/* === MOBILE OVERFLOW & RENDERING FIXES === */
+/* === MOBILE OVERFLOW & RENDERING FIXES (PROFILES & STATS) === */
 .creature-card, .creature-content, .stat-panel, .calculator-card {
     max-width: 100%;
     box-sizing: border-box;
@@ -235,16 +234,27 @@ input[type=range]::-webkit-slider-runnable-track {
     gap: 10px;
     width: 100%;
 }
+/* Creates an internal scrollbar for wide tables to stop screen dragging */
+table, .stat-matrix, .table-wrapper {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+}
 
-/* Strict Tactical Map Clamps */
+/* Strict Tactical Map Clamps & Aspect Ratio Fixes */
 #mapContainer, .map-window {
     width: 100% !important;
     max-width: 100vw;
-    height: 60vh;
+    /* Forces map container to be perfectly square to match Gondwa, eliminating black bars */
+    aspect-ratio: 1 / 1; 
+    height: auto;
+    max-height: 75vh;
     box-sizing: border-box;
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     overflow: hidden;
+    background-color: var(--bg-alt); /* Blends any edge lines with the UI */
 }
 
 
@@ -253,11 +263,11 @@ input[type=range]::-webkit-slider-runnable-track {
   body, html { max-width: 100vw; overflow-x: hidden; }
   
   /* Mobile Navigation Override */
-  .top-nav { padding: 15px; }
+  .top-nav { padding: 15px 20px; }
   .nav-links { 
-    right: 10px; 
-    left: 10px; 
-    width: auto; /* Stretches dropdown across mobile screen */
+    right: 15px; 
+    left: 15px; 
+    width: auto; 
   } 
 
   /* Layout Collapse */
