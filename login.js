@@ -1,12 +1,20 @@
 // login.js
 import { auth } from './data-store.js';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnLogin = document.getElementById('btnLogin');
     const btnRegister = document.getElementById('btnRegister');
     const btnReset = document.getElementById('btnReset');
     const authMessage = document.getElementById('authMessage');
+
+    // --- THE REVERSE GUARD ---
+    // If Jarvis detects you are already logged in, you are immediately routed to the Dashboard.
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            window.location.replace("index.html");
+        }
+    });
 
     // Helper function to display messages
     function showMessage(msg, type = 'info') {
@@ -25,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Establishing secure connection...", "info");
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
-                window.location.href = "index.html"; // Redirect to dashboard on success
+                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
                 showMessage("Authentication failed: " + error.message.replace('Firebase: ', ''), "danger");
                 btnLogin.disabled = false;
@@ -44,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Forging new credentials...", "info");
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
-                window.location.href = "index.html"; // Redirect to dashboard on success
+                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
                 showMessage("Creation failed: " + error.message.replace('Firebase: ', ''), "danger");
                 btnRegister.disabled = false;
