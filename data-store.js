@@ -195,6 +195,7 @@ window.EAHADataStore = {
 
   async syncCloudData() {
     console.log("Jarvis: Initiating forced sync with central servers...");
+    await this.resetToCloudBase(); // JARVIS FIX: Aggressively clear local IndexedDB cache
     const latestData = await this.getData(); 
     return { success: true, message: "Cloud synchronization complete." };
   },
