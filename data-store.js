@@ -18,10 +18,8 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Designate the Master Admin Account
 const ADMIN_EMAIL = "admin@elysastra.com"; 
 
-// --- EAHA GLOBAL MODIFIERS DICTIONARY ---
 window.EAHAModifiers = {
   roles: {
     "None": { description: "No role equipped." },
@@ -126,7 +124,6 @@ window.EAHADataStore = {
     });
   },
 
-  // Primary Fetch: Grabs User Data + Admin Baseline Overlay
   async getData() {
     const user = auth.currentUser;
     if (!user) {
@@ -135,33 +132,30 @@ window.EAHADataStore = {
     }
 
     try {
-      // Fetch User's Personal Data
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
 
-      // Fetch Global Admin Baseline
       const adminRef = doc(db, "system", "admin_baseline");
       const adminSnap = await getDoc(adminRef);
       const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [] };
 
-      // Merge Logic: Admin Rules & Base Creatures always override/update User data
+      // MERGE LOGIC: Preserves all properties, ensuring Admin baseline overrides base stats and name
       userData.rules = adminData.rules || [];
       
       if (adminData.creatures) {
         adminData.creatures.forEach(adminCrea => {
           const existingIndex = userData.creatures.findIndex(c => c.id === adminCrea.id);
           if (existingIndex === -1) {
-            userData.creatures.push(adminCrea); // Add new global creature
+            userData.creatures.push(adminCrea); 
           } else {
-            // Keep user's custom stats, but force-update base stats from admin
+            // Only force-update the base stats, leave the custom user stats and profile alone
             userData.creatures[existingIndex].stats.base = adminCrea.stats.base;
             userData.creatures[existingIndex].name = adminCrea.name;
           }
         });
       }
 
-      // Cache locally for performance
       await this.setIndexedData(this.MASTER_KEY, userData);
       return userData;
 
@@ -171,33 +165,25 @@ window.EAHADataStore = {
     }
   },
 
-  // Primary Save: Routes data based on account authority
   async saveData(dataObj) {
     const user = auth.currentUser;
     if (!user) return false;
 
     try {
-      // Always save to the user's personal cloud backup
       const userRef = doc(db, "users", user.uid);
       await setDoc(userRef, dataObj, { merge: true });
 
-      // If Jarvis detects the Admin, update the global baseline as well
       if (user.email === ADMIN_EMAIL) {
         console.log("Jarvis: Admin authority recognized. Updating global baseline.");
         const adminRef = doc(db, "system", "admin_baseline");
+        
+        // JARVIS FIX: Pass the entire creatures array to the baseline. Do not strip properties.
         await setDoc(adminRef, {
-          rules: dataObj.rules,
-          creatures: dataObj.creatures.map(c => ({
-            id: c.id,
-            name: c.name,
-            tier: c.tier,
-            group: c.group,
-            stats: { base: c.stats.base, custom: [] } // Strips user-specific custom stats from baseline
-          }))
+          rules: dataObj.rules || [],
+          creatures: dataObj.creatures || []
         }, { merge: true });
       }
 
-      // Update Local Cache
       await this.setIndexedData(this.MASTER_KEY, dataObj);
       return true;
 
@@ -207,7 +193,6 @@ window.EAHADataStore = {
     }
   },
 
-  // Manual trigger to pull the latest Admin updates
   async syncCloudData() {
     console.log("Jarvis: Initiating forced sync with central servers...");
     const latestData = await this.getData(); 
@@ -217,7 +202,6 @@ window.EAHADataStore = {
   async resetToCloudBase() {
     const user = auth.currentUser;
     if (user) {
-        // Only deletes local cache, forces a fresh pull from the cloud on next load
         try {
             const idb = await this.initDB();
             const transaction = idb.transaction([this.STORE_NAME], 'readwrite');
