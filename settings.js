@@ -27,6 +27,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const adminRebirths = document.getElementById('adminRebirths');
     const saveSystemConfigBtn = document.getElementById('saveSystemConfigBtn');
 
+    // --- NEW: Admin Matrix Editor Elements ---
+    const matrixCategorySelect = document.getElementById('matrixCategorySelect');
+    const matrixEntrySelect = document.getElementById('matrixEntrySelect');
+    const matrixEntryName = document.getElementById('matrixEntryName');
+    const matrixEntryDesc = document.getElementById('matrixEntryDesc');
+    const matrixStats = document.querySelectorAll('.matrix-stat');
+    const saveMatrixEntryBtn = document.getElementById('saveMatrixEntryBtn');
+    const deleteMatrixEntryBtn = document.getElementById('deleteMatrixEntryBtn');
+
+    let localDb = null;
+    let activeModifiers = null;
+
     // --- Load Local User Preferences ---
     if (userLandingPage) {
         const savedPage = localStorage.getItem('eaha_landing_page');
@@ -81,12 +93,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (displayEmail) displayEmail.value = user.email;
         
         // Fetch current database to populate settings fields
-        const db = await window.EAHADataStore.getData();
+        localDb = await window.EAHADataStore.getData();
+        activeModifiers = localDb.system_settings?.modifiers || window.EAHAModifiers;
         
         // Populate Read-Only Release Notes for ALL users
         if (userReleaseNotesDisplay) {
-            if (db.system_settings && db.system_settings.releaseNotes) {
-                userReleaseNotesDisplay.innerHTML = db.system_settings.releaseNotes;
+            if (localDb.system_settings && localDb.system_settings.releaseNotes) {
+                userReleaseNotesDisplay.innerHTML = localDb.system_settings.releaseNotes;
             } else {
                 userReleaseNotesDisplay.innerHTML = '<span class="muted">No release notes available at this time.</span>';
             }
@@ -96,13 +109,142 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (user.email === 'admin@elysastra.com' && adminZone) {
             adminZone.classList.remove('is-hidden');
             
-            if (db.system_settings) {
-                if (adminReleaseNotes) adminReleaseNotes.value = db.system_settings.releaseNotes || '';
-                if (adminMigrations) adminMigrations.value = db.system_settings.maxMigrations || 1;
-                if (adminRebirths) adminRebirths.value = db.system_settings.maxRebirths || 3;
+            if (localDb.system_settings) {
+                if (adminReleaseNotes) adminReleaseNotes.value = localDb.system_settings.releaseNotes || '';
+                if (adminMigrations) adminMigrations.value = localDb.system_settings.maxMigrations || 1;
+                if (adminRebirths) adminRebirths.value = localDb.system_settings.maxRebirths || 3;
+            }
+
+            // Initialize the Matrix Editor
+            if (matrixCategorySelect && matrixEntrySelect) {
+                populateMatrixEntries();
             }
         }
     });
+
+    // --- Admin: Matrix Editor Logic ---
+    const populateMatrixEntries = () => {
+        if (!matrixEntrySelect || !activeModifiers) return;
+        const category = matrixCategorySelect.value;
+        
+        matrixEntrySelect.innerHTML = '<option value="new">-- Create New Entry --</option>';
+        
+        if(activeModifiers[category]) {
+            Object.keys(activeModifiers[category]).forEach(key => {
+                matrixEntrySelect.appendChild(new Option(key, key));
+            });
+        }
+        clearMatrixForm();
+    };
+
+    const clearMatrixForm = () => {
+        matrixEntryName.value = '';
+        matrixEntryDesc.value = '';
+        matrixStats.forEach(input => input.value = '');
+    };
+
+    const loadMatrixEntry = () => {
+        const category = matrixCategorySelect.value;
+        const key = matrixEntrySelect.value;
+        
+        if (key === 'new') {
+            clearMatrixForm();
+            return;
+        }
+        
+        const entry = activeModifiers[category][key];
+        if (!entry) return;
+
+        matrixEntryName.value = key; 
+        matrixEntryDesc.value = entry.description || '';
+        
+        matrixStats.forEach(input => {
+            const statKey = input.dataset.stat;
+            input.value = entry[statKey] !== undefined ? entry[statKey] : '';
+        });
+    };
+
+    if (matrixCategorySelect) matrixCategorySelect.addEventListener('change', populateMatrixEntries);
+    if (matrixEntrySelect) matrixEntrySelect.addEventListener('change', loadMatrixEntry);
+
+    if (saveMatrixEntryBtn) {
+        saveMatrixEntryBtn.addEventListener('click', async () => {
+            const category = matrixCategorySelect.value;
+            const originalKey = matrixEntrySelect.value;
+            const newKey = matrixEntryName.value.trim();
+
+            if (!newKey) return showToast("Entry Name / Identifier is required.", "error");
+
+            // Construct the new modifier object
+            const newEntry = { description: matrixEntryDesc.value.trim() };
+            
+            // Map Eldering specifically to preserve its internal name property if needed
+            if (category === 'eldering') newEntry.name = newEntry.description ? `${newKey}: ${newEntry.description}` : newKey;
+
+            matrixStats.forEach(input => {
+                if (input.value !== '') {
+                    newEntry[input.dataset.stat] = parseFloat(input.value);
+                }
+            });
+
+            // If renaming an existing entry, delete the old key
+            if (originalKey !== 'new' && originalKey !== newKey) {
+                delete activeModifiers[category][originalKey];
+            }
+
+            if (!activeModifiers[category]) activeModifiers[category] = {};
+            activeModifiers[category][newKey] = newEntry;
+
+            // Prepare for Cloud Sync
+            localDb.system_settings.modifiers = activeModifiers;
+            window.EAHAModifiers = activeModifiers; // Update immediate global memory
+            
+            saveMatrixEntryBtn.disabled = true;
+            saveMatrixEntryBtn.innerText = "Saving...";
+            
+            const success = await window.EAHADataStore.saveData(localDb);
+            
+            if (success) {
+                showToast(`Matrix updated: ${newKey} saved to cloud.`);
+                populateMatrixEntries();
+                matrixEntrySelect.value = newKey;
+            } else {
+                showToast("Failed to save matrix to cloud.", "error");
+            }
+            
+            saveMatrixEntryBtn.disabled = false;
+            saveMatrixEntryBtn.innerText = "💾 Save Entry to Cloud";
+        });
+    }
+
+    if (deleteMatrixEntryBtn) {
+        deleteMatrixEntryBtn.addEventListener('click', async () => {
+            const category = matrixCategorySelect.value;
+            const key = matrixEntrySelect.value;
+
+            if (key === 'new') return showToast("Cannot delete an unsaved entry.", "error");
+
+            if (!confirm(`WARNING: Are you sure you want to permanently delete '${key}' from ${category}? This will remove it from the global simulator.`)) return;
+
+            delete activeModifiers[category][key];
+            
+            localDb.system_settings.modifiers = activeModifiers;
+            window.EAHAModifiers = activeModifiers;
+
+            deleteMatrixEntryBtn.disabled = true;
+            
+            const success = await window.EAHADataStore.saveData(localDb);
+            
+            if (success) {
+                showToast(`Entry '${key}' deleted from cloud.`);
+                populateMatrixEntries();
+            } else {
+                showToast("Failed to delete entry from cloud.", "error");
+            }
+            
+            deleteMatrixEntryBtn.disabled = false;
+        });
+    }
 
     // --- Admin: Save System Config ---
     if (saveSystemConfigBtn) {
@@ -110,27 +252,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveSystemConfigBtn.disabled = true;
             saveSystemConfigBtn.innerText = "Broadcasting...";
 
-            const db = await window.EAHADataStore.getData();
-            
-            // Bundle the new settings while protecting the modifiers matrix
-            let currentModifiers = window.EAHAModifiers;
-            if (db.system_settings && db.system_settings.modifiers) {
-                currentModifiers = db.system_settings.modifiers;
-            }
-
-            db.system_settings = {
+            localDb.system_settings = {
                 releaseNotes: adminReleaseNotes.value,
                 maxMigrations: parseInt(adminMigrations.value, 10),
                 maxRebirths: parseInt(adminRebirths.value, 10),
-                modifiers: currentModifiers, // Failsafe inclusion
+                modifiers: activeModifiers, // Failsafe inclusion
                 lastUpdated: Date.now()
             };
 
-            const success = await window.EAHADataStore.saveData(db);
+            const success = await window.EAHADataStore.saveData(localDb);
             
             if (success) {
                 showToast("Global configuration broadcasted to central server.");
-                // Update local display instantly for the Admin
                 if (userReleaseNotesDisplay) userReleaseNotesDisplay.innerHTML = adminReleaseNotes.value;
             } else {
                 showToast("Broadcast failed. Check connection.", "error");
@@ -207,8 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (exportDataBtn) {
         exportDataBtn.addEventListener('click', async () => {
-            const data = await window.EAHADataStore.getData();
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localDb, null, 2));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
             downloadAnchorNode.setAttribute("download", "EAHA_Full_Backup_" + new Date().toISOString().slice(0,10) + ".json");
@@ -228,9 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                     let importedData = JSON.parse(e.target.result);
                     
-                    if (importedData.database) {
-                        importedData = importedData.database;
-                    }
+                    if (importedData.database) importedData = importedData.database;
                     if (!importedData.creatures) importedData.creatures = [];
                     if (!importedData.rules) importedData.rules = [];
 
