@@ -2,13 +2,13 @@
 import { auth } from './data-store.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+// JARVIS FIX: The broken DOMContentLoaded wrapper has been completely removed.
 const btnLogin = document.getElementById('btnLogin');
 const btnRegister = document.getElementById('btnRegister');
 const btnReset = document.getElementById('btnReset');
 const authMessage = document.getElementById('authMessage');
 
 // --- THE REVERSE GUARD ---
-// JARVIS FIX: Checks for user preference before routing, defaults to index.html if none found.
 onAuthStateChanged(auth, (user) => {
     if (user) {
         const landingPage = localStorage.getItem('eaha_landing_page') || 'index.html';
