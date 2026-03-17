@@ -1,4 +1,6 @@
 // home.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
@@ -616,12 +618,11 @@ const saveEncounter = async (type) => {
   let outcomeText = 'Unknown';
   if (type === 'win') outcomeText = 'Victory (Kill)';
   if (type === 'loss') outcomeText = 'Defeat (PvP)';
-  if (type === 'starved') outcomeText = 'Defeat (Environment)'; // JARVIS UPDATE
+  if (type === 'starved') outcomeText = 'Defeat (Environment)';
   
   const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
   const creaName = activeCrea ? activeCrea.name : 'Unknown';
 
-  // JARVIS UPGRADE: Retrieve selected opponent from Quick Threat widget
   const targetSelect = document.getElementById('quickTargetSelect');
   let oppName = 'Unknown';
   if (targetSelect && targetSelect.value !== 'none') {
@@ -645,7 +646,6 @@ const saveEncounter = async (type) => {
   showToast(`${outcomeText} logged successfully against ${oppName}.`);
   updateCombatAnalytics(); 
 
-  // Reset target select to clear the board
   if (targetSelect) {
       targetSelect.value = 'none';
       runQuickThreat();
@@ -667,7 +667,7 @@ const updateCombatAnalytics = () => {
     'Dehydration': 0,
     'Fall Damage': 0,
     'Drowning': 0,
-    'Environment': 0, // JARVIS: Catch-all for non-PvP dashboard logs
+    'Environment': 0,
     'Unknown': 0
   };
 
@@ -697,18 +697,15 @@ const updateCombatAnalytics = () => {
     }
   });
 
-  // Top Ratios
   const calcKD = (k, d) => d === 0 ? k.toFixed(1) : (k / d).toFixed(2);
   document.getElementById('overall-kd').textContent = calcKD(overallKills, overallDeaths);
   document.getElementById('creature-kd').textContent = activeName ? calcKD(activeKills, activeDeaths) : '--';
   document.getElementById('creature-kd').style.color = activeName ? 'var(--primary)' : 'var(--text)';
 
-  // Calculate Engagement Breakdown Math
   const totalEncounters = overallKills + overallDeaths;
   const winPercent = totalEncounters > 0 ? Math.round((overallKills / totalEncounters) * 100) : 0;
   const lossPercent = totalEncounters > 0 ? Math.round((overallDeaths / totalEncounters) * 100) : 0;
 
-  // Render HTML Breakdown
   const breakdownEl = document.getElementById('outcomeBreakdown');
   if (breakdownEl) {
     breakdownEl.innerHTML = `
@@ -730,7 +727,6 @@ const updateCombatAnalytics = () => {
     `;
   }
 
-  // Render Chart
   renderDeathChart(deathCauses);
 };
 
@@ -809,10 +805,11 @@ const renderDeathChart = (causesData) => {
 
 // --- Boot Sequence ---
 const init = async () => {
+  // JARVIS FIX: Ensure the init block correctly awaits the global data store hook
   if (typeof window.EAHADataStore !== 'undefined') {
     db = await window.EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing or not loaded.");
+    console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
   const logWinBtn = document.getElementById('logWinBtn');
@@ -837,4 +834,13 @@ const init = async () => {
   updateCombatAnalytics(); 
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
