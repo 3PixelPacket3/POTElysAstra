@@ -1,4 +1,6 @@
 // combat.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [] };
@@ -264,7 +266,7 @@ const saveEncounter = async () => {
   if (index >= 0) db.encounters[index] = data;
   else db.encounters.push(data);
   
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   
   currentEncounterId = data.id;
   renderList();
@@ -276,7 +278,7 @@ const deleteEncounter = async () => {
   if (!currentEncounterId || !confirm('Are you sure you want to delete this log?')) return;
   
   db.encounters = db.encounters.filter(e => e.id !== currentEncounterId);
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   
   currentEncounterId = null;
   renderList();
@@ -306,7 +308,7 @@ const handleQuickLog = async (outcomeType) => {
 
   if(!db.encounters) db.encounters = [];
   db.encounters.push(newLog);
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   
   // Clear quick inputs
   elements.quickOpponent.value = '';
@@ -538,8 +540,8 @@ const updateDashboard = () => {
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
@@ -583,4 +585,13 @@ const init = async () => {
   setViewMode('dashboard');
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
