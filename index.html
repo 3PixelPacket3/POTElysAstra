@@ -18,6 +18,13 @@
       margin-bottom: 20px;
     }
     
+    /* JARVIS FIX: Split into a tactical 2-column layout on desktop to prevent vertical clutter */
+    @media (min-width: 992px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    
     .analytics-card { border-top: 4px solid var(--primary); }
     
     .kd-display {
@@ -75,7 +82,7 @@
         <p class="muted" style="text-transform: uppercase; letter-spacing: 1px; font-size: 0.85em; font-weight: 600;">Toolkit for the Elys Astra Path of Titans server</p>
         <h1 style="font-size: 2.5em; margin: 10px 0;">Elys Astra Helper Application (EAHA)</h1>
         <p class="muted" style="font-size: 1.1em; max-width: 800px;">
-          Welcome to the Elys Astra Helper Application. This system is a highly advanced tactical suite designed to provide immediate analytical advantages, cloud-synchronized record-keeping, and rapid LFG deployments for Path of Titans survival operations. Now optimized for MOBILE! To keep sync with your mobile account, make sure to refresh your cache between log sessions for information carry over.
+          Welcome to the Elys Astra Helper Application. This system is a highly advanced tactical suite designed to provide immediate analytical advantages, cloud-synchronized record-keeping, and rapid LFG deployments for Path of Titans survival operations.
         </p>
       </div>
       <div style="text-align: right; background: var(--bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border); min-width: 200px;">
@@ -107,13 +114,35 @@
         <h4 style="color: var(--muted); text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px; border-bottom: 2px solid var(--border); padding-bottom: 5px;">Cause of Death & Outcome Breakdown</h4>
         
         <div style="display: flex; gap: 20px; align-items: stretch; flex-wrap: wrap; margin-top: 15px;">
-          <div class="chart-container" style="flex: 1; min-width: 250px;">
+          <div class="chart-container" style="flex: 1; min-width: 200px;">
             <canvas id="deathCauseChart"></canvas>
           </div>
-          <div id="outcomeBreakdown" style="flex: 1; min-width: 250px;">
+          <div id="outcomeBreakdown" style="flex: 1; min-width: 200px;">
              </div>
         </div>
+      </div>
 
+      <div class="card" style="margin-bottom: 0; border-top: 4px solid var(--danger);">
+          <h3 style="margin-bottom: 10px; color: var(--danger);">Live Combat & Threat Logging</h3>
+          <p class="muted" style="font-size: 0.85em; margin-bottom: 15px;">Select an opposing target for an instant threat assessment, then quick-log the encounter outcome.</p>
+          
+          <label class="field" style="margin-bottom: 15px;">
+            <span style="color: var(--danger);">Target Opponent</span>
+            <select id="quickTargetSelect" style="border: 1px solid var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--bg)); color: var(--text);">
+                <option value="none">-- Awaiting Target --</option>
+            </select>
+          </label>
+          
+          <div id="quickThreatOutput" style="background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); min-height: 120px; margin-bottom: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+            <span class="muted">Select an active dinosaur and target to run scan.</span>
+          </div>
+          
+          <h4 style="color: var(--muted); text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px; border-bottom: 2px solid var(--border); padding-bottom: 5px; margin-bottom: 10px;">Quick Log Encounter</h4>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-sm" id="logWinBtn" style="flex: 1; background: var(--success); border-color: var(--success); font-size: 1.05em; padding: 15px 10px;">👑 Log Kill</button>
+            <button class="btn btn-sm" id="logLossBtn" style="flex: 1; background: var(--danger); border-color: var(--danger); font-size: 1.05em; padding: 15px 10px;">💀 Log Death</button>
+            <button class="btn btn-sm btn-ghost" id="logStarveBtn" style="flex: 1; font-size: 1.05em; padding: 15px 10px;">🍂 Env Death</button>
+          </div>
       </div>
     </section>
 
@@ -263,8 +292,8 @@
   </footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   
-  <script src="data-store.js"></script>
-  <script src="home.js"></script>
+  <script type="module" src="data-store.js"></script>
+  <script type="module" src="home.js"></script>
 </body>
   <script type="module">
     import { auth } from './data-store.js';
