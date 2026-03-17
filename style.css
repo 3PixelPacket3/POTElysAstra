@@ -659,4 +659,11 @@ table, .stat-matrix, .table-wrapper {
       margin-bottom: 20px; 
       z-index: 1; 
   }
+
+  /* JARVIS FIX: Push mode toggles right on mobile */
+  .mode-toggle { 
+      justify-content: flex-end; 
+      padding-right: 5px;
+      margin-top: 10px;
+  }
 }
