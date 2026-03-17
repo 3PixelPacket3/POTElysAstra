@@ -278,4 +278,15 @@
   <script src="data-store.js"></script>
   <script src="map.js"></script>
 </body>
+  <script type="module">
+    import { auth } from './data-store.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    
+    // The Security Guard
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        window.location.replace("login.html");
+      }
+    });
+  </script>
 </html>
