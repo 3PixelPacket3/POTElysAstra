@@ -1,4 +1,6 @@
 // stats.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {} };
@@ -773,4 +775,13 @@ const init = async () => {
   setView(null); 
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
