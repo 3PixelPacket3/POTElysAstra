@@ -110,22 +110,16 @@
 
   </div>
 
-  <script type="module">
-    // UI View Switching Logic
+  <script>
+    // Simple UI View Switching Logic
     window.switchView = function(viewId) {
       document.querySelectorAll('.auth-view').forEach(el => el.classList.remove('active'));
       document.getElementById(viewId).classList.add('active');
       document.getElementById('authMessage').innerText = ''; // Clear errors on switch
     };
-
-    // Note: In Step 3, we will insert your Firebase Configuration and Authentication hooks here.
-    // We will wire these buttons to communicate directly with your free Firebase Cloud.
-    document.getElementById('btnLogin').addEventListener('click', () => {
-        document.getElementById('authMessage').style.color = 'var(--info)';
-        document.getElementById('authMessage').innerText = 'Initializing secure connection...';
-        // Authentication logic pending Step 3
-    });
   </script>
+  
+  <script type="module" src="login.js"></script>
 
 </body>
 </html>
