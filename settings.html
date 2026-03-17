@@ -38,12 +38,38 @@
     </aside>
 
     <section class="editor-pane scrollable" style="flex: 2;">
+
+      <div class="card" style="border-top: 5px solid var(--accent); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
+        <h2 style="color: var(--text); margin-bottom: 15px;">User Preferences</h2>
+        <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">Customize your local EAHA experience.</p>
+        
+        <div class="form-grid" style="max-width: 500px;">
+          <label class="field" style="text-align: left;">
+            <span>Default Landing Page</span>
+            <select id="userLandingPage">
+                <option value="index.html">Dashboard</option>
+                <option value="apps.html">Post Builder</option>
+                <option value="map.html">Tactical Map</option>
+                <option value="about.html">Stats Simulator</option>
+                <option value="docs.html">Creature Profiles</option>
+            </select>
+          </label>
+          <label class="field" style="text-align: left;">
+            <span>Theme Preference (Experimental)</span>
+            <select id="userTheme">
+                <option value="dark">Dark Mode (Default)</option>
+                <option value="light">Light Mode (Work / Admin)</option>
+            </select>
+          </label>
+          <button class="btn btn-ghost" id="clearCacheBtn" style="color: var(--danger); border-color: var(--danger); margin-top: 10px;">🗑️ Wipe Local Cache & Repair</button>
+        </div>
+      </div>
       
       <div class="card" style="border-top: 5px solid var(--primary); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
         <h2 style="color: var(--text); margin-bottom: 15px;">Account Management</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">Update your security credentials here. Your profile email is locked to your account.</p>
         
-        <div class="form-grid" style="max-width: 400px;">
+        <div class="form-grid" style="max-width: 500px;">
           <label class="field" style="text-align: left;">
             <span>Current Email</span>
             <input type="text" id="displayEmail" disabled style="background: var(--bg-alt); color: var(--muted); cursor: not-allowed;">
@@ -69,14 +95,35 @@
       <div id="adminZone" class="card is-hidden" style="border-top: 5px solid var(--accent); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
         <h2 style="color: var(--accent); margin-bottom: 15px;">Admin Control Console</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
-          <strong>Authority Confirmed.</strong> Use this portal to extract full system backups or import legacy JSON data to overwrite the global baseline for all users.
+          <strong>Authority Confirmed.</strong> Use this portal to manage global game mechanics, broadcast release notes, or extract full system backups.
         </p>
+
+        <div style="margin-bottom: 25px; padding: 20px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 12px; border: 1px solid var(--accent);">
+            <h3 style="color: var(--text); margin-bottom: 15px;">Global System Configuration</h3>
+            <div class="form-grid">
+                <label class="field">
+                    <span>Release Notes Broadcaster (HTML supported)</span>
+                    <textarea id="adminReleaseNotes" placeholder="Enter latest patch notes or announcements here to broadcast to all users..." style="min-height: 120px;"></textarea>
+                </label>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <label class="field" style="flex: 1; min-width: 150px;">
+                        <span>Migrations per Elder Stage</span>
+                        <input type="number" id="adminMigrations" min="1" value="1">
+                    </label>
+                    <label class="field" style="flex: 1; min-width: 150px;">
+                        <span>Max Rebirths Allowed</span>
+                        <input type="number" id="adminRebirths" min="0" value="3">
+                    </label>
+                </div>
+                <button class="btn full-width" id="saveSystemConfigBtn" style="background: var(--accent); border-color: var(--accent); margin-top: 10px;">📡 Broadcast Configuration Update</button>
+            </div>
+        </div>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981; font-size: 1.1em; padding: 15px;">⬇️ Export Full System Backup</button>
             <hr style="border-color: var(--border); margin: 5px 0;">
             <input type="file" id="importDataInput" accept=".json" style="display: none;">
-            <label for="importDataInput" class="btn full-width" style="text-align: center; cursor: pointer; background: var(--accent); border-color: var(--accent); font-size: 1.1em; padding: 15px;">⬆️ Push Global JSON Baseline</label>
+            <label for="importDataInput" class="btn full-width" style="text-align: center; cursor: pointer; background: var(--bg-alt); border: 2px solid var(--accent); color: var(--accent); font-size: 1.1em; padding: 15px;">⬆️ Push Global JSON Baseline</label>
         </div>
       </div>
 
