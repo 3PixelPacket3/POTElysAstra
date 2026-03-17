@@ -1,5 +1,6 @@
 // map.js
 import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5} };
 let pendingPin = null; 
