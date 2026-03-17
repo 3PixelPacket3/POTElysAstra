@@ -15,18 +15,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const updatePasswordBtn = document.getElementById('updatePasswordBtn');
     const accountMsg = document.getElementById('accountMsg');
 
-    // --- NEW: User Preference Elements ---
+    // --- User Preference Elements ---
     const userLandingPage = document.getElementById('userLandingPage');
     const userTheme = document.getElementById('userTheme');
     const clearCacheBtn = document.getElementById('clearCacheBtn');
+    const userReleaseNotesDisplay = document.getElementById('userReleaseNotesDisplay');
 
-    // --- NEW: Admin Configuration Elements ---
+    // --- Admin Configuration Elements ---
     const adminReleaseNotes = document.getElementById('adminReleaseNotes');
     const adminMigrations = document.getElementById('adminMigrations');
     const adminRebirths = document.getElementById('adminRebirths');
     const saveSystemConfigBtn = document.getElementById('saveSystemConfigBtn');
 
-    // Load Local User Preferences
+    // --- Load Local User Preferences ---
     if (userLandingPage) {
         const savedPage = localStorage.getItem('eaha_landing_page');
         if (savedPage) userLandingPage.value = savedPage;
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         userTheme.addEventListener('change', (e) => {
             const theme = e.target.value;
             localStorage.setItem('eaha_theme', theme);
-            document.body.dataset.theme = theme; // Hooks into CSS if you expand themes later
+            document.body.dataset.theme = theme; 
             showToast(`Theme set to ${theme} mode.`);
         });
     }
@@ -53,7 +54,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearCacheBtn.addEventListener('click', async () => {
             if (confirm("WARNING: This will wipe your local device cache and log you out. Unsaved custom variables will be lost. Proceed?")) {
                 localStorage.clear();
-                // Nuke the IndexedDB completely
                 try { indexedDB.deleteDatabase('EAHADatabase'); } catch(e) {}
                 await signOut(auth);
                 window.location.replace("login.html");
@@ -80,12 +80,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (displayEmail) displayEmail.value = user.email;
         
+        // Fetch current database to populate settings fields
+        const db = await window.EAHADataStore.getData();
+        
+        // Populate Read-Only Release Notes for ALL users
+        if (userReleaseNotesDisplay) {
+            if (db.system_settings && db.system_settings.releaseNotes) {
+                userReleaseNotesDisplay.innerHTML = db.system_settings.releaseNotes;
+            } else {
+                userReleaseNotesDisplay.innerHTML = '<span class="muted">No release notes available at this time.</span>';
+            }
+        }
+
         // Admin Validation & Loading
         if (user.email === 'admin@elysastra.com' && adminZone) {
             adminZone.classList.remove('is-hidden');
             
-            // Fetch current database to populate Admin fields
-            const db = await window.EAHADataStore.getData();
             if (db.system_settings) {
                 if (adminReleaseNotes) adminReleaseNotes.value = db.system_settings.releaseNotes || '';
                 if (adminMigrations) adminMigrations.value = db.system_settings.maxMigrations || 1;
@@ -102,11 +112,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const db = await window.EAHADataStore.getData();
             
-            // Bundle the new settings
+            // Bundle the new settings while protecting the modifiers matrix
+            let currentModifiers = window.EAHAModifiers;
+            if (db.system_settings && db.system_settings.modifiers) {
+                currentModifiers = db.system_settings.modifiers;
+            }
+
             db.system_settings = {
                 releaseNotes: adminReleaseNotes.value,
                 maxMigrations: parseInt(adminMigrations.value, 10),
                 maxRebirths: parseInt(adminRebirths.value, 10),
+                modifiers: currentModifiers, // Failsafe inclusion
                 lastUpdated: Date.now()
             };
 
@@ -114,6 +130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (success) {
                 showToast("Global configuration broadcasted to central server.");
+                // Update local display instantly for the Admin
+                if (userReleaseNotesDisplay) userReleaseNotesDisplay.innerHTML = adminReleaseNotes.value;
             } else {
                 showToast("Broadcast failed. Check connection.", "error");
             }
@@ -217,7 +235,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!importedData.rules) importedData.rules = [];
 
                     await window.EAHADataStore.saveData(importedData);
-                    
                     await window.EAHADataStore.resetToCloudBase();
                     
                     alert("Admin Override Complete: Legacy backup successfully pushed to the global baseline.");
