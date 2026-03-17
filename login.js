@@ -25,26 +25,17 @@ function showMessage(msg, type = 'info') {
 // --- USER FRIENDLY ERROR TRANSLATOR ---
 function getFriendlyErrorMessage(error) {
     switch (error.code) {
-        case 'auth/api-key-not-valid':
-            return "System Error: Invalid connection key. Please check the database configuration.";
+        case 'auth/api-key-not-valid': return "System Error: Invalid connection key. Please check the database configuration.";
         case 'auth/invalid-credential':
         case 'auth/wrong-password':
-        case 'auth/user-not-found':
-            return "Incorrect email or password. Please try again.";
-        case 'auth/email-already-in-use':
-            return "An account is already registered to this email address.";
-        case 'auth/weak-password':
-            return "Your password is too weak. Please use at least 6 characters.";
-        case 'auth/invalid-email':
-            return "Please enter a valid email address.";
-        case 'auth/network-request-failed':
-            return "Network connection failed. Please check your internet.";
-        case 'auth/operation-not-allowed':
-            return "Server Error: Email/Password authentication is disabled in Firebase Console.";
-        case 'auth/unauthorized-domain':
-            return "Security Error: GitHub Pages domain is not authorized in Firebase.";
-        default:
-            return `System Error (${error.code}): ${error.message}`;
+        case 'auth/user-not-found': return "Incorrect email or password. Please try again.";
+        case 'auth/email-already-in-use': return "An account is already registered to this email address.";
+        case 'auth/weak-password': return "Your password is too weak. Please use at least 6 characters.";
+        case 'auth/invalid-email': return "Please enter a valid email address.";
+        case 'auth/network-request-failed': return "Network connection failed. Please check your internet.";
+        case 'auth/operation-not-allowed': return "Server Error: Email/Password authentication is disabled in Firebase Console.";
+        case 'auth/unauthorized-domain': return "Security Error: GitHub Pages domain is not authorized in Firebase.";
+        default: return `System Error (${error.code}): ${error.message}`;
     }
 }
 
