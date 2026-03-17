@@ -9,31 +9,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const importDataInput = document.getElementById('importDataInput');
     const adminZone = document.getElementById('adminZone');
     
-    // Account Management Nodes
     const displayEmail = document.getElementById('displayEmail');
     const newPasswordInput = document.getElementById('newPassword');
     const updatePasswordBtn = document.getElementById('updatePasswordBtn');
     const accountMsg = document.getElementById('accountMsg');
 
-    // --- 1. Security Guard & Identity Verification ---
     onAuthStateChanged(auth, (user) => {
         if (!user) {
             window.location.replace("login.html");
             return;
         }
-
-        // Populate User Settings
-        if (displayEmail) {
-            displayEmail.value = user.email;
-        }
-
-        // Admin Authority Check
+        if (displayEmail) displayEmail.value = user.email;
         if (user.email === 'admin@elysastra.com' && adminZone) {
             adminZone.classList.remove('is-hidden');
         }
     });
 
-    // --- 2. Update Password Logic ---
     if (updatePasswordBtn) {
         updatePasswordBtn.addEventListener('click', async () => {
             const user = auth.currentUser;
@@ -52,8 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 accountMsg.style.color = "var(--success)";
                 newPasswordInput.value = "";
             } catch (error) {
-                console.error("Jarvis: Password update failed.", error);
-                // Firebase requires users to have recently signed in to change a password.
                 if(error.code === 'auth/requires-recent-login') {
                     accountMsg.innerText = "Security protocol requires a fresh login to change password. Please log out and back in.";
                 } else {
@@ -66,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 3. Manual Cloud Synchronization ---
     if (syncCloudBtn) {
         syncCloudBtn.addEventListener('click', async () => {
             syncCloudBtn.disabled = true;
@@ -89,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. Secure Logout ---
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
             try {
@@ -97,12 +84,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.replace("login.html");
             } catch (error) {
                 console.error("Jarvis: Logout failed.", error);
-                alert("Error during logout sequence.");
             }
         });
     }
 
-    // --- 5. Export Full System Backup (Admin Only) ---
     if (exportDataBtn) {
         exportDataBtn.addEventListener('click', async () => {
             const data = await window.EAHADataStore.getData();
@@ -116,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 6. Admin Global Baseline Import (Legacy Unwrapper Active) ---
     if (importDataInput) {
         importDataInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -127,16 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     let importedData = JSON.parse(e.target.result);
                     
-                    // JARVIS FIX: Detect and unwrap legacy JSON structures
                     if (importedData.database) {
                         importedData = importedData.database;
                     }
-                    // Ensure core arrays exist to prevent crashes
                     if (!importedData.creatures) importedData.creatures = [];
                     if (!importedData.rules) importedData.rules = [];
 
-                    // Pushing this will trigger the Admin override we built in data-store.js
                     await window.EAHADataStore.saveData(importedData);
+                    
+                    // JARVIS FIX: Aggressively purge local cache so the desktop fetches the fresh cloud data immediately
+                    await window.EAHADataStore.resetToCloudBase();
+                    
                     alert("Admin Override Complete: Legacy backup successfully pushed to the global baseline.");
                     location.reload();
                 } catch (error) {
