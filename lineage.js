@@ -1,4 +1,6 @@
 // lineage.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], lineage: [] };
@@ -178,7 +180,7 @@ const renderWorkspace = () => {
       // Toggle Status on Click
       card.addEventListener('click', async () => {
         member.status = member.status === 'Alive' ? 'Deceased' : 'Alive';
-        await EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(db);
         renderWorkspace();
         renderList();
       });
@@ -220,7 +222,7 @@ elements.savePackBtn.addEventListener('click', async () => {
   if (!db.lineage) db.lineage = [];
   db.lineage.push(newPack);
   
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   currentLineageId = newPack.id;
   
   elements.packModal.classList.add('is-hidden');
@@ -261,7 +263,7 @@ elements.saveMemberBtn.addEventListener('click', async () => {
     dateAdded: Date.now()
   });
 
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   
   elements.memberModal.classList.add('is-hidden');
   renderWorkspace();
@@ -274,7 +276,7 @@ elements.deleteBtn.addEventListener('click', async () => {
   const pack = db.lineage.find(l => l.id === currentLineageId);
   if (confirm(`WARNING: Are you sure you want to completely erase the ${pack.packName} bloodline?`)) {
     db.lineage = db.lineage.filter(l => l.id !== currentLineageId);
-    await EAHADataStore.saveData(db);
+    await window.EAHADataStore.saveData(db);
     currentLineageId = null;
     renderList();
     renderWorkspace();
@@ -296,8 +298,8 @@ elements.search.addEventListener('input', renderList);
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing.");
   }
@@ -308,4 +310,13 @@ const init = async () => {
   renderWorkspace();
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
