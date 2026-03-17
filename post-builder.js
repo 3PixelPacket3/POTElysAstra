@@ -1,4 +1,6 @@
 // post-builder.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const PRESETS_KEY = 'eahaPostPresets';
 
@@ -516,4 +518,13 @@ const init = () => {
   loadBaseTemplate('event');
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            init(); // Note: init is synchronous for post-builder
+        }
+    });
+});
