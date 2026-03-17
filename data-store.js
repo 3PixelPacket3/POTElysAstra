@@ -82,7 +82,6 @@ window.EAHAModifiers = {
     3: { name: "Stage 3: Experienced Elder", description: "+250 health, +350 weight, -0.16 speed, +0.25 turn", health: 250, weight: 350, speed: -0.16, turn: 0.25 },
     4: { name: "Stage 4: Withering Elder", description: "+250 health, +350 weight, -0.195 speed, +0.25 turn (Slow decay active)", health: 250, weight: 350, speed: -0.195, turn: 0.25 }
   },
-  // JARVIS UPDATE: Global Rebirth Stat Defaults integrated into the Master Matrix
   rebirths: {
     0: { description: "No Rebirth", health: 0, stamina: 0, speed: 0 },
     1: { description: "First Rebirth", health: 50, stamina: 25, speed: 0.02 },
@@ -189,23 +188,26 @@ window.EAHADataStore = {
 
     try {
       const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, dataObj, { merge: true });
+      
+      // JARVIS FIX: Removed { merge: true } to enforce Absolute Overwrite on the user document.
+      await setDoc(userRef, dataObj); 
 
       if (user.email === ADMIN_EMAIL) {
         console.log("Jarvis: Admin authority recognized. Updating global baseline.");
         const adminRef = doc(db, "system", "admin_baseline");
         
-        // Data protection failsafe. Never wipe modifiers accidentally.
         let currentSystemSettings = dataObj.system_settings || {};
         if (!currentSystemSettings.modifiers) {
             currentSystemSettings.modifiers = window.EAHAModifiers;
         }
 
+        // JARVIS FIX: Removed { merge: true } to enforce Absolute Overwrite on the global baseline.
+        // This destroys all ghost data and heavily compresses your cloud storage.
         await setDoc(adminRef, {
           rules: dataObj.rules || [],
           creatures: dataObj.creatures || [],
           system_settings: currentSystemSettings
-        }, { merge: true });
+        }); 
       }
 
       await this.setIndexedData(this.MASTER_KEY, dataObj);
