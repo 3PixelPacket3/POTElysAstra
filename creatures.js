@@ -121,6 +121,7 @@ const getAllAttacks = (dino, stageIndex = 4) => {
 
 // --- Modifiers Engine Initialization ---
 const populateModifiersDropdowns = () => {
+  // JARVIS FIX: Ensure the dropdowns are loading the live window object after the database pull
   if (!window.EAHAModifiers) return;
 
   elements.modifiers.role.innerHTML = '';
@@ -687,7 +688,8 @@ const saveCreature = async () => {
   if (index >= 0) db.creatures[index] = data;
   else db.creatures.push(data);
   
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Ensuring proper global object hook
+  await window.EAHADataStore.saveData(db);
   
   currentCreatureId = data.id;
   updateTierOptions();
@@ -701,7 +703,8 @@ const deleteCreature = async () => {
   if (!currentCreatureId || !confirm('Are you certain you want to delete this creature? This cannot be undone.')) return;
   
   db.creatures = db.creatures.filter(c => c.id !== currentCreatureId);
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Ensuring proper global object hook
+  await window.EAHADataStore.saveData(db);
   
   currentCreatureId = null;
   updateTierOptions();
@@ -718,7 +721,8 @@ const duplicateCreature = async () => {
   data.name = data.name + ' (Copy)';
   
   db.creatures.push(data);
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Ensuring proper global object hook
+  await window.EAHADataStore.saveData(db);
   
   currentCreatureId = data.id;
   syncForm(data);
@@ -730,12 +734,14 @@ const duplicateCreature = async () => {
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  // JARVIS FIX: Ensure the init block correctly awaits the global data store
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
+    console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
+  // Once data is loaded from cloud, populate the dropdowns with the live matrix
   populateModifiersDropdowns();
 
   initTabs();
