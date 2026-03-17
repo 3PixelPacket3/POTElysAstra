@@ -125,6 +125,64 @@
                 <button class="btn full-width" id="saveSystemConfigBtn" style="background: var(--accent); border-color: var(--accent); margin-top: 10px;">📡 Broadcast Configuration Update</button>
             </div>
         </div>
+
+        <div style="margin-bottom: 25px; padding: 20px; background: color-mix(in srgb, var(--danger) 10%, transparent); border-radius: 12px; border: 1px solid var(--danger);">
+            <h3 style="color: var(--danger); margin-bottom: 10px;">Advanced Modifiers Matrix</h3>
+            <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Modify the global variables for Roles, Mutations, Genetics, and Eldering. Changes here will immediately alter the Threat Assessment Simulator for all users.</p>
+            
+            <div class="form-grid" style="margin-bottom: 20px;">
+                <label class="field">
+                    <span>Select Matrix Category</span>
+                    <select id="matrixCategorySelect">
+                        <option value="roles">Roles</option>
+                        <option value="mutations">Mutations</option>
+                        <option value="genetics">Genetics</option>
+                        <option value="eldering">Eldering Stages</option>
+                    </select>
+                </label>
+                
+                <label class="field">
+                    <span>Select Entry to Edit (Or type a new name below)</span>
+                    <select id="matrixEntrySelect">
+                        <option value="new">-- Create New Entry --</option>
+                    </select>
+                </label>
+            </div>
+
+            <div id="matrixEditForm" style="padding-top: 20px; border-top: 1px dashed var(--danger);">
+                <div class="form-grid">
+                    <label class="field">
+                        <span>Entry Name / Identifier</span>
+                        <input type="text" id="matrixEntryName" placeholder="e.g., Alpha, Speed Genetic, Stage 1">
+                    </label>
+                    <label class="field">
+                        <span>Description / Tooltip</span>
+                        <input type="text" id="matrixEntryDesc" placeholder="Brief description of the effects...">
+                    </label>
+                </div>
+                
+                <h4 style="margin-top: 20px; margin-bottom: 15px; color: var(--text); font-size: 0.95em;">Stat Modifiers <span class="muted" style="font-weight: normal;">(Leave blank or 0 if no effect)</span></h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px;">
+                    <label class="field"><span>Health Flat (+/-)</span><input type="number" step="any" class="matrix-stat" data-stat="health"></label>
+                    <label class="field"><span>Weight Flat (+/-)</span><input type="number" step="any" class="matrix-stat" data-stat="weight"></label>
+                    <label class="field"><span>Stamina Flat (+/-)</span><input type="number" step="any" class="matrix-stat" data-stat="stamina"></label>
+                    <label class="field"><span>Speed Multiplier</span><input type="number" step="any" class="matrix-stat" data-stat="speed"></label>
+                    <label class="field"><span>Armor Multiplier</span><input type="number" step="any" class="matrix-stat" data-stat="armor"></label>
+                    <label class="field"><span>Turn Multiplier</span><input type="number" step="any" class="matrix-stat" data-stat="turn"></label>
+                    <label class="field"><span>Heal Rate Multi</span><input type="number" step="any" class="matrix-stat" data-stat="healRate"></label>
+                    <label class="field"><span>Stam Regen Multi</span><input type="number" step="any" class="matrix-stat" data-stat="staminaRegen"></label>
+                    <label class="field"><span>Jump Multiplier</span><input type="number" step="any" class="matrix-stat" data-stat="jump"></label>
+                    <label class="field"><span>Oxygen Flat (+/-)</span><input type="number" step="any" class="matrix-stat" data-stat="oxygen"></label>
+                    <label class="field"><span>Carry Cap (+/-)</span><input type="number" step="any" class="matrix-stat" data-stat="carry"></label>
+                    <label class="field"><span>Knockback Multi</span><input type="number" step="any" class="matrix-stat" data-stat="knockback"></label>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 25px;">
+                    <button class="btn full-width" id="saveMatrixEntryBtn" style="background: var(--danger); border-color: var(--danger);">💾 Save Entry to Cloud</button>
+                    <button class="btn btn-ghost full-width" id="deleteMatrixEntryBtn" style="color: var(--danger); border-color: var(--danger);">🗑️ Delete Entry</button>
+                </div>
+            </div>
+        </div>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981; font-size: 1.1em; padding: 15px;">⬇️ Export Full System Backup</button>
