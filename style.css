@@ -158,10 +158,12 @@ input[type=range]::-webkit-slider-runnable-track {
   .nav-links.active { display: flex; animation: fadeIn 0.2s ease-in-out; }
   .nav-btn { width: 100%; text-align: left; padding: 12px 15px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); }
   
-  /* 2. Single-Column Layouts */
-  .dashboard-grid, .form-grid, .preset-sidebar { grid-template-columns: 1fr !important; }
+  /* 2. Global Viewport Clamps (Fixes Creature & Map Overflow) */
+  body, html { max-width: 100vw; overflow-x: hidden; }
+  .dashboard-grid, .form-grid, .preset-sidebar { grid-template-columns: 1fr !important; width: 100%; }
   .hero { flex-direction: column; text-align: center; }
   .hero > div { width: 100%; text-align: center !important; align-items: center !important; }
+  .editor-pane, .preview-pane, .card { max-width: 100vw; overflow-x: hidden; }
 
   /* 3. Touch-Target Padding & Typography */
   .card { padding: 15px; }
@@ -173,16 +175,30 @@ input[type=range]::-webkit-slider-runnable-track {
   .vitals-container { flex-wrap: wrap; justify-content: center; }
   .vitals-container > span { margin-left: 0 !important; width: 100%; text-align: center; margin-top: 15px; font-size: 1.8em !important; }
 
-  /* 5. Fix Wanky Scrolling (Double Bubbles) */
-  /* This kills the internal scrollbars so the main phone screen scrolls naturally */
-  .builder-workspace { flex-direction: column; height: auto !important; padding: 10px !important; overflow: visible !important; }
+  /* 5. Fix Wanky Scrolling & Float Overlaps */
+  .builder-workspace { flex-direction: column; height: auto !important; padding: 10px !important; overflow: hidden !important; }
   .preset-sidebar, .editor-pane, .preview-pane { height: auto !important; overflow-y: visible !important; }
-  
-  /* Limits the height of long lists (like rules/presets) so they don't consume the whole screen */
   .preset-list { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 5px; }
   
-  /* 6. Map Container Fixes */
-  .map-window { height: 60vh; max-height: 500px; aspect-ratio: auto; }
-}
+  /* Un-float the System Manual on the Guide/About page */
+  #system-manual, .floating-manual, .guide-sidebar { 
+      position: relative !important; 
+      width: 100% !important; 
+      max-width: 100% !important; 
+      height: auto !important; 
+      float: none !important; 
+      display: block; 
+      margin-bottom: 20px; 
+      z-index: 1; 
+  }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  /* 6. Map Container Fixes */
+  .map-window, #mapContainer { 
+      width: 100% !important; 
+      max-width: 100vw !important; 
+      height: 60vh; 
+      max-height: 500px; 
+      aspect-ratio: auto; 
+      overflow: hidden; 
+  }
+}
