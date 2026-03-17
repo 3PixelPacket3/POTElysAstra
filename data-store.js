@@ -5,14 +5,13 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- FIREBASE CLOUD CONFIGURATION ---
-// Sir, replace these placeholder values with your free Firebase project settings.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBvnnuCraIUKzsC31kNwxp8b4XpappRQKA",
+  authDomain: "eaha-database.firebaseapp.com",
+  projectId: "eaha-database",
+  storageBucket: "eaha-database.firebasestorage.app",
+  messagingSenderId: "949997364963",
+  appId: "1:949997364963:web:cd25b994d30c4bf73b47d6"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -208,7 +207,7 @@ window.EAHADataStore = {
     }
   },
 
-  // Manual trigger to pull the latest Admin updates (Replaces the old JSON check)
+  // Manual trigger to pull the latest Admin updates
   async syncCloudData() {
     console.log("Jarvis: Initiating forced sync with central servers...");
     const latestData = await this.getData(); 
