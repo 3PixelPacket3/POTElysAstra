@@ -192,6 +192,11 @@ const setView = (creature) => {
   if (creature.imagePath) {
     elements.image.src = creature.imagePath;
     elements.image.style.display = 'block';
+    // JARVIS FIX: Handle expired Discord links gracefully
+    elements.image.onerror = () => {
+        elements.image.style.display = 'none';
+        console.warn("Jarvis Alert: Image link expired. Discord links die after 24 hours.");
+    };
   } else {
     elements.image.style.display = 'none';
   }
