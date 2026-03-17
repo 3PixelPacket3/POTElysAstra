@@ -533,17 +533,18 @@ table, .stat-matrix, .table-wrapper {
     white-space: nowrap; 
 }
 
-/* === STRICT TACTICAL MAP CLAMPS === */
+/* === TACTICAL MAP CLAMPS === */
 #mapContainer, .map-window { 
-    width: 100% !important; 
-    max-width: 100% !important; 
-    aspect-ratio: 1 / 1; 
-    height: auto !important; 
+    width: 100%; 
+    max-width: 100%; 
+    aspect-ratio: 1 / 1; /* JARVIS FIX: Restored perfectly square ratio so map pins do not drift */
+    height: auto; 
     box-sizing: border-box; 
-    margin: 0 auto !important; 
-    padding: 0 !important; 
+    margin: 0 auto; 
+    padding: 0; 
     overflow: hidden; 
     background-color: var(--bg-alt); 
+    position: relative; 
 }
 
 /* === GLOBAL RESPONSIVE ADJUSTMENTS === */
@@ -566,7 +567,6 @@ table, .stat-matrix, .table-wrapper {
       width: auto; 
   } 
 
-  /* JARVIS FIX: Removed all desktop padding to perfectly center map and profiles */
   .page { 
       padding: 10px !important; 
   }
@@ -579,7 +579,6 @@ table, .stat-matrix, .table-wrapper {
       max-width: 100%; 
   }
   
-  /* Stops the Editor Pane from pushing elements to the right */
   .editor-pane { 
       padding: 0 !important; 
       margin: 0 !important; 
@@ -660,10 +659,23 @@ table, .stat-matrix, .table-wrapper {
       z-index: 1; 
   }
 
-  /* JARVIS FIX: Push mode toggles right on mobile */
+  /* JARVIS FIX: Mobile Button Spacing & Wrapping for Stats page */
   .mode-toggle { 
-      justify-content: flex-end; 
-      padding-right: 5px;
-      margin-top: 10px;
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center; 
+      gap: 12px;
+      margin-top: 20px;
+      margin-bottom: 25px;
+      width: 100%;
+  }
+  
+  .mode-toggle button {
+      flex: 1 1 calc(50% - 12px); 
+      min-width: 140px;
+      padding: 12px 10px;
+      white-space: normal;
+      height: auto;
   }
 }
