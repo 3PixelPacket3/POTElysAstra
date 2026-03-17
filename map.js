@@ -429,11 +429,9 @@ const renderPins = () => {
   });
 };
 
-// JARVIS FIX: Bound click to mapWindow to guarantee clicks are never blocked by image layers
 elements.mapWindow.addEventListener('click', (e) => {
   if (currentMode === 'pan') return;
   
-  // Prevent dropping pins if the user was clicking the zoom UI or another pin
   if (e.target.closest('.zoom-controls') || e.target.closest('.map-pin')) return;
 
   const coords = getMapCoordinates(e.clientX, e.clientY);
@@ -488,4 +486,13 @@ const init = async () => {
   renderPins(); renderRoutes(); updateTransform(); 
 };
 
-onAuthStateChanged(auth, (user) => { if (user) init(); });
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
