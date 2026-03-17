@@ -1,4 +1,6 @@
 // work.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {} };
@@ -187,7 +189,8 @@ const saveRule = async () => {
   if (index >= 0) db.rules[index] = data;
   else db.rules.push(data);
   
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Explicitly target the window object for global save
+  await window.EAHADataStore.saveData(db);
   
   currentRuleId = data.id;
   updateCategoryOptions();
@@ -201,7 +204,8 @@ const deleteRule = async () => {
   if (!currentRuleId || !confirm('Are you certain you want to delete this rule? This cannot be undone.')) return;
   
   db.rules = db.rules.filter(r => r.id !== currentRuleId);
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Explicitly target the window object for global save
+  await window.EAHADataStore.saveData(db);
   
   currentRuleId = null;
   updateCategoryOptions();
@@ -219,7 +223,8 @@ const duplicateRule = async () => {
   data.updated = new Date().toISOString();
   
   db.rules.push(data);
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Explicitly target the window object for global save
+  await window.EAHADataStore.saveData(db);
   
   currentRuleId = data.id;
   syncForm(data);
@@ -231,10 +236,11 @@ const duplicateRule = async () => {
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  // JARVIS FIX: Ensuring the window object is correctly read
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
+    console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
   updateCategoryOptions();
@@ -276,4 +282,13 @@ const init = async () => {
   }
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
