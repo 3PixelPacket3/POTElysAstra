@@ -1,7 +1,28 @@
 // data-store.js
 
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// --- FIREBASE CLOUD CONFIGURATION ---
+// Sir, replace these placeholder values with your free Firebase project settings.
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Designate the Master Admin Account
+const ADMIN_EMAIL = "admin@elysastra.com"; 
+
 // --- EAHA GLOBAL MODIFIERS DICTIONARY ---
-// Centralized stats for Roles, Mutations, Genetics, and Eldering
 window.EAHAModifiers = {
   roles: {
     "None": { description: "No role equipped." },
@@ -65,7 +86,7 @@ window.EAHAModifiers = {
   }
 };
 
-const EAHADataStore = {
+window.EAHADataStore = {
   DB_NAME: 'EAHADatabase',
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
@@ -106,166 +127,108 @@ const EAHADataStore = {
     });
   },
 
+  // Primary Fetch: Grabs User Data + Admin Baseline Overlay
   async getData() {
-    try {
-      const data = await this.getIndexedData(this.MASTER_KEY);
-      if (data) return data;
-
-      const localData = localStorage.getItem(this.MASTER_KEY);
-      if (localData) {
-        console.log("Jarvis: Migrating legacy data to high-capacity storage.");
-        const parsed = JSON.parse(localData);
-        await this.setIndexedData(this.MASTER_KEY, parsed);
-        return parsed;
-      }
-    } catch (e) {
-      console.error("Jarvis Error: IndexedDB retrieval failed.", e);
+    const user = auth.currentUser;
+    if (!user) {
+      console.warn("Jarvis: User not authenticated. Serving local cache only.");
+      return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
     }
 
-    return await this.loadBaseJSON();
-  },
-
-  async loadBaseJSON() {
     try {
-      const response = await fetch('JSON.json');
-      if (!response.ok) throw new Error('Network response was not ok');
-      const fullBackup = await response.json();
+      // Fetch User's Personal Data
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
+
+      // Fetch Global Admin Baseline
+      const adminRef = doc(db, "system", "admin_baseline");
+      const adminSnap = await getDoc(adminRef);
+      const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [] };
+
+      // Merge Logic: Admin Rules & Base Creatures always override/update User data
+      userData.rules = adminData.rules || [];
       
-      const strippedDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
-      
-      if (fullBackup.database) {
-        if (fullBackup.database.rules) strippedDb.rules = fullBackup.database.rules;
-        if (fullBackup.database.creatures) {
-          strippedDb.creatures = fullBackup.database.creatures.map(c => {
-            const cleanCreature = { ...c };
-            // Allow ALL stats (base and custom) to load directly from the JSON
-            cleanCreature.stats = { 
-              base: cleanCreature.stats?.base || {}, 
-              custom: cleanCreature.stats?.custom || [] 
-            };
-            cleanCreature.role = cleanCreature.role || 'None';
-            cleanCreature.mutation = cleanCreature.mutation || 'None';
-            cleanCreature.genetics = cleanCreature.genetics || (cleanCreature.genetic && cleanCreature.genetic !== 'None' ? [cleanCreature.genetic] : []);
-            return cleanCreature;
-          });
-        }
+      if (adminData.creatures) {
+        adminData.creatures.forEach(adminCrea => {
+          const existingIndex = userData.creatures.findIndex(c => c.id === adminCrea.id);
+          if (existingIndex === -1) {
+            userData.creatures.push(adminCrea); // Add new global creature
+          } else {
+            // Keep user's custom stats, but force-update base stats from admin
+            userData.creatures[existingIndex].stats.base = adminCrea.stats.base;
+            userData.creatures[existingIndex].name = adminCrea.name;
+          }
+        });
       }
 
-      if (fullBackup.eahaPostPresets) localStorage.setItem('eahaPostPresets', JSON.stringify(fullBackup.eahaPostPresets));
-      if (fullBackup.eahaCommands) localStorage.setItem('eahaCommands', JSON.stringify(fullBackup.eahaCommands));
-
-      localStorage.removeItem('eahaLifelines');
-      localStorage.removeItem('eahaActiveCreature');
-
-      await this.saveData(strippedDb);
-      return strippedDb;
+      // Cache locally for performance
+      await this.setIndexedData(this.MASTER_KEY, userData);
+      return userData;
 
     } catch (error) {
-      console.error("Jarvis Error: Failed to load baseline JSON.json.", error);
-      return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
+      console.error("Jarvis Error: Cloud Sync failed. Serving local cache.", error);
+      return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
     }
   },
 
-  async mergeWithBase() {
-    try {
-      const response = await fetch('JSON.json');
-      if (!response.ok) throw new Error('Network response was not ok');
-      const fullBackup = await response.json();
-      
-      let localDb = await this.getData();
-      let addedCount = 0;
-
-      if (!localDb.lineage) localDb.lineage = [];
-      if (!localDb.routes) localDb.routes = [];
-
-      if (fullBackup.database) {
-        if (fullBackup.database.rules) {
-          fullBackup.database.rules.forEach(jsonRule => {
-            const existingIndex = localDb.rules.findIndex(r => r.id === jsonRule.id);
-            if (existingIndex === -1) {
-              localDb.rules.push(jsonRule);
-              addedCount++;
-            } else {
-              localDb.rules[existingIndex] = jsonRule; 
-            }
-          });
-        }
-
-        if (fullBackup.database.creatures) {
-          fullBackup.database.creatures.forEach(jsonCrea => {
-            const existingIndex = localDb.creatures.findIndex(c => c.id === jsonCrea.id);
-            if (existingIndex === -1) {
-              const cleanCreature = { ...jsonCrea };
-              cleanCreature.stats = { 
-                base: jsonCrea.stats?.base || {}, 
-                custom: jsonCrea.stats?.custom || [] 
-              };
-              cleanCreature.role = jsonCrea.role || 'None';
-              cleanCreature.mutation = jsonCrea.mutation || 'None';
-              cleanCreature.genetics = jsonCrea.genetics || (jsonCrea.genetic && jsonCrea.genetic !== 'None' ? [jsonCrea.genetic] : []);
-              localDb.creatures.push(cleanCreature);
-              addedCount++;
-            } else {
-              localDb.creatures[existingIndex] = {
-                ...jsonCrea,
-                stats: {
-                  base: jsonCrea.stats?.base || {},
-                  custom: jsonCrea.stats?.custom || [] // Overwrites old custom stats with the master server's custom stats
-                },
-                role: localDb.creatures[existingIndex].role || 'None',
-                mutation: localDb.creatures[existingIndex].mutation || 'None',
-                genetics: localDb.creatures[existingIndex].genetics || (localDb.creatures[existingIndex].genetic && localDb.creatures[existingIndex].genetic !== 'None' ? [localDb.creatures[existingIndex].genetic] : [])
-              };
-            }
-          });
-        }
-      }
-
-      if (fullBackup.eahaCommands) {
-        const localCommands = JSON.parse(localStorage.getItem('eahaCommands')) || [];
-        const mergedCommands = [...new Set([...localCommands, ...fullBackup.eahaCommands])];
-        localStorage.setItem('eahaCommands', JSON.stringify(mergedCommands));
-      }
-
-      if (fullBackup.eahaPostPresets) {
-        const localPresets = JSON.parse(localStorage.getItem('eahaPostPresets')) || {};
-        const mergedPresets = { ...fullBackup.eahaPostPresets, ...localPresets };
-        localStorage.setItem('eahaPostPresets', JSON.stringify(mergedPresets));
-      }
-
-      await this.saveData(localDb);
-      return { success: true, changes: addedCount };
-
-    } catch (error) {
-      console.error("Jarvis Error: Merge failed.", error);
-      return { success: false };
-    }
-  },
-
+  // Primary Save: Routes data based on account authority
   async saveData(dataObj) {
+    const user = auth.currentUser;
+    if (!user) return false;
+
     try {
+      // Always save to the user's personal cloud backup
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(userRef, dataObj, { merge: true });
+
+      // If Jarvis detects the Admin, update the global baseline as well
+      if (user.email === ADMIN_EMAIL) {
+        console.log("Jarvis: Admin authority recognized. Updating global baseline.");
+        const adminRef = doc(db, "system", "admin_baseline");
+        await setDoc(adminRef, {
+          rules: dataObj.rules,
+          creatures: dataObj.creatures.map(c => ({
+            id: c.id,
+            name: c.name,
+            tier: c.tier,
+            group: c.group,
+            stats: { base: c.stats.base, custom: [] } // Strips user-specific custom stats from baseline
+          }))
+        }, { merge: true });
+      }
+
+      // Update Local Cache
       await this.setIndexedData(this.MASTER_KEY, dataObj);
       return true;
+
     } catch (error) {
-      console.error("Jarvis Error: Storage limit reached or blocked.", error);
+      console.error("Jarvis Error: Could not transmit data to central server.", error);
       return false;
     }
   },
 
-  async resetToBase() {
-    localStorage.removeItem(this.MASTER_KEY);
-    localStorage.removeItem('eahaPostPresets');
-    localStorage.removeItem('eahaLifelines');
-    localStorage.removeItem('eahaCommands');
-    localStorage.removeItem('eahaActiveCreature');
-    localStorage.removeItem('eahaTimeZone');
-    
-    try {
-      const db = await this.initDB();
-      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
-      transaction.objectStore(this.STORE_NAME).delete(this.MASTER_KEY);
-    } catch(e) {}
-    
-    return await this.loadBaseJSON();
+  // Manual trigger to pull the latest Admin updates (Replaces the old JSON check)
+  async syncCloudData() {
+    console.log("Jarvis: Initiating forced sync with central servers...");
+    const latestData = await this.getData(); 
+    return { success: true, message: "Cloud synchronization complete." };
+  },
+
+  async resetToCloudBase() {
+    const user = auth.currentUser;
+    if (user) {
+        // Only deletes local cache, forces a fresh pull from the cloud on next load
+        try {
+            const idb = await this.initDB();
+            const transaction = idb.transaction([this.STORE_NAME], 'readwrite');
+            transaction.objectStore(this.STORE_NAME).delete(this.MASTER_KEY);
+        } catch(e) {}
+    }
+    return await this.getData();
+  },
+
+  getEmptyDB() {
+    return { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [] };
   }
 };
