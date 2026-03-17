@@ -56,14 +56,14 @@ const elements = {
 
   // Threat Assessment Simulator - Modifiers (Fighter A)
   fighterAElder: document.getElementById('fighterAElder'),
-  fighterARebirth: document.getElementById('fighterARebirth'), // JARVIS: New Hook
+  fighterARebirth: document.getElementById('fighterARebirth'), 
   fighterARole: document.getElementById('fighterARole'),
   fighterAMutation: document.getElementById('fighterAMutation'),
   fighterAGenetics: document.querySelectorAll('.fighterAGeneticSelect'),
 
   // Threat Assessment Simulator - Modifiers (Fighter B)
   fighterBElder: document.getElementById('fighterBElder'),
-  fighterBRebirth: document.getElementById('fighterBRebirth'), // JARVIS: New Hook
+  fighterBRebirth: document.getElementById('fighterBRebirth'), 
   fighterBRole: document.getElementById('fighterBRole'),
   fighterBMutation: document.getElementById('fighterBMutation'),
   fighterBGenetics: document.querySelectorAll('.fighterBGeneticSelect'),
@@ -100,6 +100,7 @@ const getAdultStat = (valStr) => {
 
 // --- Modifiers Initialization ---
 const populateModifiersDropdowns = () => {
+  // JARVIS FIX: Ensure the live window object is accessed safely
   if (!window.EAHAModifiers || !elements.fighterARole) return;
 
   const roles = Object.keys(window.EAHAModifiers.roles || {});
@@ -313,7 +314,8 @@ const saveStats = async () => {
   });
   creature.stats.custom = customStats;
 
-  await EAHADataStore.saveData(db);
+  // JARVIS FIX: Ensure explicit global object hook
+  await window.EAHADataStore.saveData(db);
   showToast('Stats Updated Successfully.');
   
   setView(creature);
@@ -719,10 +721,11 @@ const renderList = () => {
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  // JARVIS FIX: Ensure the init block correctly awaits the global data store hook
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
+    console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
   populateModifiersDropdowns();
