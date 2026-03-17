@@ -1,132 +1,95 @@
-// settings.js
+import { auth } from './data-store.js';
+import { signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const elements = {
-  exportBtn: document.getElementById('exportDataBtn'),
-  importInput: document.getElementById('importDataInput'),
-  mergeBtn: document.getElementById('mergeBaseBtn'),
-  resetBtn: document.getElementById('factoryResetBtn'),
-  mergeStatus: document.getElementById('mergeStatus')
-};
-
-const showToast = (message, type = 'success') => {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.className = `toast toast-${type} show`;
-  if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
-  else if (type === 'info') toast.style.backgroundColor = 'var(--info)';
-  else toast.style.backgroundColor = 'var(--primary)';
-  setTimeout(() => toast.className = 'toast', 3000);
-};
-
-// 1. Export Personal Backup (Now pulls from IndexedDB)
-elements.exportBtn.addEventListener('click', async () => {
-  try {
-    const data = await EAHADataStore.getData();
+document.addEventListener('DOMContentLoaded', () => {
+    const syncCloudBtn = document.getElementById('syncCloudBtn');
+    const syncStatus = document.getElementById('syncStatus');
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    const importDataInput = document.getElementById('importDataInput');
     
-    // Bundle the main database + standalone settings (commands, presets, lifelines)
-    const fullBackup = {
-      database: data,
-      eahaCommands: JSON.parse(localStorage.getItem('eahaCommands')) || [],
-      eahaPostPresets: JSON.parse(localStorage.getItem('eahaPostPresets')) || {},
-      eahaLifelines: JSON.parse(localStorage.getItem('eahaLifelines')) || {},
-      timestamp: new Date().toISOString()
-    };
+    // --- 1. Manual Cloud Synchronization ---
+    if (syncCloudBtn) {
+        syncCloudBtn.addEventListener('click', async () => {
+            syncCloudBtn.disabled = true;
+            syncCloudBtn.innerText = "Synchronizing...";
+            syncStatus.innerText = "Pulling latest data from central servers...";
+            syncStatus.style.color = "var(--info)";
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    
-    const dateStr = new Date().toISOString().split('T')[0];
-    downloadAnchorNode.setAttribute("download", `eaha_backup_${dateStr}.json`);
-    
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    
-    showToast('Personal Backup Downloaded Successfully!');
-  } catch (error) {
-    showToast('Failed to export database.', 'error');
-    console.error(error);
-  }
-});
-
-// 2. Import Personal Backup (Writes to IndexedDB)
-elements.importInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async (event) => {
-    try {
-      const importedData = JSON.parse(event.target.result);
-      
-      if (importedData.database) {
-        // High-Capacity Import
-        await EAHADataStore.saveData(importedData.database);
-        
-        // Restore standalone configs
-        if (importedData.eahaCommands) localStorage.setItem('eahaCommands', JSON.stringify(importedData.eahaCommands));
-        if (importedData.eahaPostPresets) localStorage.setItem('eahaPostPresets', JSON.stringify(importedData.eahaPostPresets));
-        if (importedData.eahaLifelines) localStorage.setItem('eahaLifelines', JSON.stringify(importedData.eahaLifelines));
-        
-        showToast('Personal Backup Restored Successfully! Refreshing...');
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        // Fallback for extremely old backups
-        await EAHADataStore.saveData(importedData);
-        showToast('Legacy Backup Restored! Refreshing...');
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    } catch (err) {
-      showToast('Invalid JSON file format.', 'error');
-      console.error(err);
+            const result = await window.EAHADataStore.syncCloudData();
+            
+            if (result.success) {
+                syncStatus.innerText = "Synchronization successful. Reloading environment...";
+                syncStatus.style.color = "var(--success)";
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                syncStatus.innerText = "Synchronization failed. Please check your connection.";
+                syncStatus.style.color = "var(--danger)";
+                syncCloudBtn.disabled = false;
+                syncCloudBtn.innerText = "🔄 Sync with Central Server";
+            }
+        });
     }
-  };
-  reader.readAsText(file);
-  e.target.value = ''; 
-});
 
-// 3. Merge Server Base JSON
-elements.mergeBtn.addEventListener('click', async () => {
-  if (!confirm('This will download the latest JSON.json file from the server and merge it with your database. Proceed?')) return;
-  
-  elements.mergeBtn.disabled = true;
-  elements.mergeStatus.textContent = 'Contacting server...';
-  elements.mergeStatus.style.color = 'var(--muted)';
-  
-  try {
-    const result = await EAHADataStore.mergeWithBase();
-    if (result.success) {
-      elements.mergeStatus.textContent = `Merge Complete! Added/Updated ${result.changes} records.`;
-      elements.mergeStatus.style.color = 'var(--success)';
-      showToast('App Updated Successfully!');
-    } else {
-      elements.mergeStatus.textContent = 'Merge Failed. Check network connection or JSON.json format.';
-      elements.mergeStatus.style.color = 'var(--danger)';
-      showToast('Merge Failed.', 'error');
+    // --- 2. Purge Local Device Cache ---
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', async () => {
+            const confirmed = confirm("WARNING: This will clear your local device cache and force a fresh pull from the cloud. Proceed?");
+            if (confirmed) {
+                await window.EAHADataStore.resetToCloudBase();
+                alert("Cache cleared. Rebooting interface.");
+                location.reload();
+            }
+        });
     }
-  } catch (error) {
-    elements.mergeStatus.textContent = 'Critical Error during merge.';
-    elements.mergeStatus.style.color = 'var(--danger)';
-  } finally {
-    elements.mergeBtn.disabled = false;
-  }
-});
 
-// 4. Factory Reset
-elements.resetBtn.addEventListener('click', async () => {
-  const confirmation = prompt('WARNING: Type "PURGE" to permanently delete all personal data and reset the app.');
-  if (confirmation === 'PURGE') {
-    try {
-      await EAHADataStore.resetToBase();
-      showToast('Database Purged. Rebooting system...', 'error');
-      setTimeout(() => {
-        window.location.href = 'index.html';
-      }, 2000);
-    } catch (error) {
-      showToast('Reset failed.', 'error');
+    // --- 3. Secure Logout ---
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                window.location.href = "login.html"; // Redirect to the gateway
+            } catch (error) {
+                console.error("Jarvis: Logout failed.", error);
+                alert("Error during logout sequence.");
+            }
+        });
     }
-  } else {
-    showToast('Reset aborted.');
-  }
+
+    // --- 4. Export Local Backup ---
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', async () => {
+            const data = await window.EAHADataStore.getData();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "EAHA_Local_Backup_" + new Date().toISOString().slice(0,10) + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+    }
+
+    // --- 5. Import Local Backup ---
+    if (importDataInput) {
+        importDataInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    await window.EAHADataStore.saveData(importedData);
+                    alert("Local backup successfully restored and pushed to the cloud.");
+                    location.reload();
+                } catch (error) {
+                    console.error("Jarvis: File read error.", error);
+                    alert("Invalid backup file. Restoration aborted.");
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
 });
