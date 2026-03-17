@@ -2,7 +2,6 @@
 import { auth } from './data-store.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// JARVIS FIX: The broken DOMContentLoaded wrapper has been completely removed.
 const btnLogin = document.getElementById('btnLogin');
 const btnRegister = document.getElementById('btnRegister');
 const btnReset = document.getElementById('btnReset');
@@ -60,7 +59,6 @@ if (btnLogin) {
         showMessage("Establishing secure connection...", "info");
         try {
             await signInWithEmailAndPassword(auth, email, pass);
-            // The Reverse Guard above will auto-redirect upon success
         } catch (error) {
             showMessage(getFriendlyErrorMessage(error), "danger");
             btnLogin.disabled = false;
@@ -79,7 +77,6 @@ if (btnRegister) {
         showMessage("Forging new credentials...", "info");
         try {
             await createUserWithEmailAndPassword(auth, email, pass);
-            // The Reverse Guard above will auto-redirect upon success
         } catch (error) {
             showMessage(getFriendlyErrorMessage(error), "danger");
             btnRegister.disabled = false;
