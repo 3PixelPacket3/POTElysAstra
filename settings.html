@@ -9,7 +9,7 @@
 </head>
 <body>
 <header class="top-nav">
-    <div class="nav-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+    <div class="nav-header">
       <div class="brand">Elys Astra Helper Application</div>
       <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('active')">☰</button>
     </div>
@@ -30,12 +30,10 @@
   <main class="page builder-workspace">
     <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
       <h2 style="font-size: 1.5em; margin-bottom: 10px;">Session Control</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Manage your active session and physical backups.</p>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Manage your active session securely.</p>
       
       <div style="display: flex; flex-direction: column; gap: 10px;">
         <button class="btn full-width" id="logoutBtn" style="background: var(--bg-alt); border: 2px solid var(--border); color: var(--text);">🚪 Secure Logout</button>
-        <hr style="border-color: var(--border); margin: 10px 0;">
-        <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981;">⬇️ Export Personal Backup</button>
       </div>
     </aside>
 
@@ -60,9 +58,9 @@
       </div>
 
       <div class="card" style="border-top: 5px solid var(--info); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
-        <h2 style="color: var(--info); margin-bottom: 15px;">Cloud Synchronization</h2>
+        <h2 style="color: var(--info); margin-bottom: 15px;">Manual Cloud Synchronization</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
-          Your data saves automatically to the cloud. Click below to manually pull the latest Admin updates (Rules, Base Stats) without overwriting your personal data.
+          Your app automatically syncs with the EAHA central servers on startup. However, you can click the button below to force a manual pull. This will download any new rules or base creature stat updates published by the Admin without overwriting your personal modifications.
         </p>
         <button class="btn" id="syncCloudBtn" style="background: var(--info); border-color: var(--info); font-size: 1.1em; padding: 15px 30px;">🔄 Sync with Central Server</button>
         <p id="syncStatus" style="margin-top: 15px; font-weight: bold;"></p>
@@ -71,10 +69,15 @@
       <div id="adminZone" class="card is-hidden" style="border-top: 5px solid var(--accent); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
         <h2 style="color: var(--accent); margin-bottom: 15px;">Admin Control Console</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
-          <strong>Authority Confirmed.</strong> Use this portal to import legacy JSON backups. Data imported here will permanently overwrite the global baseline for all users.
+          <strong>Authority Confirmed.</strong> Use this portal to extract full system backups or import legacy JSON data to overwrite the global baseline for all users.
         </p>
-        <input type="file" id="importDataInput" accept=".json" style="display: none;">
-        <label for="importDataInput" class="btn full-width" style="text-align: center; cursor: pointer; background: var(--accent); border-color: var(--accent); font-size: 1.1em; padding: 15px 30px;">⬆️ Push Global JSON Baseline</label>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981; font-size: 1.1em; padding: 15px;">⬇️ Export Full System Backup</button>
+            <hr style="border-color: var(--border); margin: 5px 0;">
+            <input type="file" id="importDataInput" accept=".json" style="display: none;">
+            <label for="importDataInput" class="btn full-width" style="text-align: center; cursor: pointer; background: var(--accent); border-color: var(--accent); font-size: 1.1em; padding: 15px;">⬆️ Push Global JSON Baseline</label>
+        </div>
       </div>
 
     </section>
