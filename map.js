@@ -1,4 +1,5 @@
 // map.js
+import { auth } from './data-store.js';
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5} };
@@ -62,7 +63,11 @@ const elements = {
   // Calibration Tools
   calibrationTools: document.getElementById('calibrationTools'),
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
-  cancelDeployBtn: document.getElementById('cancelDeployBtn')
+  cancelDeployBtn: document.getElementById('cancelDeployBtn'),
+  
+  // Mobile Coordinate Tools
+  mobileCoordInput: document.getElementById('mobileCoordInput'),
+  mobileCoordBtn: document.getElementById('mobileCoordBtn')
 };
 
 // --- Utilities ---
@@ -160,7 +165,6 @@ elements.mapWindow.addEventListener('touchstart', (e) => {
 
 window.addEventListener('touchmove', (e) => {
   if (!isDragging || currentMode !== 'pan' || e.touches.length !== 1) return;
-  // Prevent default browser scrolling when panning the map
   if(e.target.closest('#mapWindow')) e.preventDefault(); 
   
   translateX = e.touches[0].clientX - startDragX;
@@ -219,7 +223,7 @@ const renderRoutes = () => {
       e.stopPropagation();
       if (confirm(`Remove tactical route: ${route.name}?`)) {
         db.routes = db.routes.filter(r => r.id !== route.id);
-        await EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(db);
         if (activeRoutePoints.length > 0) {
            activeRoutePoints = [];
            renderActiveRoute();
@@ -253,7 +257,7 @@ elements.saveRouteBtn.addEventListener('click', async () => {
   if (!db.routes) db.routes = [];
   db.routes.push(newRoute);
   
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   
   activeRoutePoints = [];
   renderActiveRoute();
@@ -278,13 +282,10 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
-// --- Recon Sync Engine (Smart Learn Calibration Loop) ---
-window.addEventListener('paste', (e) => {
-  if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-
-  const pasteData = (e.clipboardData || window.clipboardData).getData('text');
-  const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+),\s*Z=([\d.-]+)/i;
-  const match = pasteData.match(coordRegex);
+// --- Recon Sync Engine (Smart Learn Calibration Loop & Mobile Inputs) ---
+const processCoordinates = (text) => {
+  const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
+  const match = text.match(coordRegex);
 
   if (match) {
     const xUU = parseFloat(match[1]);
@@ -294,7 +295,6 @@ window.addEventListener('paste', (e) => {
     let rawX = ((xUU / mapRadiusUU) * 50) + 50;
     let rawY = ((yUU / mapRadiusUU) * 50) + 50;
 
-    // Load Smart Offset
     if (!db.mapOffset) db.mapOffset = { x: -1.5, y: -1.5 };
 
     let startX = rawX + db.mapOffset.x;
@@ -303,11 +303,9 @@ window.addEventListener('paste', (e) => {
     startX = Math.max(0, Math.min(startX, 100));
     startY = Math.max(0, Math.min(startY, 100));
 
-    // Store raw math for calibration delta calculation
     pendingRawLocation = { x: rawX, y: rawY };
     pendingPin = { x: startX, y: startY };
 
-    // Draw temporary calibration marker
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
     tempCalibrationMarker = document.createElement('div');
     tempCalibrationMarker.className = 'map-pin';
@@ -319,7 +317,6 @@ window.addEventListener('paste', (e) => {
     
     elements.pinLayer.appendChild(tempCalibrationMarker);
 
-    // Make Temporary Marker Draggable
     let isDraggingTemp = false;
     tempCalibrationMarker.addEventListener('mousedown', (dragE) => {
       if (dragE.button !== 0) return;
@@ -336,7 +333,7 @@ window.addEventListener('paste', (e) => {
         
         tempCalibrationMarker.style.left = `${xP}%`;
         tempCalibrationMarker.style.top = `${yP}%`;
-        pendingPin = { x: xP, y: yP }; // Update pending location in real-time
+        pendingPin = { x: xP, y: yP }; 
       };
 
       const onUp = () => {
@@ -351,16 +348,31 @@ window.addEventListener('paste', (e) => {
 
     elements.calibrationTools.classList.remove('is-hidden');
     showToast("Target acquired. Drag the green pin to perfect alignment, then click Confirm.", "info");
+  } else {
+      showToast("Could not parse coordinates. Ensure format is X=... Y=...", "error");
   }
+};
+
+window.addEventListener('paste', (e) => {
+  if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+  const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+  processCoordinates(pasteData);
 });
+
+if (elements.mobileCoordBtn) {
+    elements.mobileCoordBtn.addEventListener('click', () => {
+        const text = elements.mobileCoordInput.value;
+        if(text) processCoordinates(text);
+        elements.mobileCoordInput.value = '';
+    });
+}
 
 // Calibration Controls
 elements.confirmDeployBtn.addEventListener('click', async () => {
-    // Machine Learning Loop: Calculate new delta and save offset permanently
     if (pendingRawLocation && pendingPin) {
         db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
         db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
-        await EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(db);
         console.log(`Jarvis Protocol: Map alignment recalibrated. New Offset X: ${db.mapOffset.x.toFixed(3)}, Y: ${db.mapOffset.y.toFixed(3)}`);
     }
 
@@ -443,7 +455,7 @@ const renderPins = () => {
         isDraggingPin = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        await EAHADataStore.saveData(db); 
+        await window.EAHADataStore.saveData(db); 
       };
 
       window.addEventListener('mousemove', onMouseMove);
@@ -454,7 +466,7 @@ const renderPins = () => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
         db.pins = db.pins.filter(p => p.id !== pin.id);
-        await EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(db);
         renderPins();
       }
     });
@@ -504,7 +516,7 @@ const renderPins = () => {
     listItem.querySelector('.delete-pin-btn').addEventListener('click', async () => {
       if(confirm(`Remove marker: ${pin.label}?`)) {
         db.pins = db.pins.filter(p => p.id !== pin.id);
-        await EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(db);
         renderPins();
         showToast('Marker removed.');
       }
@@ -567,7 +579,7 @@ elements.saveBtn.addEventListener('click', async () => {
     db.pins.push(newMarker);
   }
   
-  await EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(db);
   closeModal();
   renderPins();
   showToast(editingPinId ? 'Marker updated successfully.' : 'Marker deployed successfully.');
@@ -585,7 +597,7 @@ elements.clearAllBtn.addEventListener('click', async () => {
   if (!db.pins || db.pins.length === 0) return;
   if (confirm('WARNING: Are you absolutely certain you want to wipe ALL markers from the map? (This does not affect Routes)')) {
     db.pins = [];
-    await EAHADataStore.saveData(db);
+    await window.EAHADataStore.saveData(db);
     renderPins();
     showToast('All markers cleared.', 'error');
   }
@@ -593,10 +605,10 @@ elements.clearAllBtn.addEventListener('click', async () => {
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
+    console.error("Jarvis Alert: data-store.js is missing or failed to initialize.");
   }
 
   if (!db.pins) db.pins = [];
@@ -605,7 +617,12 @@ const init = async () => {
 
   renderPins();
   renderRoutes();
-  updateTransform(); // Set initial scale and position
+  updateTransform(); 
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// Wait for Firebase to verify the user before pulling data
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    init();
+  }
+});
