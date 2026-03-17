@@ -56,12 +56,14 @@ const elements = {
 
   // Threat Assessment Simulator - Modifiers (Fighter A)
   fighterAElder: document.getElementById('fighterAElder'),
+  fighterARebirth: document.getElementById('fighterARebirth'), // JARVIS: New Hook
   fighterARole: document.getElementById('fighterARole'),
   fighterAMutation: document.getElementById('fighterAMutation'),
   fighterAGenetics: document.querySelectorAll('.fighterAGeneticSelect'),
 
   // Threat Assessment Simulator - Modifiers (Fighter B)
   fighterBElder: document.getElementById('fighterBElder'),
+  fighterBRebirth: document.getElementById('fighterBRebirth'), // JARVIS: New Hook
   fighterBRole: document.getElementById('fighterBRole'),
   fighterBMutation: document.getElementById('fighterBMutation'),
   fighterBGenetics: document.querySelectorAll('.fighterBGeneticSelect'),
@@ -100,9 +102,9 @@ const getAdultStat = (valStr) => {
 const populateModifiersDropdowns = () => {
   if (!window.EAHAModifiers || !elements.fighterARole) return;
 
-  const roles = Object.keys(window.EAHAModifiers.roles);
-  const mutations = Object.keys(window.EAHAModifiers.mutations);
-  const genetics = Object.keys(window.EAHAModifiers.genetics);
+  const roles = Object.keys(window.EAHAModifiers.roles || {});
+  const mutations = Object.keys(window.EAHAModifiers.mutations || {});
+  const genetics = Object.keys(window.EAHAModifiers.genetics || {});
 
   elements.fighterARole.innerHTML = '';
   elements.fighterBRole.innerHTML = '';
@@ -192,10 +194,9 @@ const setView = (creature) => {
   if (creature.imagePath) {
     elements.image.src = creature.imagePath;
     elements.image.style.display = 'block';
-    // JARVIS FIX: Handle expired Discord links gracefully
     elements.image.onerror = () => {
         elements.image.style.display = 'none';
-        console.warn("Jarvis Alert: Image link expired. Discord links die after 24 hours.");
+        console.warn("Jarvis Alert: Image link expired.");
     };
   } else {
     elements.image.style.display = 'none';
@@ -394,17 +395,17 @@ const populateDropdowns = () => {
   if (currentB && currentB !== 'none') elements.fighterB.value = currentB;
 };
 
-// Modifiers Engine Mathematics Integrator (Upgraded for Arrays)
-const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elderStage) => {
-  const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {} };
+// JARVIS UPGRADE: Integrates Rebirth Stage parsing directly into math engine
+const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elderStage, rebirthStage) => {
+  const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {}, rebirths: {} };
   
   const roleObj = modData.roles[role] || {};
   const mutObj = modData.mutations[mutation] || {};
   const elderObj = modData.eldering[elderStage] || {};
+  const rebirthObj = modData.rebirths ? (modData.rebirths[rebirthStage] || {}) : {};
 
   let genWeight = 0, genHealth = 0, genStamina = 0, genSpeed = 0, genArmor = 0, genTurn = 0;
 
-  // Sum up all benefits from up to 6 distinct genetics
   (geneticsArray || []).forEach(gen => {
     if (gen !== 'None') {
       const gObj = modData.genetics[gen] || {};
@@ -417,22 +418,20 @@ const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elder
     }
   });
 
-  // Accumulate all Flat Adds
-  const finalWeight = baseStatMap.weight + (roleObj.weight || 0) + (mutObj.weight || 0) + genWeight + (elderObj.weight || 0);
-  const finalHealth = baseStatMap.health + (roleObj.health || 0) + (mutObj.health || 0) + genHealth + (elderObj.health || 0);
-  const finalStamina = baseStatMap.stam + (roleObj.stamina || 0) + (mutObj.stamina || 0) + genStamina + (elderObj.stamina || 0);
+  const finalWeight = baseStatMap.weight + (roleObj.weight || 0) + (mutObj.weight || 0) + genWeight + (elderObj.weight || 0) + (rebirthObj.weight || 0);
+  const finalHealth = baseStatMap.health + (roleObj.health || 0) + (mutObj.health || 0) + genHealth + (elderObj.health || 0) + (rebirthObj.health || 0);
+  const finalStamina = baseStatMap.stam + (roleObj.stamina || 0) + (mutObj.stamina || 0) + genStamina + (elderObj.stamina || 0) + (rebirthObj.stamina || 0);
   
-  // Accumulate Decimals (Speed, Armor, Turn)
-  const finalSpeed = baseStatMap.speed + (roleObj.speed || 0) + (mutObj.speed || 0) + genSpeed + (elderObj.speed || 0);
-  const finalArmor = baseStatMap.armor + (roleObj.armor || 0) + (mutObj.armor || 0) + genArmor + (elderObj.armor || 0);
-  const finalTurn = baseStatMap.turn + (roleObj.turn || 0) + (mutObj.turn || 0) + genTurn + (elderObj.turn || 0);
+  const finalSpeed = baseStatMap.speed + (roleObj.speed || 0) + (mutObj.speed || 0) + genSpeed + (elderObj.speed || 0) + (rebirthObj.speed || 0);
+  const finalArmor = baseStatMap.armor + (roleObj.armor || 0) + (mutObj.armor || 0) + genArmor + (elderObj.armor || 0) + (rebirthObj.armor || 0);
+  const finalTurn = baseStatMap.turn + (roleObj.turn || 0) + (mutObj.turn || 0) + genTurn + (elderObj.turn || 0) + (rebirthObj.turn || 0);
 
   return {
     weight: Math.max(1, finalWeight),
     health: Math.max(1, finalHealth),
     stam: Math.max(1, finalStamina),
     speed: Math.max(0.1, finalSpeed),
-    armor: Math.max(0.01, finalArmor), // Never divide by zero
+    armor: Math.max(0.01, finalArmor), 
     turn: Math.max(0.1, finalTurn)
   };
 };
@@ -512,13 +511,14 @@ const runSimulation = () => {
   const mutA = elements.fighterAMutation.value;
   const genA = Array.from(elements.fighterAGenetics).map(sel => sel.value);
   const elderA = parseInt(elements.fighterAElder.value, 10);
+  const rebirthA = elements.fighterARebirth ? parseInt(elements.fighterARebirth.value, 10) : 0; // JARVIS: Extracted A
 
   const roleB = elements.fighterBRole.value;
   const mutB = elements.fighterBMutation.value;
   const genB = Array.from(elements.fighterBGenetics).map(sel => sel.value);
   const elderB = parseInt(elements.fighterBElder.value, 10);
+  const rebirthB = elements.fighterBRebirth ? parseInt(elements.fighterBRebirth.value, 10) : 0; // JARVIS: Extracted B
 
-  // Parse Raw Matrix Basics
   const rawBaseA = {
     weight: getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 1,
     health: getStatArray(dinoA.stats?.base?.health)[stageAIndex] || 1,
@@ -537,15 +537,13 @@ const runSimulation = () => {
     turn: getCustomStageStat(dinoB, 'TurnRadiusMultiplier', stageBIndex) || 1
   };
 
-  // Run through EAHA Modifiers Engine
-  const finalA = applyModifiersToStats(rawBaseA, roleA, mutA, genA, elderA);
-  const finalB = applyModifiersToStats(rawBaseB, roleB, mutB, genB, elderB);
+  // JARVIS: Execute Engine with Rebirth parameters
+  const finalA = applyModifiersToStats(rawBaseA, roleA, mutA, genA, elderA, rebirthA);
+  const finalB = applyModifiersToStats(rawBaseB, roleB, mutB, genB, elderB, rebirthB);
 
-  // Multiplier Math
   const multiplierA = finalB.weight > 0 ? (finalA.weight / finalB.weight) / finalB.armor : 1;
   const multiplierB = finalA.weight > 0 ? (finalB.weight / finalA.weight) / finalA.armor : 1;
 
-  // Retrieve Arsenal Breakdown
   const arsenalA = getAllAttacks(dinoA, stageAIndex, multiplierA);
   const arsenalB = getAllAttacks(dinoB, stageBIndex, multiplierB);
 
@@ -562,7 +560,6 @@ const runSimulation = () => {
     `).join('');
   };
 
-  // Sprint Endurance Math
   const sprintCostA = getCustomStageStat(dinoA, 'StaminaSprintCostPerSecond', stageAIndex);
   const sprintTimeA = sprintCostA > 0 ? Math.floor(finalA.stam / sprintCostA) + ' sec' : 'Unknown';
   
@@ -577,7 +574,6 @@ const runSimulation = () => {
     return `${isDecimal ? final.toFixed(3) : Math.round(final)} <span style="color:${color}; font-size:0.8em;">(${sign}${diff})</span>`;
   };
 
-  // Render Fighter A Card
   elements.simOutputA.innerHTML = `
     <h3 style="color: var(--primary); margin-bottom: 5px;">${dinoA.name}</h3>
     <div style="margin-bottom: 10px;">${generateBadges(dinoA, stageAIndex)}</div>
@@ -602,7 +598,6 @@ const runSimulation = () => {
     </div>
   `;
 
-  // Render Fighter B Card
   elements.simOutputB.innerHTML = `
     <h3 style="color: var(--danger); margin-bottom: 5px;">${dinoB.name}</h3>
     <div style="margin-bottom: 10px;">${generateBadges(dinoB, stageBIndex)}</div>
@@ -627,7 +622,6 @@ const runSimulation = () => {
     </div>
   `;
 
-  // Tactical Advice logic
   let tacticalAdvice = "";
   const bestDpsA = arsenalA.length > 0 ? parseFloat(arsenalA[0].dps) : 0;
   const bestDpsB = arsenalB.length > 0 ? parseFloat(arsenalB[0].dps) : 0;
@@ -642,7 +636,6 @@ const runSimulation = () => {
     tacticalAdvice = `<strong style="color: var(--info);">EVEN MATCHUP:</strong> Combat weights are identical. This fight comes down to raw DPS, armor hides, and player skill.`;
   }
 
-  // Agility Warning
   if (finalB.turn > finalA.turn) {
     tacticalAdvice += `<br><span style="color: var(--danger); font-size: 0.9em; display: block; margin-top: 8px;">⚠️ <strong>AGILITY WARNING:</strong> Target has a tighter Turn Radius multiplier (${finalB.turn.toFixed(2)} vs ${finalA.turn.toFixed(2)}). Do not let them get behind you.</span>`;
   } else if (finalA.turn > finalB.turn) {
@@ -651,7 +644,6 @@ const runSimulation = () => {
 
   elements.advantageBanner.innerHTML = tacticalAdvice;
 
-  // Speed & Endurance Display
   let enduranceHtml = ``;
   if (finalA.speed > finalB.speed) {
     enduranceHtml += `<div style="padding: 10px; border-bottom: 1px solid var(--border);"><strong style="color: var(--success);">Faster Sprint Speed</strong> (${finalA.speed.toFixed(3)} vs ${finalB.speed.toFixed(3)}). You control the engagement spacing.</div>`;
@@ -766,6 +758,8 @@ const init = async () => {
     bindSim(elements.fighterARole); bindSim(elements.fighterBRole);
     bindSim(elements.fighterAMutation); bindSim(elements.fighterBMutation);
     bindSim(elements.fighterAElder); bindSim(elements.fighterBElder);
+    // JARVIS: Bind Rebirth selects
+    bindSim(elements.fighterARebirth); bindSim(elements.fighterBRebirth); 
     
     elements.fighterAGenetics.forEach(bindSim);
     elements.fighterBGenetics.forEach(bindSim);
