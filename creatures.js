@@ -1,4 +1,6 @@
 // creatures.js
+import { auth } from './data-store.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {} };
@@ -36,7 +38,7 @@ const elements = {
     modded: document.getElementById('creatureModded'),
     critter: document.getElementById('creatureCritter')
   },
-  // Modifiers Inputs (Upgraded for Array)
+  // Modifiers Inputs
   modifiers: {
     role: document.getElementById('creatureRole'),
     mutation: document.getElementById('creatureMutation'),
@@ -121,7 +123,6 @@ const getAllAttacks = (dino, stageIndex = 4) => {
 
 // --- Modifiers Engine Initialization ---
 const populateModifiersDropdowns = () => {
-  // JARVIS FIX: Ensure the dropdowns are loading the live window object after the database pull
   if (!window.EAHAModifiers) return;
 
   elements.modifiers.role.innerHTML = '';
@@ -362,7 +363,6 @@ const syncForm = (creature) => {
   elements.core.modded.checked = Boolean(creature.modded);
   elements.core.critter.checked = Boolean(creature.critter);
   
-  // Modifiers Sync (Includes Array Logic)
   if (window.EAHAModifiers) {
     elements.modifiers.role.value = creature.role || 'None';
     elements.modifiers.mutation.value = creature.mutation || 'None';
@@ -411,7 +411,6 @@ const gatherForm = () => {
     modded: elements.core.modded.checked,
     critter: elements.core.critter.checked,
     
-    // Captured Modifiers
     role: elements.modifiers.role.value,
     mutation: elements.modifiers.mutation.value,
     genetics: activeGenetics,
@@ -445,7 +444,6 @@ const setView = (creature) => {
   const baseStats = creature.stats?.base || {};
   const customStats = creature.stats?.custom || [];
 
-  // Extract Arsenal Data for Adult Stage (Index 4)
   const arsenal = getAllAttacks(creature, 4);
   const stamina = getStatArray(baseStats.stamina)[4];
   const sprintCost = getCustomStageStat(creature, 'StaminaSprintCostPerSecond', 4);
@@ -503,7 +501,6 @@ const setView = (creature) => {
     }
   }
 
-  // Generate HTML for Equipped Modifiers (Supports 6 Genetics)
   const role = creature.role || 'None';
   const mutation = creature.mutation || 'None';
   const genetics = creature.genetics || (creature.genetic && creature.genetic !== 'None' ? [creature.genetic] : []);
@@ -654,7 +651,6 @@ const renderList = () => {
     return;
   }
 
-  // Sort alphabetical to make finding dinos easy
   const sorted = [...filtered].sort((a,b) => a.name.localeCompare(b.name));
 
   sorted.forEach(creature => {
@@ -688,7 +684,6 @@ const saveCreature = async () => {
   if (index >= 0) db.creatures[index] = data;
   else db.creatures.push(data);
   
-  // JARVIS FIX: Ensuring proper global object hook
   await window.EAHADataStore.saveData(db);
   
   currentCreatureId = data.id;
@@ -703,7 +698,6 @@ const deleteCreature = async () => {
   if (!currentCreatureId || !confirm('Are you certain you want to delete this creature? This cannot be undone.')) return;
   
   db.creatures = db.creatures.filter(c => c.id !== currentCreatureId);
-  // JARVIS FIX: Ensuring proper global object hook
   await window.EAHADataStore.saveData(db);
   
   currentCreatureId = null;
@@ -721,7 +715,6 @@ const duplicateCreature = async () => {
   data.name = data.name + ' (Copy)';
   
   db.creatures.push(data);
-  // JARVIS FIX: Ensuring proper global object hook
   await window.EAHADataStore.saveData(db);
   
   currentCreatureId = data.id;
@@ -734,14 +727,12 @@ const duplicateCreature = async () => {
 
 // --- Initialization ---
 const init = async () => {
-  // JARVIS FIX: Ensure the init block correctly awaits the global data store
   if (typeof window.EAHADataStore !== 'undefined') {
     db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
-  // Once data is loaded from cloud, populate the dropdowns with the live matrix
   populateModifiersDropdowns();
 
   initTabs();
@@ -846,4 +837,13 @@ const init = async () => {
   }
 };
 
-document.addEventListener('DOMContentLoaded', init);
+// JARVIS UPGRADE: The Auth Guard Pipeline
+let hasInitialized = false;
+document.addEventListener('DOMContentLoaded', () => {
+    onAuthStateChanged(auth, async (user) => {
+        if (user && !hasInitialized) {
+            hasInitialized = true;
+            await init();
+        }
+    });
+});
