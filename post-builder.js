@@ -520,11 +520,9 @@ const init = () => {
 
 // JARVIS UPGRADE: The Auth Guard Pipeline
 let hasInitialized = false;
-document.addEventListener('DOMContentLoaded', () => {
-    onAuthStateChanged(auth, async (user) => {
-        if (user && !hasInitialized) {
-            hasInitialized = true;
-            init(); // Note: init is synchronous for post-builder
-        }
-    });
+onAuthStateChanged(auth, async (user) => {
+    if (user && !hasInitialized) {
+        hasInitialized = true;
+        init();
+    }
 });
