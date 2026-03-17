@@ -1,76 +1,54 @@
 // map.js
 import { auth } from './data-store.js';
 
-// --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5} };
 let pendingPin = null; 
 let editingPinId = null; 
-
-// Smart Learn State
 let pendingRawLocation = null;
 let tempCalibrationMarker = null;
 
-// Navigation Engine State
 let scale = 1;
 let translateX = 0;
 let translateY = 0;
 let isDragging = false;
 let startDragX = 0;
 let startDragY = 0;
-let currentMode = 'pan'; // 'pan', 'pin', or 'route'
-
-// Route Planner State
+let currentMode = 'pan'; 
 let activeRoutePoints = [];
 
-// --- DOM Elements ---
 const elements = {
   mapWindow: document.getElementById('mapWindow'),
   mapTransform: document.getElementById('mapTransform'),
   mapImage: document.getElementById('mapImage'),
   pinLayer: document.getElementById('pinLayer'),
   pinList: document.getElementById('pinList'),
-  
-  // Sidebar Controls
   search: document.getElementById('pinSearch'),
   filter: document.getElementById('pinFilter'),
   clearAllBtn: document.getElementById('clearAllPinsBtn'),
-  
-  // Route Planner Elements
   routeList: document.getElementById('routeList'),
   activeRoutePolyline: document.getElementById('activeRoutePolyline'),
-  
-  // Toolbar Controls
   modePanBtn: document.getElementById('modePanBtn'),
   modePinBtn: document.getElementById('modePinBtn'),
   modeRouteBtn: document.getElementById('modeRouteBtn'), 
   zoomInBtn: document.getElementById('zoomInBtn'),
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   resetZoomBtn: document.getElementById('resetZoomBtn'),
-  
-  // Route Drawing Controls (Sub-Toolbar)
   routeTools: document.getElementById('routeTools'),
   saveRouteBtn: document.getElementById('saveRouteBtn'),
   cancelRouteBtn: document.getElementById('cancelRouteBtn'),
-
-  // Deploy Pin Modal
   modal: document.getElementById('pinModal'),
   modalTitle: document.getElementById('pinModalTitle'), 
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
   saveBtn: document.getElementById('savePinBtn'),
   cancelBtn: document.getElementById('cancelPinBtn'),
-
-  // Calibration Tools
   calibrationTools: document.getElementById('calibrationTools'),
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
   cancelDeployBtn: document.getElementById('cancelDeployBtn'),
-  
-  // Mobile Coordinate Tools
   mobileCoordInput: document.getElementById('mobileCoordInput'),
   mobileCoordBtn: document.getElementById('mobileCoordBtn')
 };
 
-// --- Utilities ---
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
@@ -82,7 +60,25 @@ const showToast = (message, type = 'success') => {
 
 const generateId = () => 'id_' + Math.random().toString(36).substr(2, 9);
 
-// --- Navigation Engine (Pan & Zoom) ---
+// --- JARVIS MATH FIX: Geometric Coordinate Calculator ---
+// This guarantees pins drop exactly where the mouse clicks, regardless of zoom, pan, or aspect ratio limits.
+const getMapCoordinates = (clientX, clientY) => {
+    const mapRect = elements.mapWindow.getBoundingClientRect();
+    const mouseX = clientX - mapRect.left;
+    const mouseY = clientY - mapRect.top;
+    
+    const trueX = (mouseX - translateX) / scale;
+    const trueY = (mouseY - translateY) / scale;
+    
+    let xPercent = (trueX / mapRect.width) * 100;
+    let yPercent = (trueY / mapRect.height) * 100;
+    
+    return {
+        x: Math.max(0, Math.min(xPercent, 100)),
+        y: Math.max(0, Math.min(yPercent, 100))
+    };
+};
+
 const updateTransform = () => {
   elements.mapTransform.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   elements.mapTransform.style.setProperty('--map-scale', scale);
@@ -119,9 +115,7 @@ window.addEventListener('mousemove', (e) => {
   updateTransform();
 });
 
-window.addEventListener('mouseup', () => {
-  isDragging = false;
-});
+window.addEventListener('mouseup', () => { isDragging = false; });
 
 elements.zoomInBtn.addEventListener('click', () => { scale = Math.min(scale + 0.5, 6); updateTransform(); });
 elements.zoomOutBtn.addEventListener('click', () => { scale = Math.max(scale - 0.5, 0.5); updateTransform(); });
@@ -129,11 +123,9 @@ elements.resetZoomBtn.addEventListener('click', () => { scale = 1; translateX = 
 
 const setMode = (mode) => {
   currentMode = mode;
-  
   elements.modePanBtn.classList.toggle('active', mode === 'pan');
   elements.modePinBtn.classList.toggle('active', mode === 'pin');
   elements.modeRouteBtn.classList.toggle('active', mode === 'route');
-
   elements.mapWindow.classList.toggle('pin-mode', mode === 'pin');
   elements.mapWindow.classList.toggle('route-mode', mode === 'route');
 
@@ -155,7 +147,6 @@ elements.modePanBtn.addEventListener('click', () => setMode('pan'));
 elements.modePinBtn.addEventListener('click', () => setMode('pin'));
 elements.modeRouteBtn.addEventListener('click', () => setMode('route'));
 
-// === MOBILE TOUCH NAVIGATION PROTOCOL ===
 elements.mapWindow.addEventListener('touchstart', (e) => {
   if (currentMode !== 'pan' || e.touches.length !== 1) return;
   isDragging = true;
@@ -166,17 +157,13 @@ elements.mapWindow.addEventListener('touchstart', (e) => {
 window.addEventListener('touchmove', (e) => {
   if (!isDragging || currentMode !== 'pan' || e.touches.length !== 1) return;
   if(e.target.closest('#mapWindow')) e.preventDefault(); 
-  
   translateX = e.touches[0].clientX - startDragX;
   translateY = e.touches[0].clientY - startDragY;
   updateTransform();
 }, { passive: false });
 
-window.addEventListener('touchend', () => {
-  isDragging = false;
-});
+window.addEventListener('touchend', () => { isDragging = false; });
 
-// --- Route Planner Engine ---
 const renderActiveRoute = () => {
   if (activeRoutePoints.length === 0) {
     elements.activeRoutePolyline.setAttribute('points', '');
@@ -188,24 +175,21 @@ const renderActiveRoute = () => {
 
 const renderRoutes = () => {
   elements.routeList.innerHTML = '';
-  
   if (!db.routes || db.routes.length === 0) {
     elements.routeList.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No saved routes.</p>';
     return;
   }
 
   const sortedRoutes = [...db.routes].sort((a, b) => b.timestamp - a.timestamp);
-
   sortedRoutes.forEach(route => {
     const item = document.createElement('div');
     item.className = 'list-item';
     item.style.cursor = 'pointer';
-    
     item.innerHTML = `
       <div style="display: flex; flex-direction: column; width: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <strong style="font-size: 1.05em; color: #10b981;">🛤️ ${route.name}</strong>
-          <button class="btn btn-ghost btn-sm delete-route-btn" style="color: var(--danger); border-color: transparent; padding: 4px 8px;" title="Delete Route">✕</button>
+          <button class="btn btn-ghost btn-sm delete-route-btn" style="color: var(--danger); border-color: transparent; padding: 4px 8px;">✕</button>
         </div>
         <span class="muted" style="font-size: 0.8em;">${route.points.length} Waypoints</span>
       </div>
@@ -233,30 +217,16 @@ const renderRoutes = () => {
         showToast('Route deleted.');
       }
     });
-
     elements.routeList.appendChild(item);
   });
 };
 
 elements.saveRouteBtn.addEventListener('click', async () => {
-  if (activeRoutePoints.length < 2) {
-    showToast('A route requires at least two waypoints to be saved.', 'error');
-    return;
-  }
-  
+  if (activeRoutePoints.length < 2) return showToast('Route requires at least two waypoints.', 'error');
   const routeName = prompt('Enter a name for this tactical route:', 'Migration Path');
   if (!routeName) return;
 
-  const newRoute = {
-    id: generateId(),
-    name: routeName.trim(),
-    points: [...activeRoutePoints],
-    timestamp: Date.now()
-  };
-
-  if (!db.routes) db.routes = [];
-  db.routes.push(newRoute);
-  
+  db.routes.push({ id: generateId(), name: routeName.trim(), points: [...activeRoutePoints], timestamp: Date.now() });
   await window.EAHADataStore.saveData(db);
   
   activeRoutePoints = [];
@@ -282,7 +252,6 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
-// --- Recon Sync Engine (Smart Learn Calibration Loop & Mobile Inputs) ---
 const processCoordinates = (text) => {
   const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
   const match = text.match(coordRegex);
@@ -290,18 +259,13 @@ const processCoordinates = (text) => {
   if (match) {
     const xUU = parseFloat(match[1]);
     const yUU = parseFloat(match[2]);
-
     const mapRadiusUU = 410000; 
     let rawX = ((xUU / mapRadiusUU) * 50) + 50;
     let rawY = ((yUU / mapRadiusUU) * 50) + 50;
 
     if (!db.mapOffset) db.mapOffset = { x: -1.5, y: -1.5 };
-
-    let startX = rawX + db.mapOffset.x;
-    let startY = rawY + db.mapOffset.y;
-
-    startX = Math.max(0, Math.min(startX, 100));
-    startY = Math.max(0, Math.min(startY, 100));
+    let startX = Math.max(0, Math.min(rawX + db.mapOffset.x, 100));
+    let startY = Math.max(0, Math.min(rawY + db.mapOffset.y, 100));
 
     pendingRawLocation = { x: rawX, y: rawY };
     pendingPin = { x: startX, y: startY };
@@ -312,9 +276,7 @@ const processCoordinates = (text) => {
     tempCalibrationMarker.style.left = `${startX}%`;
     tempCalibrationMarker.style.top = `${startY}%`;
     tempCalibrationMarker.style.zIndex = '50';
-    tempCalibrationMarker.style.filter = 'drop-shadow(0px 0px 10px #10b981) brightness(1.5)';
-    tempCalibrationMarker.innerHTML = `🎯<div class="pin-label" style="opacity:1; background:#10b981; color:#fff; pointer-events:none;">Target: Drag to Refine</div>`;
-    
+    tempCalibrationMarker.innerHTML = `🎯<div class="pin-label" style="opacity:1; background:#10b981; color:#fff;">Target: Drag to Refine</div>`;
     elements.pinLayer.appendChild(tempCalibrationMarker);
 
     let isDraggingTemp = false;
@@ -322,18 +284,13 @@ const processCoordinates = (text) => {
       if (dragE.button !== 0) return;
       dragE.stopPropagation();
       isDraggingTemp = true;
-      const mapRect = elements.mapImage.getBoundingClientRect();
 
       const onMove = (moveEvent) => {
         if (!isDraggingTemp) return;
-        let xP = ((moveEvent.clientX - mapRect.left) / mapRect.width) * 100;
-        let yP = ((moveEvent.clientY - mapRect.top) / mapRect.height) * 100;
-        xP = Math.max(0, Math.min(xP, 100));
-        yP = Math.max(0, Math.min(yP, 100));
-        
-        tempCalibrationMarker.style.left = `${xP}%`;
-        tempCalibrationMarker.style.top = `${yP}%`;
-        pendingPin = { x: xP, y: yP }; 
+        const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+        tempCalibrationMarker.style.left = `${coords.x}%`;
+        tempCalibrationMarker.style.top = `${coords.y}%`;
+        pendingPin = coords; 
       };
 
       const onUp = () => {
@@ -347,39 +304,33 @@ const processCoordinates = (text) => {
     });
 
     elements.calibrationTools.classList.remove('is-hidden');
-    showToast("Target acquired. Drag the green pin to perfect alignment, then click Confirm.", "info");
+    showToast("Target acquired. Drag the pin to alignment, then Confirm.", "info");
   } else {
-      showToast("Could not parse coordinates. Ensure format is X=... Y=...", "error");
+      showToast("Could not parse coordinates. Format must be X=... Y=...", "error");
   }
 };
 
 window.addEventListener('paste', (e) => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-  const pasteData = (e.clipboardData || window.clipboardData).getData('text');
-  processCoordinates(pasteData);
+  processCoordinates((e.clipboardData || window.clipboardData).getData('text'));
 });
 
 if (elements.mobileCoordBtn) {
     elements.mobileCoordBtn.addEventListener('click', () => {
-        const text = elements.mobileCoordInput.value;
-        if(text) processCoordinates(text);
+        if(elements.mobileCoordInput.value) processCoordinates(elements.mobileCoordInput.value);
         elements.mobileCoordInput.value = '';
     });
 }
 
-// Calibration Controls
 elements.confirmDeployBtn.addEventListener('click', async () => {
     if (pendingRawLocation && pendingPin) {
         db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
         db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
         await window.EAHADataStore.saveData(db);
-        console.log(`Jarvis Protocol: Map alignment recalibrated. New Offset X: ${db.mapOffset.x.toFixed(3)}, Y: ${db.mapOffset.y.toFixed(3)}`);
     }
-
     elements.calibrationTools.classList.add('is-hidden');
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
-
-    if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
+    elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     setMode('pin');
     elements.modal.classList.remove('is-hidden');
@@ -389,26 +340,18 @@ elements.confirmDeployBtn.addEventListener('click', async () => {
 elements.cancelDeployBtn.addEventListener('click', () => {
     elements.calibrationTools.classList.add('is-hidden');
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    pendingPin = null;
-    pendingRawLocation = null;
+    pendingPin = null; pendingRawLocation = null;
     showToast("Targeting aborted.");
 });
 
-
-// --- Rendering Logic (Map Markers) ---
 const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filterVal = elements.filter.value;
-  
   elements.pinLayer.innerHTML = '';
   elements.pinList.innerHTML = '';
   
-  if (!db.pins) db.pins = [];
-
-  const filteredPins = db.pins.filter(pin => {
-    const matchesSearch = pin.label.toLowerCase().includes(searchTerm);
-    const matchesFilter = filterVal === 'all' || pin.type === filterVal;
-    return matchesSearch && matchesFilter;
+  const filteredPins = (db.pins || []).filter(pin => {
+    return pin.label.toLowerCase().includes(searchTerm) && (filterVal === 'all' || pin.type === filterVal);
   });
 
   if (filteredPins.length === 0) {
@@ -416,42 +359,28 @@ const renderPins = () => {
     return;
   }
 
-  const sortedPins = [...filteredPins].sort((a, b) => b.timestamp - a.timestamp);
-
-  sortedPins.forEach(pin => {
+  [...filteredPins].sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
     const mapMarker = document.createElement('div');
     mapMarker.className = 'map-pin';
     mapMarker.style.left = `${pin.x}%`;
     mapMarker.style.top = `${pin.y}%`;
-    mapMarker.title = "Drag to reposition, Right-click to delete.";
-    mapMarker.innerHTML = `
-      ${pin.type}
-      <div class="pin-label">${pin.label || 'Marker'}</div>
-    `;
+    mapMarker.innerHTML = `${pin.type}<div class="pin-label">${pin.label || 'Marker'}</div>`;
     
     mapMarker.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || currentMode === 'route') return; 
       e.stopPropagation(); 
       let isDraggingPin = true;
-      const mapRect = elements.mapImage.getBoundingClientRect();
 
       const onMouseMove = (moveEvent) => {
         if (!isDraggingPin) return;
-        let xPercent = ((moveEvent.clientX - mapRect.left) / mapRect.width) * 100;
-        let yPercent = ((moveEvent.clientY - mapRect.top) / mapRect.height) * 100;
-        
-        xPercent = Math.max(0, Math.min(xPercent, 100));
-        yPercent = Math.max(0, Math.min(yPercent, 100));
-        
-        mapMarker.style.left = `${xPercent}%`;
-        mapMarker.style.top = `${yPercent}%`;
-        
-        pin.x = xPercent;
-        pin.y = yPercent;
+        const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+        mapMarker.style.left = `${coords.x}%`;
+        mapMarker.style.top = `${coords.y}%`;
+        pin.x = coords.x;
+        pin.y = coords.y;
       };
 
       const onMouseUp = async () => {
-        if (!isDraggingPin) return;
         isDraggingPin = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
@@ -475,39 +404,19 @@ const renderPins = () => {
 
     const listItem = document.createElement('div');
     listItem.className = 'list-item';
-    listItem.style.cursor = 'pointer';
-    
     listItem.innerHTML = `
-      <div style="display: flex; flex-direction: column; width: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong style="font-size: 1.05em; color: var(--text);">${pin.type} ${pin.label || 'Unnamed Marker'}</strong>
-          <div style="display: flex; gap: 5px;">
-            <button class="btn btn-ghost btn-sm edit-pin-btn" style="color: var(--primary); border-color: transparent; padding: 4px 8px;" title="Edit Marker">✎</button>
-            <button class="btn btn-ghost btn-sm delete-pin-btn" style="color: var(--danger); border-color: transparent; padding: 4px 8px;" title="Delete Marker">✕</button>
-          </div>
+      <div style="display: flex; justify-content: space-between; width: 100%;">
+        <strong>${pin.type} ${pin.label}</strong>
+        <div>
+          <button class="btn btn-ghost btn-sm edit-pin-btn">✎</button>
+          <button class="btn btn-ghost btn-sm delete-pin-btn" style="color: var(--danger);">✕</button>
         </div>
-        <span class="muted" style="font-size: 0.75em;">${new Date(pin.timestamp).toLocaleString()}</span>
       </div>
     `;
     
-    listItem.addEventListener('click', (e) => {
-      if (e.target.closest('.delete-pin-btn') || e.target.closest('.edit-pin-btn')) return;
-      
-      const rect = elements.mapWindow.getBoundingClientRect();
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const imgRect = elements.mapImage.getBoundingClientRect();
-      const targetX = (pin.x / 100) * (imgRect.width / scale);
-      const targetY = (pin.y / 100) * (imgRect.height / scale);
-
-      translateX = centerX - (targetX * scale);
-      translateY = centerY - (targetY * scale);
-      updateTransform();
-    });
-
     listItem.querySelector('.edit-pin-btn').addEventListener('click', () => {
       editingPinId = pin.id;
-      if (elements.modalTitle) elements.modalTitle.textContent = "Edit Tactical Marker";
+      elements.modalTitle.textContent = "Edit Tactical Marker";
       elements.newPinType.value = pin.type;
       elements.newPinLabel.value = pin.label;
       elements.modal.classList.remove('is-hidden');
@@ -518,39 +427,33 @@ const renderPins = () => {
         db.pins = db.pins.filter(p => p.id !== pin.id);
         await window.EAHADataStore.saveData(db);
         renderPins();
-        showToast('Marker removed.');
       }
     });
-
     elements.pinList.appendChild(listItem);
   });
 };
 
-// --- Manual Map Interaction Logic (Draw Route & Deploy Marker) ---
 elements.mapImage.addEventListener('click', (e) => {
   if (currentMode === 'pan') return;
 
-  const rect = elements.mapImage.getBoundingClientRect();
-  const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-  const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+  // Use the new, accurate geometry calculator
+  const coords = getMapCoordinates(e.clientX, e.clientY);
 
   if (currentMode === 'pin') {
-    pendingPin = { x: xPercent, y: yPercent };
-    if (elements.modalTitle) elements.modalTitle.textContent = "Deploy Tactical Marker";
+    pendingPin = coords;
+    elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
   } 
   else if (currentMode === 'route') {
-    activeRoutePoints.push({ x: xPercent, y: yPercent });
+    activeRoutePoints.push(coords);
     renderActiveRoute();
   }
 });
 
-// --- Modal Logic (Saving the Pin) ---
 const closeModal = () => {
-  pendingPin = null;
-  editingPinId = null; 
+  pendingPin = null; editingPinId = null; 
   elements.modal.classList.add('is-hidden');
   setMode('pan'); 
 };
@@ -562,67 +465,28 @@ elements.saveBtn.addEventListener('click', async () => {
 
   if (editingPinId) {
     const pin = db.pins.find(p => p.id === editingPinId);
-    if (pin) {
-      pin.type = elements.newPinType.value;
-      pin.label = elements.newPinLabel.value.trim() || 'Tactical Marker';
-    }
+    if (pin) { pin.type = elements.newPinType.value; pin.label = elements.newPinLabel.value.trim() || 'Marker'; }
   } else {
     if (!pendingPin) return;
-    const newMarker = {
-      id: generateId(),
-      type: elements.newPinType.value,
-      label: elements.newPinLabel.value.trim() || 'Tactical Marker',
-      x: pendingPin.x,
-      y: pendingPin.y,
-      timestamp: Date.now()
-    };
-    db.pins.push(newMarker);
+    db.pins.push({ id: generateId(), type: elements.newPinType.value, label: elements.newPinLabel.value.trim() || 'Marker', x: pendingPin.x, y: pendingPin.y, timestamp: Date.now() });
   }
   
   await window.EAHADataStore.saveData(db);
-  closeModal();
-  renderPins();
-  showToast(editingPinId ? 'Marker updated successfully.' : 'Marker deployed successfully.');
+  closeModal(); renderPins();
 });
 
-elements.newPinLabel.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') elements.saveBtn.click();
-});
+elements.newPinLabel.addEventListener('keypress', (e) => { if (e.key === 'Enter') elements.saveBtn.click(); });
 
-// --- Bulk Actions & Filters ---
 elements.search.addEventListener('input', renderPins);
 elements.filter.addEventListener('change', renderPins);
-
 elements.clearAllBtn.addEventListener('click', async () => {
-  if (!db.pins || db.pins.length === 0) return;
-  if (confirm('WARNING: Are you absolutely certain you want to wipe ALL markers from the map? (This does not affect Routes)')) {
-    db.pins = [];
-    await window.EAHADataStore.saveData(db);
-    renderPins();
-    showToast('All markers cleared.', 'error');
-  }
+  if (db.pins.length > 0 && confirm('WARNING: Wipe ALL markers?')) { db.pins = []; await window.EAHADataStore.saveData(db); renderPins(); }
 });
 
-// --- Initialization ---
 const init = async () => {
-  if (typeof window.EAHADataStore !== 'undefined') {
-    db = await window.EAHADataStore.getData();
-  } else {
-    console.error("Jarvis Alert: data-store.js is missing or failed to initialize.");
-  }
-
-  if (!db.pins) db.pins = [];
-  if (!db.routes) db.routes = [];
-  if (!db.mapOffset) db.mapOffset = {x: -1.5, y: -1.5};
-
-  renderPins();
-  renderRoutes();
-  updateTransform(); 
+  if (typeof window.EAHADataStore !== 'undefined') db = await window.EAHADataStore.getData();
+  if (!db.pins) db.pins = []; if (!db.routes) db.routes = []; if (!db.mapOffset) db.mapOffset = {x: -1.5, y: -1.5};
+  renderPins(); renderRoutes(); updateTransform(); 
 };
 
-// Wait for Firebase to verify the user before pulling data
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    init();
-  }
-});
+onAuthStateChanged(auth, (user) => { if (user) init(); });
