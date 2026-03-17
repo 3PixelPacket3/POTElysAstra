@@ -147,13 +147,10 @@ window.EAHADataStore = {
       const adminSnap = await getDoc(adminRef);
       const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [], system_settings: null };
 
-      // Admin baseline overrides rules completely
       userData.rules = adminData.rules || [];
       
-      // Mount system settings globally from Admin baseline
       if (adminData.system_settings) {
           userData.system_settings = adminData.system_settings;
-          // Dynamically override the window modifiers with the live database ones
           if (userData.system_settings.modifiers) {
               window.EAHAModifiers = userData.system_settings.modifiers;
           }
@@ -167,7 +164,6 @@ window.EAHADataStore = {
           if (existingIndex === -1) {
             userData.creatures.push(adminCrea); 
           } else {
-            // Absolute overwrite from Admin
             userData.creatures[existingIndex] = adminCrea;
           }
         });
@@ -187,34 +183,36 @@ window.EAHADataStore = {
     if (!user) return false;
 
     try {
+      // JARVIS FIX: Deep Sanitize Payload. 
+      // This strips out any 'undefined' ghost variables that cause Firestore to silently crash and reject the save.
+      const cleanData = JSON.parse(JSON.stringify(dataObj));
+
       const userRef = doc(db, "users", user.uid);
-      
-      // JARVIS FIX: Removed { merge: true } to enforce Absolute Overwrite on the user document.
-      await setDoc(userRef, dataObj); 
+      await setDoc(userRef, cleanData); 
 
       if (user.email === ADMIN_EMAIL) {
         console.log("Jarvis: Admin authority recognized. Updating global baseline.");
         const adminRef = doc(db, "system", "admin_baseline");
         
-        let currentSystemSettings = dataObj.system_settings || {};
+        let currentSystemSettings = cleanData.system_settings || {};
         if (!currentSystemSettings.modifiers) {
             currentSystemSettings.modifiers = window.EAHAModifiers;
         }
 
-        // JARVIS FIX: Removed { merge: true } to enforce Absolute Overwrite on the global baseline.
-        // This destroys all ghost data and heavily compresses your cloud storage.
         await setDoc(adminRef, {
-          rules: dataObj.rules || [],
-          creatures: dataObj.creatures || [],
+          rules: cleanData.rules || [],
+          creatures: cleanData.creatures || [],
           system_settings: currentSystemSettings
         }); 
       }
 
-      await this.setIndexedData(this.MASTER_KEY, dataObj);
+      await this.setIndexedData(this.MASTER_KEY, cleanData);
       return true;
 
     } catch (error) {
       console.error("Jarvis Error: Could not transmit data to central server.", error);
+      // JARVIS FIX: Expose silent failures via aggressive alert.
+      alert(`⚠️ SYSTEM ALERT: Cloud Synchronization Failed!\n\nReason: ${error.message}\n\nIf the error mentions size, you have hit the 1MB Cloud Document limit and must remove some Base64 profile images from your Creature Roster.`);
       return false;
     }
   },
@@ -247,6 +245,9 @@ window.EAHADataStore = {
             maxRebirths: 3,
             modifiers: window.EAHAModifiers 
         }
+    };
+  }
+};
     };
   }
 };
