@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EAHA | Secure Access</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Specific styles to center the login portal perfectly */
+    body.login-body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image: radial-gradient(circle at top right, color-mix(in srgb, var(--primary) 15%, transparent), transparent 40%);
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 450px;
+      padding: 40px 30px;
+      border-top: 5px solid var(--primary);
+      text-align: center;
+    }
+    .auth-view { display: none; animation: fadeIn 0.3s ease-in-out; }
+    .auth-view.active { display: block; }
+    .auth-logo {
+      font-size: 1.8em;
+      font-weight: 900;
+      color: var(--primary);
+      letter-spacing: 1px;
+      margin-bottom: 5px;
+    }
+    .auth-subtitle {
+      color: var(--muted);
+      font-size: 0.9em;
+      margin-bottom: 30px;
+    }
+    .auth-links {
+      margin-top: 20px;
+      font-size: 0.85em;
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+    }
+    .auth-links a { cursor: pointer; color: var(--info); font-weight: 600; }
+    .auth-links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body class="login-body">
+
+  <div class="card auth-card">
+    <div class="auth-logo">EAHA</div>
+    <div class="auth-subtitle">Elys Astra Helper Application</div>
+
+    <div id="view-login" class="auth-view active">
+      <h2 style="margin-bottom: 20px;">Welcome Back</h2>
+      <div class="form-grid">
+        <label class="field" style="text-align: left;">
+          <span>Email Address</span>
+          <input type="email" id="loginEmail" placeholder="admin@example.com">
+        </label>
+        <label class="field" style="text-align: left;">
+          <span>Password</span>
+          <input type="password" id="loginPassword" placeholder="••••••••">
+        </label>
+        <button class="btn full-width" id="btnLogin" style="margin-top: 10px; padding: 15px; font-size: 1.1em;">Sign In</button>
+      </div>
+      <div class="auth-links">
+        <a onclick="switchView('view-register')">Create Account</a>
+        <a onclick="switchView('view-forgot')">Forgot Password?</a>
+      </div>
+    </div>
+
+    <div id="view-register" class="auth-view">
+      <h2 style="margin-bottom: 20px;">Create Account</h2>
+      <div class="form-grid">
+        <label class="field" style="text-align: left;">
+          <span>Email Address</span>
+          <input type="email" id="regEmail" placeholder="you@example.com">
+        </label>
+        <label class="field" style="text-align: left;">
+          <span>Password</span>
+          <input type="password" id="regPassword" placeholder="Minimum 6 characters">
+        </label>
+        <button class="btn full-width" id="btnRegister" style="margin-top: 10px; padding: 15px; font-size: 1.1em; background-color: var(--success);">Sign Up</button>
+      </div>
+      <div class="auth-links" style="justify-content: center;">
+        <span class="muted">Already have an account? <a onclick="switchView('view-login')">Log In</a></span>
+      </div>
+    </div>
+
+    <div id="view-forgot" class="auth-view">
+      <h2 style="margin-bottom: 20px;">Reset Password</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Enter your email and we'll send you a link to reset your password.</p>
+      <div class="form-grid">
+        <label class="field" style="text-align: left;">
+          <span>Email Address</span>
+          <input type="email" id="resetEmail" placeholder="you@example.com">
+        </label>
+        <button class="btn full-width" id="btnReset" style="margin-top: 10px; padding: 15px; font-size: 1.1em; background-color: var(--accent);">Send Reset Link</button>
+      </div>
+      <div class="auth-links" style="justify-content: center;">
+        <span class="muted">Remembered your password? <a onclick="switchView('view-login')">Log In</a></span>
+      </div>
+    </div>
+
+    <p id="authMessage" style="margin-top: 20px; font-size: 0.9em; font-weight: bold; color: var(--danger); min-height: 20px;"></p>
+
+  </div>
+
+  <script type="module">
+    // UI View Switching Logic
+    window.switchView = function(viewId) {
+      document.querySelectorAll('.auth-view').forEach(el => el.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      document.getElementById('authMessage').innerText = ''; // Clear errors on switch
+    };
+
+    // Note: In Step 3, we will insert your Firebase Configuration and Authentication hooks here.
+    // We will wire these buttons to communicate directly with your free Firebase Cloud.
+    document.getElementById('btnLogin').addEventListener('click', () => {
+        document.getElementById('authMessage').style.color = 'var(--info)';
+        document.getElementById('authMessage').innerText = 'Initializing secure connection...';
+        // Authentication logic pending Step 3
+    });
+  </script>
+
+</body>
+</html>
