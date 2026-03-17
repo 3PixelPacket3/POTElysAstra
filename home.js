@@ -86,6 +86,67 @@ const getAllAttacks = (dino, stageIndex = 4) => {
   return attacks.sort((a, b) => parseFloat(b.dps) - parseFloat(a.dps));
 };
 
+// JARVIS UPGRADE: Quick Threat Calculation Engine
+const runQuickThreat = () => {
+    const outputEl = document.getElementById('quickThreatOutput');
+    const targetSelect = document.getElementById('quickTargetSelect');
+    if (!outputEl || !targetSelect) return;
+
+    if (activeCreatureId === 'none' || targetSelect.value === 'none') {
+        outputEl.innerHTML = '<span class="muted">Select an active dinosaur and target to run scan.</span>';
+        return;
+    }
+
+    const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
+    const targetCrea = db.creatures.find(c => c.id === targetSelect.value);
+
+    if (!activeCrea || !targetCrea) return;
+
+    const weightA = parseFloat(getAdultStat(activeCrea.stats?.base?.combatWeight)) || 1;
+    const weightB = parseFloat(getAdultStat(targetCrea.stats?.base?.combatWeight)) || 1;
+    const armorA = parseFloat(getAdultStat(activeCrea.stats?.base?.armor)) || 1;
+    const armorB = parseFloat(getAdultStat(targetCrea.stats?.base?.armor)) || 1;
+
+    const multiA = weightB > 0 ? (weightA / weightB) / armorB : 1;
+    const multiB = weightA > 0 ? (weightB / weightA) / armorA : 1;
+
+    const arsenalA = getAllAttacks(activeCrea, 4);
+    const arsenalB = getAllAttacks(targetCrea, 4);
+
+    const dpsA = arsenalA.length > 0 ? (arsenalA[0].baseDmg * multiA) / arsenalA[0].cd : 0;
+    const dpsB = arsenalB.length > 0 ? (arsenalB[0].baseDmg * multiB) / arsenalB[0].cd : 0;
+
+    let advice = "";
+    let color = "var(--text)";
+    if (weightA > weightB && dpsA > dpsB) {
+        advice = "👑 OVERWHELMING ADVANTAGE"; color = "var(--success)";
+    } else if (weightA > weightB && dpsA <= dpsB) {
+        advice = "⚠️ WEIGHT ADVANTAGE (CAUTION)"; color = "var(--info)";
+    } else if (weightA < weightB) {
+        advice = "💀 LETHAL THREAT"; color = "var(--danger)";
+    } else {
+        advice = "⚔️ EVEN MATCHUP"; color = "var(--info)";
+    }
+
+    outputEl.innerHTML = `
+        <div style="font-size: 1.1em; font-weight: bold; color: ${color}; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; width: 100%; text-align: center;">${advice}</div>
+        <div style="display: flex; width: 100%; justify-content: space-around; font-size: 0.95em;">
+            <div style="text-align: center;">
+                <strong style="color: var(--primary); display: block; margin-bottom: 4px;">You</strong>
+                Weight: ${weightA}<br>
+                Est. DPS: <span style="color: var(--success); font-weight: bold;">${dpsA.toFixed(1)}</span>
+            </div>
+            <div style="display: flex; align-items: center; font-weight: bold; color: var(--muted); font-size: 1.2em;">VS</div>
+            <div style="text-align: center;">
+                <strong style="color: var(--danger); display: block; margin-bottom: 4px;">Target</strong>
+                Weight: ${weightB}<br>
+                Est. DPS: <span style="color: var(--danger); font-weight: bold;">${dpsB.toFixed(1)}</span>
+            </div>
+        </div>
+        <p class="muted" style="margin-top: 12px; font-size: 0.75em; text-transform: uppercase;">*Raw Adult Stats Used</p>
+    `;
+};
+
 // Get the currently active lifeline, or create one if it doesn't exist
 const getActiveLifeline = () => {
   const targetId = activeCreatureId && activeCreatureId !== 'none' ? activeCreatureId : 'default_lifeline';
@@ -107,7 +168,10 @@ const syncExactVitals = () => {
 // --- Active Creature Management & Briefing Panel ---
 const populateCreatureDropdown = () => {
   const select = document.getElementById('activeCreatureSelect');
+  const targetSelect = document.getElementById('quickTargetSelect');
+  
   select.innerHTML = '';
+  if (targetSelect) targetSelect.innerHTML = '<option value="none">-- Awaiting Target --</option>';
   
   if (!db.creatures || db.creatures.length === 0) {
     select.appendChild(new Option("No Creatures in Database", "none"));
@@ -125,7 +189,10 @@ const populateCreatureDropdown = () => {
   select.appendChild(new Option("-- Select Active Dinosaur --", "none"));
   
   const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
-  sorted.forEach(c => select.appendChild(new Option(c.name, c.id)));
+  sorted.forEach(c => {
+      select.appendChild(new Option(c.name, c.id));
+      if (targetSelect) targetSelect.appendChild(new Option(c.name, c.id));
+  });
   
   const savedActive = localStorage.getItem(ACTIVE_CREA_KEY);
   if (savedActive && db.creatures.find(c => c.id === savedActive)) {
@@ -141,6 +208,7 @@ const populateCreatureDropdown = () => {
   updateElderingUI();
   syncExactVitals();
   updateCombatAnalytics(); 
+  runQuickThreat(); // Initial scan
   
   select.addEventListener('change', (e) => {
     activeCreatureId = e.target.value;
@@ -150,10 +218,15 @@ const populateCreatureDropdown = () => {
     updateElderingUI();
     syncExactVitals(); 
     updateCombatAnalytics(); 
+    runQuickThreat();
     if(activeCreatureId !== 'none') {
       showToast(`Lifeline Sync Engaged: Tracking ${select.options[select.selectedIndex].text}`);
     }
   });
+
+  if (targetSelect) {
+      targetSelect.addEventListener('change', runQuickThreat);
+  }
 };
 
 const updateBriefingPanel = () => {
@@ -491,7 +564,7 @@ const setupCommandListeners = () => {
     const input = document.getElementById('newCommandInput');
     const newCmd = input.value.trim();
     if (newCmd) {
-      commands.push(newCmd); // NOTE: Forced "!" prefix removed as requested
+      commands.push(newCmd); 
       input.value = '';
       saveCommands();
       renderCommands();
@@ -543,26 +616,40 @@ const saveEncounter = async (type) => {
   let outcomeText = 'Unknown';
   if (type === 'win') outcomeText = 'Victory (Kill)';
   if (type === 'loss') outcomeText = 'Defeat (PvP)';
-  if (type === 'starved') outcomeText = 'Defeat (Starvation)';
+  if (type === 'starved') outcomeText = 'Defeat (Environment)'; // JARVIS UPDATE
   
   const activeCrea = db.creatures.find(c => c.id === activeCreatureId);
   const creaName = activeCrea ? activeCrea.name : 'Unknown';
+
+  // JARVIS UPGRADE: Retrieve selected opponent from Quick Threat widget
+  const targetSelect = document.getElementById('quickTargetSelect');
+  let oppName = 'Unknown';
+  if (targetSelect && targetSelect.value !== 'none') {
+      const oppCrea = db.creatures.find(c => c.id === targetSelect.value);
+      if (oppCrea) oppName = oppCrea.name;
+  }
 
   const event = {
     id: 'enc_' + Math.random().toString(36).substr(2, 9),
     outcome: outcomeText,
     myCreature: creaName,
     date: new Date().toISOString().split('T')[0],
-    opponent: 'Unknown',
+    opponent: oppName,
     location: 'Logged via Quick Dashboard',
     notes: 'Quick logged from home screen.',
     timestamp: Date.now()
   };
   
   db.encounters.push(event);
-  await EAHADataStore.saveData(db);
-  showToast(`${outcomeText} logged successfully.`);
+  await window.EAHADataStore.saveData(db);
+  showToast(`${outcomeText} logged successfully against ${oppName}.`);
   updateCombatAnalytics(); 
+
+  // Reset target select to clear the board
+  if (targetSelect) {
+      targetSelect.value = 'none';
+      runQuickThreat();
+  }
 };
 
 // --- === COMBAT ANALYTICS LOGIC === ---
@@ -580,6 +667,7 @@ const updateCombatAnalytics = () => {
     'Dehydration': 0,
     'Fall Damage': 0,
     'Drowning': 0,
+    'Environment': 0, // JARVIS: Catch-all for non-PvP dashboard logs
     'Unknown': 0
   };
 
@@ -599,6 +687,7 @@ const updateCombatAnalytics = () => {
       else if (enc.outcome.includes('(Dehydration)')) deathCauses['Dehydration']++;
       else if (enc.outcome.includes('(Fall)')) deathCauses['Fall Damage']++;
       else if (enc.outcome.includes('(Drowned)')) deathCauses['Drowning']++;
+      else if (enc.outcome.includes('(Environment)')) deathCauses['Environment']++;
       else deathCauses['Unknown']++;
     }
 
@@ -658,7 +747,8 @@ const renderDeathChart = (causesData) => {
     'Starvation': '#f59e0b',   
     'Dehydration': '#3b82f6',  
     'Fall Damage': '#a855f7',  
-    'Drowning': '#0ea5e9',     
+    'Drowning': '#0ea5e9',
+    'Environment': '#10b981',
     'Unknown': '#64748b'       
   };
 
@@ -719,8 +809,8 @@ const renderDeathChart = (causesData) => {
 
 // --- Boot Sequence ---
 const init = async () => {
-  if (typeof EAHADataStore !== 'undefined') {
-    db = await EAHADataStore.getData();
+  if (typeof window.EAHADataStore !== 'undefined') {
+    db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing or not loaded.");
   }
@@ -744,7 +834,6 @@ const init = async () => {
   setupCommandListeners();
   renderCommands();
 
-  // Initialize Combat Analytics on boot
   updateCombatAnalytics(); 
 };
 
