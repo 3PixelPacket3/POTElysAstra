@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EAHA | Database & Backups</title>
+  <title>EAHA | Account Synchronization</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
@@ -22,40 +22,42 @@
       <a class="nav-btn" href="combat.html">Combat Log</a>
       <a class="nav-btn" href="map.html">Tactical Map</a>
       <a class="nav-btn" href="lineage.html">Lineage</a>
-      <a class="nav-btn active" href="settings.html">JSON Backup</a>
-      <a class="nav-btn" href="guide.html">About</a>
+      <a class="nav-btn active" href="settings.html">Cloud Sync</a>
+      <a class="nav-btn" href="guide.html">System Manual</a>
     </nav>
   </header>
 
   <main class="page builder-workspace">
     <aside class="preset-sidebar card" style="border-top: 5px solid var(--primary);">
-      <h2 style="font-size: 1.5em; margin-bottom: 10px;">Data Management</h2>
-      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Control your IndexedDB engine. Secure your profiles, logs, and map markers.</p>
+      <h2 style="font-size: 1.5em; margin-bottom: 10px;">Account Security</h2>
+      <p class="muted" style="margin-bottom: 20px; font-size: 0.9em; line-height: 1.4;">Manage your active session and local device backups.</p>
       
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981;">⬇️ Export Personal Backup</button>
+        <button class="btn full-width" id="logoutBtn" style="background: var(--bg-alt); border: 2px solid var(--border); color: var(--text);">🚪 Secure Logout</button>
+        <hr style="border-color: var(--border); margin: 10px 0;">
+        <button class="btn full-width" id="exportDataBtn" style="background: #10b981; border-color: #10b981;">⬇️ Export Local Backup</button>
         <input type="file" id="importDataInput" accept=".json" style="display: none;">
-        <label for="importDataInput" class="btn btn-ghost full-width" style="text-align: center; cursor: pointer;">⬆️ Import Personal Backup</label>
+        <label for="importDataInput" class="btn btn-ghost full-width" style="text-align: center; cursor: pointer;">⬆️ Import Local Backup</label>
       </div>
     </aside>
 
     <section class="editor-pane scrollable" style="flex: 2;">
       
       <div class="card" style="border-top: 5px solid var(--info); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); margin-bottom: 25px;">
-        <h2 style="color: var(--info); margin-bottom: 15px;">Server Synchronization (Merge)</h2>
+        <h2 style="color: var(--info); margin-bottom: 15px;">Manual Cloud Synchronization</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
-          Clicking the button below will download the official <code>JSON.json</code> baseline file from your server. It will safely merge new rules, creature profiles, and stats into your app <strong>without</strong> overwriting your custom map markers, custom combat stats, or lineage logs.
+          Your app automatically syncs with the EAHA central servers on startup. However, you can click the button below to force a manual pull. This will download any new rules or base creature stat updates published by the Admin without overwriting your personal modifications.
         </p>
-        <button class="btn" id="mergeBaseBtn" style="background: var(--info); border-color: var(--info); font-size: 1.1em; padding: 15px 30px;">🔄 Check for App Updates (Merge JSON)</button>
-        <p id="mergeStatus" style="margin-top: 15px; font-weight: bold;"></p>
+        <button class="btn" id="syncCloudBtn" style="background: var(--info); border-color: var(--info); font-size: 1.1em; padding: 15px 30px;">🔄 Sync with Central Server</button>
+        <p id="syncStatus" style="margin-top: 15px; font-weight: bold;"></p>
       </div>
 
       <div class="card" style="border-top: 5px solid var(--danger); box-shadow: none; border-left: 2px solid var(--border); border-right: 2px solid var(--border); border-bottom: 2px solid var(--border);">
-        <h2 style="color: var(--danger); margin-bottom: 15px;">Danger Zone: Factory Reset</h2>
+        <h2 style="color: var(--danger); margin-bottom: 15px;">Danger Zone: Clear Local Cache</h2>
         <p class="muted" style="margin-bottom: 20px; line-height: 1.6;">
-          This will completely purge your high-capacity IndexedDB storage. All personal custom stats, map markers, lineage family trees, and combat logs will be permanently incinerated. The app will be rebuilt using only the official staging file. <strong>Ensure you have exported a personal backup first!</strong>
+          This will purge your device's high-capacity IndexedDB cache. It will not delete your cloud profile, but it will force the app to completely rebuild its database from the cloud servers upon your next login. Use this if your app is experiencing severe desynchronization.
         </p>
-        <button class="btn btn-ghost" id="factoryResetBtn" style="color: var(--danger); border-color: var(--danger); font-size: 1.1em; padding: 15px 30px;">⚠️ Purge Database & Factory Reset</button>
+        <button class="btn btn-ghost" id="clearCacheBtn" style="color: var(--danger); border-color: var(--danger); font-size: 1.1em; padding: 15px 30px;">⚠️ Purge Device Cache</button>
       </div>
 
     </section>
@@ -64,7 +66,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Created/Maintained by PixelPacket</footer>
   
-  <script src="data-store.js"></script>
-  <script src="settings.js"></script>
+  <script type="module" src="data-store.js"></script>
+  <script type="module" src="settings.js"></script>
 </body>
 </html>
