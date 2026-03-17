@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const authMessage = document.getElementById('authMessage');
 
     // --- THE REVERSE GUARD ---
+    // If Jarvis detects you are already logged in, you are immediately routed to the Dashboard.
     onAuthStateChanged(auth, (user) => {
         if (user) {
             window.location.replace("index.html");
@@ -38,8 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return "Please enter a valid email address.";
             case 'auth/network-request-failed':
                 return "Network connection failed. Please check your internet.";
+            case 'auth/operation-not-allowed':
+                return "Server Error: Email/Password authentication is disabled in Firebase Console.";
+            case 'auth/unauthorized-domain':
+                return "Security Error: GitHub Pages domain is not authorized in Firebase.";
             default:
-                return "An unexpected error occurred. Please try again.";
+                // This will print the EXACT error code to the screen so we know what to fix
+                return `System Error (${error.code}): ${error.message}`;
         }
     }
 
@@ -54,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Establishing secure connection...", "info");
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
+                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
                 showMessage(getFriendlyErrorMessage(error), "danger");
                 btnLogin.disabled = false;
@@ -72,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage("Forging new credentials...", "info");
             try {
                 await createUserWithEmailAndPassword(auth, email, pass);
+                // The Reverse Guard above will auto-redirect upon success
             } catch (error) {
                 showMessage(getFriendlyErrorMessage(error), "danger");
                 btnRegister.disabled = false;
