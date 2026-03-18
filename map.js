@@ -210,7 +210,6 @@ const renderRoutes = () => {
            renderActiveRoute();
            setMode('pan');
         }
-        // JARVIS FIX: Instant UI update, background save
         renderRoutes();
         showToast('Route deleted.');
         window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route delete sync failed", err));
@@ -227,7 +226,6 @@ elements.saveRouteBtn.addEventListener('click', () => {
 
   db.routes.push({ id: generateId(), name: routeName.trim(), points: [...activeRoutePoints], timestamp: Date.now() });
   
-  // JARVIS FIX: Instant UI update, background save
   activeRoutePoints = [];
   renderActiveRoute();
   renderRoutes();
@@ -323,10 +321,12 @@ if (elements.mobileCoordBtn) {
 }
 
 elements.confirmDeployBtn.addEventListener('click', () => {
-    // JARVIS FIX: Apply data instantly and open the modal *before* launching background saves.
+    // JARVIS FIX: Updates the offset, quietly saves to cloud, and cleans up the UI.
     if (pendingRawLocation && pendingPin) {
         db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
         db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
+        
+        window.EAHADataStore.saveData(db).catch(err => console.error(err));
     }
     
     elements.calibrationTools.classList.add('is-hidden');
@@ -386,7 +386,6 @@ const renderPins = () => {
         isDraggingPin = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        // JARVIS FIX: Fire and forget background save
         window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin move sync failed", err));
       };
       window.addEventListener('mousemove', onMouseMove);
@@ -474,7 +473,6 @@ elements.saveBtn.addEventListener('click', () => {
     db.pins.push({ id: generateId(), type: elements.newPinType.value, label: elements.newPinLabel.value.trim() || 'Marker', x: pendingPin.x, y: pendingPin.y, timestamp: Date.now() });
   }
   
-  // JARVIS FIX: Close instantly, save to cloud in background
   closeModal(); 
   renderPins();
   window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin save sync failed", err));
@@ -498,7 +496,6 @@ const init = async () => {
   renderPins(); renderRoutes(); updateTransform(); 
 };
 
-// JARVIS UPGRADE: The Auth Guard Pipeline
 let hasInitialized = false;
 onAuthStateChanged(auth, async (user) => {
     if (user && !hasInitialized) {
