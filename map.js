@@ -17,6 +17,9 @@ let startDragY = 0;
 let currentMode = 'pan'; 
 let activeRoutePoints = [];
 
+// JARVIS ADDITION: Ruler Matrix variables
+let rulerStartPoint = null;
+
 const elements = {
   mapWindow: document.getElementById('mapWindow'),
   mapTransform: document.getElementById('mapTransform'),
@@ -28,9 +31,11 @@ const elements = {
   clearAllBtn: document.getElementById('clearAllPinsBtn'),
   routeList: document.getElementById('routeList'),
   activeRoutePolyline: document.getElementById('activeRoutePolyline'),
+  rulerLine: document.getElementById('rulerLine'), // New Tool
   modePanBtn: document.getElementById('modePanBtn'),
   modePinBtn: document.getElementById('modePinBtn'),
   modeRouteBtn: document.getElementById('modeRouteBtn'), 
+  modeRulerBtn: document.getElementById('modeRulerBtn'), // New Mode
   zoomInBtn: document.getElementById('zoomInBtn'),
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   resetZoomBtn: document.getElementById('resetZoomBtn'),
@@ -41,6 +46,8 @@ const elements = {
   modalTitle: document.getElementById('pinModalTitle'), 
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
+  newPinRadius: document.getElementById('newPinRadius'), // New Field
+  newPinColor: document.getElementById('newPinColor'),   // New Field
   saveBtn: document.getElementById('savePinBtn'),
   cancelBtn: document.getElementById('cancelPinBtn'),
   calibrationTools: document.getElementById('calibrationTools'),
@@ -48,7 +55,9 @@ const elements = {
   mobileCoordBtn: document.getElementById('mobileCoordBtn'),
   recalibrateBtn: document.getElementById('recalibrateBtn'),
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
-  cancelDeployBtn: document.getElementById('cancelDeployBtn')
+  cancelDeployBtn: document.getElementById('cancelDeployBtn'),
+  exportReconBtn: document.getElementById('exportReconBtn'), // Pack Sharing
+  importReconBtn: document.getElementById('importReconBtn')  // Pack Sharing
 };
 
 const coordDisplay = document.createElement('div');
@@ -74,8 +83,9 @@ const showToast = (message, type = 'success') => {
   toast.className = `toast toast-${type} show`;
   if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
   else if (type === 'warning') toast.style.backgroundColor = 'var(--warning)';
+  else if (type === 'info') toast.style.backgroundColor = 'var(--info)';
   else toast.style.backgroundColor = 'var(--primary)';
-  setTimeout(() => toast.className = 'toast', 3000);
+  setTimeout(() => toast.className = 'toast', 4000);
 };
 
 const generateId = () => 'id_' + Math.random().toString(36).substr(2, 9);
@@ -132,8 +142,24 @@ window.addEventListener('mousemove', (e) => {
   updateTransform();
 });
 
+// JARVIS UPGRADE: Integrates Ruler Distance Calcs into the Live HUD
 elements.mapWindow.addEventListener('mousemove', (e) => {
     const coords = getMapCoordinates(e.clientX, e.clientY);
+    
+    // Ruler Calculation
+    if (currentMode === 'ruler' && rulerStartPoint) {
+        elements.rulerLine.setAttribute('x2', coords.x);
+        elements.rulerLine.setAttribute('y2', coords.y);
+        
+        // 100% Map Width = 8,200 Meters (410,000 Radius * 2 / 100)
+        const distanceMeters = Math.sqrt(Math.pow(coords.x - rulerStartPoint.x, 2) + Math.pow(coords.y - rulerStartPoint.y, 2)) * 82;
+        const sprintSeconds = (distanceMeters / 10).toFixed(0); 
+        
+        coordDisplay.innerHTML = `📏 Distance: ${distanceMeters.toFixed(0)}m | ⏱️ Est. Sprint: ${sprintSeconds}s`;
+        return;
+    }
+
+    // Standard GPS Calculation
     const offset = db.mapOffset || {x: -1.5, y: -1.5};
     const rawX = coords.x - offset.x;
     const rawY = coords.y - offset.y;
@@ -153,8 +179,15 @@ const setMode = (mode) => {
   elements.modePanBtn.classList.toggle('active', mode === 'pan');
   elements.modePinBtn.classList.toggle('active', mode === 'pin');
   elements.modeRouteBtn.classList.toggle('active', mode === 'route');
+  elements.modeRulerBtn.classList.toggle('active', mode === 'ruler');
+  
   elements.mapWindow.classList.toggle('pin-mode', mode === 'pin');
   elements.mapWindow.classList.toggle('route-mode', mode === 'route');
+  elements.mapWindow.classList.toggle('ruler-mode', mode === 'ruler');
+
+  // Reset Ruler
+  rulerStartPoint = null;
+  elements.rulerLine.style.display = 'none';
 
   if (mode === 'route') {
     elements.routeTools.classList.remove('is-hidden');
@@ -168,11 +201,16 @@ const setMode = (mode) => {
     activeRoutePoints = [];
     renderActiveRoute();
   }
+  
+  if (mode === 'ruler') {
+      showToast("Ruler Engaged: Click to set a start point.", "info");
+  }
 };
 
 elements.modePanBtn.addEventListener('click', () => setMode('pan'));
 elements.modePinBtn.addEventListener('click', () => setMode('pin'));
 elements.modeRouteBtn.addEventListener('click', () => setMode('route'));
+elements.modeRulerBtn.addEventListener('click', () => setMode('ruler'));
 
 elements.mapWindow.addEventListener('touchstart', (e) => {
   if (currentMode !== 'pan' || e.touches.length !== 1) return;
@@ -280,7 +318,7 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
-// JARVIS UPGRADE: Explicit Calibration Tool
+// Explicit Calibration Tool
 elements.recalibrateBtn.addEventListener('click', () => {
     const coordsText = prompt("GPS CALIBRATION\n\nPlease paste your exact in-game /loc coordinates to begin calibration:");
     if(!coordsText) return;
@@ -297,7 +335,6 @@ elements.recalibrateBtn.addEventListener('click', () => {
 
         pendingRawLocation = { x: rawX, y: rawY };
 
-        // Start pin exactly at the raw mathematical center, ignoring the old offset
         let startX = Math.max(0, Math.min(rawX, 100));
         let startY = Math.max(0, Math.min(rawY, 100));
         pendingPin = { x: startX, y: startY };
@@ -335,7 +372,7 @@ elements.recalibrateBtn.addEventListener('click', () => {
         });
 
         elements.calibrationTools.classList.remove('is-hidden');
-        setMode('pan'); // Disable normal click deployment to prevent misclicks
+        setMode('pan'); 
         showToast("Calibration Mode: Drag the gear to your visual location.", "warning");
     } else {
         showToast("Invalid coordinates format.", "error");
@@ -363,7 +400,6 @@ elements.cancelDeployBtn.addEventListener('click', () => {
     showToast("Calibration aborted.", "info");
 });
 
-// Standard Parsing Workflow - No longer hijacked by calibration
 const processCoordinates = (text) => {
   const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
   const match = text.match(coordRegex);
@@ -383,6 +419,9 @@ const processCoordinates = (text) => {
     
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
+    elements.newPinRadius.value = '';
+    elements.newPinColor.value = '#ef4444';
+    
     setMode('pin');
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
@@ -422,6 +461,21 @@ const renderPins = () => {
   }
 
   [...filteredPins].sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
+    
+    // JARVIS ADDITION: Danger Zone Renderer
+    if (pin.radius && pin.radius > 0) {
+        const zone = document.createElement('div');
+        const radiusPercent = (pin.radius / 8200) * 100;
+        zone.className = 'danger-zone';
+        zone.style.width = `${radiusPercent * 2}%`;
+        zone.style.height = `${radiusPercent * 2}%`;
+        zone.style.left = `${pin.x}%`;
+        zone.style.top = `${pin.y}%`;
+        zone.style.borderColor = pin.color || '#ef4444';
+        zone.style.backgroundColor = pin.color || '#ef4444';
+        elements.pinLayer.appendChild(zone);
+    }
+
     const mapMarker = document.createElement('div');
     mapMarker.className = 'map-pin';
     mapMarker.style.left = `${pin.x}%`;
@@ -429,7 +483,7 @@ const renderPins = () => {
     mapMarker.innerHTML = `${pin.type}<div class="pin-label">${pin.label || 'Marker'}</div>`;
     
     mapMarker.addEventListener('mousedown', (e) => {
-      if (e.button !== 0 || currentMode === 'route') return; 
+      if (e.button !== 0 || currentMode === 'route' || currentMode === 'ruler') return; 
       e.stopPropagation(); 
       let isDraggingPin = true;
 
@@ -447,6 +501,7 @@ const renderPins = () => {
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
         window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin move sync failed", err));
+        renderPins(); 
       };
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
@@ -480,6 +535,8 @@ const renderPins = () => {
       elements.modalTitle.textContent = "Edit Tactical Marker";
       elements.newPinType.value = pin.type;
       elements.newPinLabel.value = pin.label;
+      elements.newPinRadius.value = pin.radius || '';
+      elements.newPinColor.value = pin.color || '#ef4444';
       elements.modal.classList.remove('is-hidden');
     });
 
@@ -496,7 +553,6 @@ const renderPins = () => {
 
 elements.mapWindow.addEventListener('click', (e) => {
   if (currentMode === 'pan') return;
-  
   if (e.target.closest('.zoom-controls') || e.target.closest('.map-pin')) return;
 
   const coords = getMapCoordinates(e.clientX, e.clientY);
@@ -505,12 +561,27 @@ elements.mapWindow.addEventListener('click', (e) => {
     pendingPin = coords;
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
+    elements.newPinRadius.value = '';
+    elements.newPinColor.value = '#ef4444';
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
   } 
   else if (currentMode === 'route') {
     activeRoutePoints.push(coords);
     renderActiveRoute();
+  }
+  else if (currentMode === 'ruler') {
+    if (!rulerStartPoint) {
+        rulerStartPoint = coords;
+        elements.rulerLine.setAttribute('x1', coords.x);
+        elements.rulerLine.setAttribute('y1', coords.y);
+        elements.rulerLine.setAttribute('x2', coords.x);
+        elements.rulerLine.setAttribute('y2', coords.y);
+        elements.rulerLine.style.display = 'block';
+    } else {
+        rulerStartPoint = null; 
+        showToast("Measurement locked. Click again to start a new measurement.", "info");
+    }
   }
 });
 
@@ -529,12 +600,27 @@ elements.cancelBtn.addEventListener('click', closeModal);
 elements.saveBtn.addEventListener('click', () => {
   if (!db.pins) db.pins = [];
 
+  const safeRadius = parseInt(elements.newPinRadius.value, 10) || 0;
+  const safeColor = elements.newPinColor.value || '#ef4444';
+
   if (editingPinId) {
     const pin = db.pins.find(p => p.id === editingPinId);
-    if (pin) { pin.type = elements.newPinType.value; pin.label = elements.newPinLabel.value.trim() || 'Marker'; }
+    if (pin) { 
+        pin.type = elements.newPinType.value; 
+        pin.label = elements.newPinLabel.value.trim() || 'Marker'; 
+        pin.radius = safeRadius;
+        pin.color = safeColor;
+    }
   } else {
     if (!pendingPin) return;
-    db.pins.push({ id: generateId(), type: elements.newPinType.value, label: elements.newPinLabel.value.trim() || 'Marker', x: pendingPin.x, y: pendingPin.y, timestamp: Date.now() });
+    db.pins.push({ 
+        id: generateId(), 
+        type: elements.newPinType.value, 
+        label: elements.newPinLabel.value.trim() || 'Marker', 
+        x: pendingPin.x, y: pendingPin.y, 
+        radius: safeRadius, color: safeColor,
+        timestamp: Date.now() 
+    });
   }
   
   closeModal(); 
@@ -552,6 +638,50 @@ elements.clearAllBtn.addEventListener('click', () => {
       renderPins(); 
       window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
   }
+});
+
+// JARVIS UPGRADE: Pack Sharing Integration
+elements.exportReconBtn.addEventListener('click', () => {
+    const payload = JSON.stringify({ pins: db.pins || [], routes: db.routes || [] });
+    const encodedData = btoa(encodeURIComponent(payload));
+    
+    navigator.clipboard.writeText(`EAHA-RECON:${encodedData}`).then(() => {
+        showToast('Tactical Data Encrypted & Copied. Ready to paste in Discord.', 'info');
+    }).catch(err => {
+        showToast('Clipboard permission denied.', 'error');
+    });
+});
+
+elements.importReconBtn.addEventListener('click', () => {
+    const importString = prompt("Paste the EAHA-RECON data string from your packmate:");
+    if (!importString) return;
+    
+    if (!importString.startsWith('EAHA-RECON:')) {
+        return showToast("Invalid Recon Data format.", "error");
+    }
+
+    try {
+        const decodedString = decodeURIComponent(atob(importString.replace('EAHA-RECON:', '')));
+        const incomingData = JSON.parse(decodedString);
+
+        if (confirm("Signal acquired. Do you want to merge this recon data with your existing map?")) {
+            if (incomingData.pins && incomingData.pins.length > 0) {
+                const newPins = incomingData.pins.map(p => ({...p, id: generateId(), timestamp: Date.now()}));
+                db.pins = [...(db.pins || []), ...newPins];
+            }
+            if (incomingData.routes && incomingData.routes.length > 0) {
+                const newRoutes = incomingData.routes.map(r => ({...r, id: generateId(), timestamp: Date.now()}));
+                db.routes = [...(db.routes || []), ...newRoutes];
+            }
+            
+            window.EAHADataStore.saveData(db).catch(e => console.error(e));
+            renderPins();
+            renderRoutes();
+            showToast("Tactical Data Synced Successfully.");
+        }
+    } catch (e) {
+        showToast("Decryption Failed. The data string may be corrupted.", "error");
+    }
 });
 
 const init = async () => {
