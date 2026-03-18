@@ -5,41 +5,64 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/fi
 // --- Global State ---
 let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], lineage: [] };
 let currentLineageId = null;
+let activeTab = 'tree'; 
+
+// Temporary State for Modals
+let editingMemberId = null; 
+let dyingMemberId = null; 
+let trophyMemberId = null; 
 
 // --- DOM Elements ---
 const elements = {
   list: document.getElementById('lineageList'),
   search: document.getElementById('lineageSearch'),
-  
   createBtn: document.getElementById('createLineageBtn'),
   deleteBtn: document.getElementById('deleteLineageBtn'),
-  
   placeholder: document.getElementById('lineagePlaceholder'),
   workspace: document.getElementById('lineageWorkspace'),
   
-  // Header Info
   packNameDisplay: document.getElementById('packNameDisplay'),
   speciesDisplay: document.getElementById('speciesDisplay'),
   statTotal: document.getElementById('statTotal'),
   statAlive: document.getElementById('statAlive'),
   statDead: document.getElementById('statDead'),
   
-  // Tree View
+  tabs: document.querySelectorAll('.lineage-tab'),
   treeContainer: document.getElementById('treeContainer'),
+  treeNodes: document.getElementById('treeNodes'),
+  treeLines: document.getElementById('treeLines'),
+  memorialContainer: document.getElementById('memorialContainer'),
   
-  // Modals
+  // Pack Modal
   packModal: document.getElementById('packModal'),
   packNameInput: document.getElementById('newPackName'),
   packSpeciesInput: document.getElementById('newPackSpecies'),
   savePackBtn: document.getElementById('savePackBtn'),
   cancelPackBtn: document.getElementById('cancelPackBtn'),
 
+  // Member Modal
   memberModal: document.getElementById('memberModal'),
   memberNameInput: document.getElementById('newMemberName'),
   memberGenInput: document.getElementById('newMemberGen'),
+  memberRoleInput: document.getElementById('newMemberRole'),
+  memberSireInput: document.getElementById('newMemberSire'),
+  memberDamInput: document.getElementById('newMemberDam'),
   memberNotesInput: document.getElementById('newMemberNotes'),
   saveMemberBtn: document.getElementById('saveMemberBtn'),
-  cancelMemberBtn: document.getElementById('cancelMemberBtn')
+  cancelMemberBtn: document.getElementById('cancelMemberBtn'),
+
+  // Trophy Modal
+  trophyModal: document.getElementById('trophyModal'),
+  newTrophyName: document.getElementById('newTrophyName'),
+  saveTrophyBtn: document.getElementById('saveTrophyBtn'),
+  cancelTrophyBtn: document.getElementById('cancelTrophyBtn'),
+
+  // Death Modal
+  deathModal: document.getElementById('deathModal'),
+  deathCauseInput: document.getElementById('deathCauseInput'),
+  deathLocInput: document.getElementById('deathLocInput'),
+  confirmDeathBtn: document.getElementById('confirmDeathBtn'),
+  cancelDeathBtn: document.getElementById('cancelDeathBtn')
 };
 
 // --- Utilities ---
@@ -96,7 +119,50 @@ const renderList = () => {
   });
 };
 
-// --- Tree Rendering Engine ---
+// --- Visual Node Tree Engine ---
+const drawConnections = () => {
+    elements.treeLines.innerHTML = '';
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    if (!pack || activeTab !== 'tree') return;
+
+    const containerRect = elements.treeNodes.getBoundingClientRect();
+
+    pack.members.forEach(member => {
+        if (member.status !== 'Alive') return; 
+
+        const childNode = document.getElementById(`node-${member.id}`);
+        if (!childNode) return;
+        const childRect = childNode.getBoundingClientRect();
+        const childX = childRect.left + (childRect.width / 2) - containerRect.left;
+        const childY = childRect.top - containerRect.top;
+
+        const drawLineToParent = (parentId, strokeColor) => {
+            if (!parentId) return;
+            const parentNode = document.getElementById(`node-${parentId}`);
+            if (!parentNode) return;
+
+            const parentRect = parentNode.getBoundingClientRect();
+            const parentX = parentRect.left + (parentRect.width / 2) - containerRect.left;
+            const parentY = parentRect.bottom - containerRect.top;
+
+            // Draw a curved bezier line for aesthetics
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${parentX} ${parentY} C ${parentX} ${parentY + 30}, ${childX} ${childY - 30}, ${childX} ${childY}`;
+            
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', strokeColor);
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('opacity', '0.5');
+            
+            elements.treeLines.appendChild(path);
+        };
+
+        drawLineToParent(member.sireId, '#3b82f6'); // Blue for Sire
+        drawLineToParent(member.damId, '#ec4899');  // Pink for Dam
+    });
+};
+
 const renderWorkspace = () => {
   if (!currentLineageId) {
     elements.workspace.classList.add('is-hidden');
@@ -116,88 +182,129 @@ const renderWorkspace = () => {
   elements.speciesDisplay.textContent = pack.species;
 
   const total = pack.members.length;
-  const alive = pack.members.filter(m => m.status === 'Alive').length;
-  const dead = total - alive;
+  const aliveMembers = pack.members.filter(m => m.status === 'Alive');
+  const deadMembers = pack.members.filter(m => m.status !== 'Alive');
 
   elements.statTotal.textContent = total;
-  elements.statAlive.textContent = alive;
-  elements.statDead.textContent = dead;
+  elements.statAlive.textContent = aliveMembers.length;
+  elements.statDead.textContent = deadMembers.length;
 
-  // Render the members grouped by Generation
-  elements.treeContainer.innerHTML = '';
-  
-  if (total === 0) {
-    elements.treeContainer.innerHTML = '<div class="muted" style="text-align:center; padding: 40px;">No members in this bloodline yet. Add a Founder to begin.</div>';
-    return;
-  }
+  if (activeTab === 'tree') {
+      elements.memorialContainer.classList.add('is-hidden');
+      elements.treeContainer.classList.remove('is-hidden');
+      elements.treeNodes.innerHTML = '';
+      elements.treeLines.innerHTML = '';
 
-  // Group by generation
-  const generations = {};
-  pack.members.forEach(m => {
-    const gen = m.generation || 1;
-    if (!generations[gen]) generations[gen] = [];
-    generations[gen].push(m);
-  });
+      if (aliveMembers.length === 0) {
+        elements.treeNodes.innerHTML = '<div class="muted" style="text-align:center; padding: 40px;">No living members. Add a Founder to begin the family tree.</div>';
+        return;
+      }
 
-  const sortedGens = Object.keys(generations).sort((a, b) => a - b);
-
-  sortedGens.forEach(gen => {
-    const genBlock = document.createElement('div');
-    genBlock.style.marginBottom = '25px';
-    
-    const genHeader = document.createElement('h3');
-    genHeader.style.color = 'var(--primary)';
-    genHeader.style.marginBottom = '15px';
-    genHeader.style.borderBottom = '1px solid var(--border)';
-    genHeader.style.paddingBottom = '5px';
-    genHeader.textContent = gen == 1 ? 'Generation 1 (Founders)' : `Generation ${gen}`;
-    genBlock.appendChild(genHeader);
-
-    const membersGrid = document.createElement('div');
-    membersGrid.style.display = 'grid';
-    membersGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-    membersGrid.style.gap = '15px';
-
-    generations[gen].forEach(member => {
-      const card = document.createElement('div');
-      const isDead = member.status === 'Deceased';
-      
-      card.className = 'stat-card';
-      card.style.background = isDead ? 'color-mix(in srgb, var(--danger) 10%, var(--bg))' : 'var(--bg-alt)';
-      card.style.borderColor = isDead ? 'var(--danger)' : 'var(--border)';
-      card.style.cursor = 'pointer';
-      card.title = "Click to toggle Alive/Deceased status";
-      
-      card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <strong style="color: ${isDead ? 'var(--danger)' : 'var(--text)'}; font-size: 1.1em; text-decoration: ${isDead ? 'line-through' : 'none'};">${member.name}</strong>
-          <span style="font-size: 1.2em;">${isDead ? '💀' : '🌿'}</span>
-        </div>
-        ${member.notes ? `<p class="muted" style="font-size: 0.85em; margin-top: 8px;">${member.notes}</p>` : ''}
-        <div style="font-size: 0.75em; color: var(--muted); margin-top: 10px;">Added: ${new Date(member.dateAdded).toLocaleDateString()}</div>
-      `;
-
-      // Toggle Status on Click
-      card.addEventListener('click', async () => {
-        member.status = member.status === 'Alive' ? 'Deceased' : 'Alive';
-        await window.EAHADataStore.saveData(db);
-        renderWorkspace();
-        renderList();
+      // Group by generation
+      const generations = {};
+      aliveMembers.forEach(m => {
+        const gen = m.generation || 1;
+        if (!generations[gen]) generations[gen] = [];
+        generations[gen].push(m);
       });
 
-      membersGrid.appendChild(card);
-    });
+      // Sort Alpha to top of generation
+      Object.keys(generations).forEach(gen => {
+          generations[gen].sort((a, b) => {
+              if (a.packRole === 'Alpha' && b.packRole !== 'Alpha') return -1;
+              if (b.packRole === 'Alpha' && a.packRole !== 'Alpha') return 1;
+              return 0;
+          });
+      });
 
-    genBlock.appendChild(membersGrid);
-    elements.treeContainer.appendChild(genBlock);
-  });
+      const sortedGens = Object.keys(generations).sort((a, b) => a - b);
+
+      sortedGens.forEach(gen => {
+        const row = document.createElement('div');
+        row.className = 'generation-row';
+        row.innerHTML = `<div class="gen-label">Generation ${gen}</div>`;
+
+        generations[gen].forEach(member => {
+          const card = document.createElement('div');
+          const isAlpha = member.packRole === 'Alpha';
+          card.className = `lineage-card ${isAlpha ? 'role-alpha' : ''}`;
+          card.id = `node-${member.id}`;
+          
+          let trophiesHtml = (member.titles || []).map(t => `<span class="trophy-chip">${t}</span>`).join('');
+          if (isAlpha) trophiesHtml = `<span class="trophy-chip alpha-badge">👑 Alpha</span>` + trophiesHtml;
+
+          card.innerHTML = `
+            <div class="card-actions">
+                <button class="action-btn" title="Award Trophy" onclick="window.EAHA_TriggerTrophy('${member.id}')">🏅</button>
+                <button class="action-btn" title="Mark as Deceased" onclick="window.EAHA_TriggerDeath('${member.id}')">☠️</button>
+            </div>
+            <strong style="color: var(--text); font-size: 1.1em; display:block; padding-right: 45px;">${member.name}</strong>
+            <div style="font-size: 0.8em; color: var(--primary); font-weight: bold;">${member.packRole || 'Subordinate'}</div>
+            ${member.notes ? `<p class="muted" style="font-size: 0.8em; margin-top: 5px;">${member.notes}</p>` : ''}
+            <div class="trophy-container">${trophiesHtml}</div>
+          `;
+          row.appendChild(card);
+        });
+
+        elements.treeNodes.appendChild(row);
+      });
+
+      // Draw lines after DOM renders
+      setTimeout(drawConnections, 50);
+
+  } else {
+      // Memorial Hall Render
+      elements.treeContainer.classList.add('is-hidden');
+      elements.memorialContainer.classList.remove('is-hidden');
+      elements.memorialContainer.innerHTML = '';
+
+      if (deadMembers.length === 0) {
+        elements.memorialContainer.innerHTML = '<div class="muted" style="text-align:center; padding: 40px; width: 100%;">The archive is empty. No casualties recorded.</div>';
+        return;
+      }
+
+      deadMembers.sort((a, b) => b.deathDate - a.deathDate).forEach(member => {
+          const card = document.createElement('div');
+          card.className = 'lineage-card is-dead';
+          card.style.width = '100%'; 
+
+          let trophiesHtml = (member.titles || []).map(t => `<span class="trophy-chip">${t}</span>`).join('');
+          
+          card.innerHTML = `
+            <div class="card-actions">
+                <button class="action-btn" title="Revive / Correct Error" onclick="window.EAHA_Revive('${member.id}')">❤️‍🩹</button>
+            </div>
+            <strong style="color: var(--danger); font-size: 1.2em; display:block;">${member.name}</strong>
+            <div style="font-size: 0.8em; color: var(--muted); margin-bottom: 10px;">Former ${member.packRole || 'Member'} • Gen ${member.generation}</div>
+            
+            <div style="font-size: 0.85em; margin-bottom: 5px;"><strong>Cause of Death:</strong> ${member.deathCause || 'Unknown'}</div>
+            <div style="font-size: 0.85em; margin-bottom: 10px;"><strong>Fell at:</strong> ${member.deathLocation || 'Unknown'}</div>
+            
+            <div class="trophy-container">${trophiesHtml}</div>
+            <div style="font-size: 0.75em; color: var(--muted); margin-top: 10px; border-top: 1px solid var(--border); padding-top: 5px;">
+                Archived: ${member.deathDate ? new Date(member.deathDate).toLocaleDateString() : 'Unknown'}
+            </div>
+          `;
+          elements.memorialContainer.appendChild(card);
+      });
+  }
 };
 
-// JARVIS UPGRADE: Robust Dropdown Implementation with Fallback Roster
+window.addEventListener('resize', drawConnections);
+
+// Tab Listeners
+elements.tabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+        elements.tabs.forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        activeTab = e.target.dataset.tab;
+        renderWorkspace();
+    });
+});
+
+// JARVIS UPGRADE: Dropdowns
 const populateSpeciesDropdown = () => {
   elements.packSpeciesInput.innerHTML = '<option value="Unknown">Select Species...</option>';
-  
-  // Default Path of Titans Roster Fallback (Guarantees Population)
   const defaultSpecies = [
     "Acrocanthosaurus", "Albertosaurus", "Alioramus", "Amargasaurus", "Ano", 
     "Barsboldia", "Camptosaurus", "Ceratosaurus", "Concavenator", "Daspletosaurus", 
@@ -207,21 +314,26 @@ const populateSpeciesDropdown = () => {
     "Sarcosuchus", "Spinosaurus", "Stegosaurus", "Styracosaurus", "Suchomimus", 
     "Thalassodromeus", "Tyrannosaurus", "Triceratops"
   ];
-  
   const speciesSet = new Set(defaultSpecies);
-  
-  // Merge dynamically loaded user species
   if (db.creatures && db.creatures.length > 0) {
-    db.creatures.forEach(c => {
-      if (c.name) speciesSet.add(c.name);
-    });
+    db.creatures.forEach(c => { if (c.name) speciesSet.add(c.name); });
   }
-
-  const sortedSpecies = Array.from(speciesSet).sort((a, b) => a.localeCompare(b));
-  
-  sortedSpecies.forEach(speciesName => {
+  Array.from(speciesSet).sort((a, b) => a.localeCompare(b)).forEach(speciesName => {
     elements.packSpeciesInput.appendChild(new Option(speciesName, speciesName));
   });
+};
+
+const populateParentDropdowns = (pack) => {
+    elements.memberSireInput.innerHTML = '<option value="">Unknown / None</option>';
+    elements.memberDamInput.innerHTML = '<option value="">Unknown / None</option>';
+    
+    if(!pack) return;
+    const living = pack.members.filter(m => m.status === 'Alive');
+    
+    living.forEach(m => {
+        elements.memberSireInput.appendChild(new Option(`${m.name} (Gen ${m.generation})`, m.id));
+        elements.memberDamInput.appendChild(new Option(`${m.name} (Gen ${m.generation})`, m.id));
+    });
 };
 
 // --- Modals & Data Entry ---
@@ -231,76 +343,132 @@ elements.createBtn.addEventListener('click', () => {
   elements.packSpeciesInput.value = 'Unknown';
   elements.packModal.classList.remove('is-hidden');
 });
-
-elements.cancelPackBtn.addEventListener('click', () => {
-  elements.packModal.classList.add('is-hidden');
-});
-
+elements.cancelPackBtn.addEventListener('click', () => elements.packModal.classList.add('is-hidden'));
 elements.savePackBtn.addEventListener('click', async () => {
   const name = elements.packNameInput.value.trim();
   const species = elements.packSpeciesInput.value.trim();
-  
   if (!name) return showToast('Pack name is required.', 'error');
 
-  const newPack = {
-    id: generateId(),
-    packName: name,
-    species: species,
-    members: [],
-    timestamp: Date.now()
-  };
-
+  const newPack = { id: generateId(), packName: name, species: species, members: [], timestamp: Date.now() };
   if (!db.lineage) db.lineage = [];
   db.lineage.push(newPack);
   
   await window.EAHADataStore.saveData(db);
   currentLineageId = newPack.id;
-  
   elements.packModal.classList.add('is-hidden');
   renderList();
   renderWorkspace();
   showToast('New Bloodline established.');
 });
 
-// Member Entry
+// Add Member
 document.getElementById('addMemberBtn').addEventListener('click', () => {
+  const pack = db.lineage.find(l => l.id === currentLineageId);
+  populateParentDropdowns(pack);
+  
   elements.memberNameInput.value = '';
   elements.memberGenInput.value = '1';
+  elements.memberRoleInput.value = 'Subordinate';
+  elements.memberSireInput.value = '';
+  elements.memberDamInput.value = '';
   elements.memberNotesInput.value = '';
+  
   elements.memberModal.classList.remove('is-hidden');
   elements.memberNameInput.focus();
 });
-
-elements.cancelMemberBtn.addEventListener('click', () => {
-  elements.memberModal.classList.add('is-hidden');
-});
-
+elements.cancelMemberBtn.addEventListener('click', () => elements.memberModal.classList.add('is-hidden'));
 elements.saveMemberBtn.addEventListener('click', async () => {
   const pack = db.lineage.find(l => l.id === currentLineageId);
   if (!pack) return;
 
   const name = elements.memberNameInput.value.trim();
-  const gen = parseInt(elements.memberGenInput.value, 10) || 1;
-  const notes = elements.memberNotesInput.value.trim();
-
   if (!name) return showToast('Member name is required.', 'error');
 
   pack.members.push({
     id: generateId(),
     name: name,
-    generation: gen,
-    notes: notes,
+    generation: parseInt(elements.memberGenInput.value, 10) || 1,
+    packRole: elements.memberRoleInput.value,
+    sireId: elements.memberSireInput.value || null,
+    damId: elements.memberDamInput.value || null,
+    notes: elements.memberNotesInput.value.trim(),
+    titles: [],
     status: 'Alive',
     dateAdded: Date.now()
   });
 
   await window.EAHADataStore.saveData(db);
-  
   elements.memberModal.classList.add('is-hidden');
   renderWorkspace();
   renderList();
   showToast(`${name} added to the family tree.`);
 });
+
+// Trophy Modal Logic
+window.EAHA_TriggerTrophy = (memberId) => {
+    trophyMemberId = memberId;
+    elements.newTrophyName.value = '';
+    elements.trophyModal.classList.remove('is-hidden');
+    elements.newTrophyName.focus();
+};
+elements.cancelTrophyBtn.addEventListener('click', () => elements.trophyModal.classList.add('is-hidden'));
+elements.saveTrophyBtn.addEventListener('click', async () => {
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const member = pack?.members.find(m => m.id === trophyMemberId);
+    const trophy = elements.newTrophyName.value.trim();
+    
+    if (member && trophy) {
+        if (!member.titles) member.titles = [];
+        member.titles.push(trophy);
+        await window.EAHADataStore.saveData(db);
+        renderWorkspace();
+        showToast(`Milestone Awarded: ${trophy}`);
+    }
+    elements.trophyModal.classList.add('is-hidden');
+});
+
+// Death Archive Logic
+window.EAHA_TriggerDeath = (memberId) => {
+    dyingMemberId = memberId;
+    elements.deathCauseInput.value = '';
+    elements.deathLocInput.value = '';
+    elements.deathModal.classList.remove('is-hidden');
+    elements.deathCauseInput.focus();
+};
+elements.cancelDeathBtn.addEventListener('click', () => elements.deathModal.classList.add('is-hidden'));
+elements.confirmDeathBtn.addEventListener('click', async () => {
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const member = pack?.members.find(m => m.id === dyingMemberId);
+    
+    if (member) {
+        member.status = 'Deceased';
+        member.deathCause = elements.deathCauseInput.value.trim() || 'Unknown Causes';
+        member.deathLocation = elements.deathLocInput.value.trim() || 'Unknown Location';
+        member.deathDate = Date.now();
+        await window.EAHADataStore.saveData(db);
+        renderWorkspace();
+        renderList();
+        showToast(`${member.name} has been archived to the Memorial Hall.`, 'error');
+    }
+    elements.deathModal.classList.add('is-hidden');
+});
+
+// Revive Logic (Correcting mistakes)
+window.EAHA_Revive = async (memberId) => {
+    if(!confirm("Revive this member and return them to the active tree?")) return;
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const member = pack?.members.find(m => m.id === memberId);
+    if(member) {
+        member.status = 'Alive';
+        member.deathCause = null;
+        member.deathLocation = null;
+        member.deathDate = null;
+        await window.EAHADataStore.saveData(db);
+        renderWorkspace();
+        renderList();
+        showToast(`${member.name} has returned to the pack.`);
+    }
+};
 
 elements.deleteBtn.addEventListener('click', async () => {
   if (!currentLineageId) return;
@@ -317,26 +485,16 @@ elements.deleteBtn.addEventListener('click', async () => {
 
 elements.search.addEventListener('input', renderList);
 
-// JARVIS UPGRADE: UI Sync Listeners for Lineage
-window.addEventListener('eaha-sync-complete', () => {
-    showToast('Bloodline Sync Confirmed.', 'success');
-});
+window.addEventListener('eaha-sync-complete', () => { showToast('Bloodline Sync Confirmed.', 'success'); });
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof window.EAHADataStore !== 'undefined') {
-    db = await window.EAHADataStore.getData();
-  } else {
-    console.error("Jarvis Alert: data-store.js is missing.");
-  }
-
+  if (typeof window.EAHADataStore !== 'undefined') { db = await window.EAHADataStore.getData(); }
   if (!db.lineage) db.lineage = [];
-
   renderList();
   renderWorkspace();
 };
 
-// JARVIS UPGRADE: The Auth Guard Pipeline
 let hasInitialized = false;
 onAuthStateChanged(auth, async (user) => {
     if (user && !hasInitialized) {
