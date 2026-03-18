@@ -23,13 +23,23 @@
     .pin-label { position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); border: 1px solid var(--primary); padding: 4px 10px; border-radius: 6px; font-size: calc(12px / var(--map-scale, 1)); font-weight: bold; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s, bottom 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); color: #fff; }
     .map-pin:hover .pin-label { opacity: 1; bottom: 130%; }
     
-    /* JARVIS ADDITION: Tactical Danger Zone Radii */
+    /* Tactical Danger Zone Radii */
     .danger-zone { position: absolute; border-radius: 50%; opacity: 0.35; pointer-events: none; transform: translate(-50%, -50%); border: 2px dashed; z-index: 5; }
     
+    /* Active Route Draggable Nodes */
+    .route-node { position: absolute; border-radius: 50%; background: var(--warning); border: 2px solid #fff; pointer-events: auto; z-index: 30; box-shadow: 0 2px 4px rgba(0,0,0,0.8); transition: transform 0.1s; cursor: grab; }
+    .route-node:active { cursor: grabbing; transform: translate(-50%, -50%) scale(1.3) !important; }
+
     #routeLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
     
     #activeRoutePolyline { fill: none; stroke: var(--danger); stroke-width: calc(0.6 / var(--map-scale, 1)); stroke-dasharray: calc(1.5 / var(--map-scale, 1)); animation: march calc(2s * var(--map-scale, 1)) linear infinite; filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.8)); }
     @keyframes march { to { stroke-dashoffset: -3; } }
+
+    /* JARVIS UPGRADE: Tactical HUD CSS */
+    .hud-display { position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.85); border: 1px solid var(--primary); padding: 8px 12px; border-radius: 8px; color: var(--primary); font-size: 0.9em; font-family: monospace; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.6); backdrop-filter: blur(4px); pointer-events: auto; cursor: pointer; transition: all 0.2s; user-select: none; }
+    .hud-display:hover { background: rgba(15, 23, 42, 0.95); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4); border-color: #10b981; }
+    .hud-display .copy-hint { font-size: 0.75em; opacity: 0.6; margin-left: 10px; transition: opacity 0.2s; }
+    .hud-display:hover .copy-hint { opacity: 1; color: #10b981; }
 
     .zoom-controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
     .zoom-btn { background: rgba(30, 41, 59, 0.85); color: white; border: 1px solid var(--border); width: 45px; height: 45px; border-radius: 12px; font-size: 1.5rem; font-weight: bold; cursor: pointer; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
