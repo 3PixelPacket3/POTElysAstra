@@ -32,6 +32,7 @@ const elements = {
     name: document.getElementById('creatureName'),
     tier: document.getElementById('creatureTierInput'),
     group: document.getElementById('creatureGroup'),
+    migration: document.getElementById('creatureMigration'), // JARVIS ADDITION
     image: document.getElementById('creatureImage'),
     imageUpload: document.getElementById('creatureImageUpload'),
     imageDropZone: document.getElementById('profileImageDropZone'),
@@ -359,6 +360,7 @@ const syncForm = (creature) => {
   elements.core.name.value = creature.name || '';
   elements.core.tier.value = creature.tier || '';
   elements.core.group.value = creature.groupSize || '';
+  if (elements.core.migration) elements.core.migration.value = creature.migrationCount || 0; // JARVIS ADDITION
   elements.core.image.value = creature.imagePath || '';
   elements.core.modded.checked = Boolean(creature.modded);
   elements.core.critter.checked = Boolean(creature.critter);
@@ -407,6 +409,7 @@ const gatherForm = () => {
     name: elements.core.name.value.trim() || 'Unnamed Creature',
     tier: elements.core.tier.value.trim(),
     groupSize: elements.core.group.value.trim(),
+    migrationCount: elements.core.migration ? (parseInt(elements.core.migration.value, 10) || 0) : 0, // JARVIS ADDITION
     imagePath: elements.core.image.value.trim(),
     modded: elements.core.modded.checked,
     critter: elements.core.critter.checked,
@@ -601,6 +604,10 @@ const setView = (creature) => {
           <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Speed</strong>
           <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${getAdultStat(baseStats.speed)}</span>
         </div>
+        <div class="stat-card" style="background: var(--bg);" title="Total Migrations Completed">
+          <strong style="color: var(--muted); display: block; overflow-wrap: anywhere; word-break: break-word;">Migrations</strong>
+          <span style="font-size: 1.2em; font-weight: bold; display: block; margin-top: 5px;">${creature.migrationCount || 0}</span>
+        </div>
       </div>
       
       ${customStatsHtml}
@@ -724,6 +731,15 @@ const duplicateCreature = async () => {
   setView(data);
   showToast('Profile Duplicated.');
 };
+
+// JARVIS UPGRADE: UI Sync Listeners
+window.addEventListener('eaha-sync-start', () => {
+  if(elements.saveBtn) elements.saveBtn.textContent = 'Saving...';
+});
+window.addEventListener('eaha-sync-complete', () => {
+  if(elements.saveBtn) elements.saveBtn.textContent = 'Save Profile';
+  showToast('Cloud Sync Verified & Complete.', 'success');
+});
 
 // --- Initialization ---
 const init = async () => {
