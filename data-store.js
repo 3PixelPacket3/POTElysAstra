@@ -2,7 +2,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- FIREBASE CLOUD CONFIGURATION ---
 const firebaseConfig = {
@@ -14,13 +14,13 @@ const firebaseConfig = {
   appId: "1:949997364963:web:cd25b994d30c4bf73b47d6"
 };
 
+// ADD YOUR PERSONAL LOGIN EMAIL HERE TO ENABLE GLOBAL DELETION RIGHTS
+const ADMIN_EMAILS = ["admin@elysastra.com", "YOUR_EMAIL_HERE@gmail.com"];
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-const ADMIN_EMAIL = "admin@elysastra.com"; 
-
-// JARVIS NOTE: Hardcoded Defaults. Mounted to the cloud baseline below.
 window.EAHAModifiers = {
   roles: {
     "None": { description: "No role equipped." },
@@ -138,18 +138,15 @@ window.EAHADataStore = {
     }
 
     try {
-      // 1. Fetch core user settings
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
 
-      // Ensure base arrays exist
       userData.stats = userData.stats || [];
       userData.customPresets = userData.customPresets || {};
       userData.pins = userData.pins || [];
       userData.routes = userData.routes || [];
 
-      // 2. Fetch User Sub-Collections
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
       for (const colName of subCollections) {
           userData[colName] = [];
@@ -158,7 +155,6 @@ window.EAHADataStore = {
           snap.forEach(doc => userData[colName].push(doc.data()));
       }
 
-      // 3. Fetch Admin Baseline
       const adminRef = doc(db, "system", "admin_baseline");
       const adminSnap = await getDoc(adminRef);
       const adminData = adminSnap.exists() ? adminSnap.data() : { system_settings: null };
@@ -173,7 +169,6 @@ window.EAHADataStore = {
       adminData.creatures = [];
       adminCreaSnap.forEach(d => adminData.creatures.push(d.data()));
 
-      // JARVIS FIX 1: Deduplicate global variables so rules don't clone themselves visually.
       const ruleMap = new Map();
       (adminData.rules || []).forEach(r => ruleMap.set(r.id, r));
       (userData.rules || []).forEach(r => ruleMap.set(r.id, r));
@@ -197,7 +192,7 @@ window.EAHADataStore = {
       return userData;
 
     } catch (error) {
-      console.error("Jarvis Error: Cloud Sync failed.", error);
+      console.error("Cloud Sync failed.", error);
       return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
     }
   },
@@ -209,7 +204,6 @@ window.EAHADataStore = {
     try {
       const cleanData = JSON.parse(JSON.stringify(dataObj));
 
-      // JARVIS FIX 2: Restore missing legacy variables so Maps and Presets don't erase themselves.
       const userRef = doc(db, "users", user.uid);
       await setDoc(userRef, { 
           system_settings: cleanData.system_settings || {},
@@ -219,40 +213,36 @@ window.EAHADataStore = {
           routes: cleanData.routes || []
       }, { merge: true }); 
 
-      // Logic to sync Arrays to infinite folders
+      // Using Atomic Batch Writes to guarantee deletions are processed correctly
       const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
           const colRef = collection(db, ...basePath, colName);
           const existingSnap = await getDocs(colRef);
           const existingIds = new Set();
           existingSnap.forEach(d => existingIds.add(d.id));
 
-          const promises = [];
+          const batch = writeBatch(db);
 
           items.forEach(item => {
               if(!item.id) item.id = 'gen_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
               const docRef = doc(db, ...basePath, colName, item.id);
-              promises.push(setDoc(docRef, item));
+              batch.set(docRef, item);
               existingIds.delete(item.id);
           });
 
-          // Purge deleted items
           existingIds.forEach(id => {
               const docRef = doc(db, ...basePath, colName, id);
-              promises.push(deleteDoc(docRef));
+              batch.delete(docRef);
           });
 
-          await Promise.all(promises);
+          await batch.commit();
       };
 
-      // JARVIS FIX 3: Blast Shields. If one folder crashes (like a 2MB image in Creatures), the others will still delete/save properly.
       const safeSync = async (colName, items, basePath) => {
           try {
               await syncCollection(colName, items, basePath);
           } catch (err) {
               console.error(`Failed to sync ${colName}:`, err);
-              if (colName === 'creatures') {
-                  alert(`⚠️ Sync Warning: One or more of your Creatures failed to upload to the cloud.\n\nPlease replace any direct uploaded profile images with image URLs. The document limit is 1MB.`);
-              }
+              alert(`⚠️ Cloud Sync Error [${colName}]:\n${err.message}\n\nIf the error mentions permissions, your Firestore Rules are blocking the save.`);
           }
       };
 
@@ -261,8 +251,9 @@ window.EAHADataStore = {
       await safeSync('encounters', cleanData.encounters || []);
       await safeSync('lineage', cleanData.lineage || []);
 
-      // Admin Broadcasting 
-      if (user.email === ADMIN_EMAIL) {
+      const isAppAdmin = ADMIN_EMAILS.includes(user.email);
+      
+      if (isAppAdmin) {
         const adminRef = doc(db, "system", "admin_baseline");
         let currentSystemSettings = cleanData.system_settings || {};
         if (!currentSystemSettings.modifiers) {
@@ -278,13 +269,12 @@ window.EAHADataStore = {
       return true;
 
     } catch (error) {
-      console.error("Jarvis Error: Critical save failure.", error);
+      console.error("Critical save failure.", error);
       return false;
     }
   },
 
   async syncCloudData() {
-    console.log("Jarvis: Initiating forced sync with central servers...");
     await this.resetToCloudBase(); 
     const latestData = await this.getData(); 
     return { success: true, message: "Cloud synchronization complete." };
