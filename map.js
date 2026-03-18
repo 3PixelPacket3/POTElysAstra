@@ -17,7 +17,6 @@ let startDragY = 0;
 let currentMode = 'pan'; 
 let activeRoutePoints = [];
 
-// JARVIS ADDITION: Ruler Matrix variables
 let rulerStartPoint = null;
 
 const elements = {
@@ -31,11 +30,11 @@ const elements = {
   clearAllBtn: document.getElementById('clearAllPinsBtn'),
   routeList: document.getElementById('routeList'),
   activeRoutePolyline: document.getElementById('activeRoutePolyline'),
-  rulerLine: document.getElementById('rulerLine'), // New Tool
+  rulerLine: document.getElementById('rulerLine'), 
   modePanBtn: document.getElementById('modePanBtn'),
   modePinBtn: document.getElementById('modePinBtn'),
   modeRouteBtn: document.getElementById('modeRouteBtn'), 
-  modeRulerBtn: document.getElementById('modeRulerBtn'), // New Mode
+  modeRulerBtn: document.getElementById('modeRulerBtn'), 
   zoomInBtn: document.getElementById('zoomInBtn'),
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   resetZoomBtn: document.getElementById('resetZoomBtn'),
@@ -46,8 +45,8 @@ const elements = {
   modalTitle: document.getElementById('pinModalTitle'), 
   newPinType: document.getElementById('newPinType'),
   newPinLabel: document.getElementById('newPinLabel'),
-  newPinRadius: document.getElementById('newPinRadius'), // New Field
-  newPinColor: document.getElementById('newPinColor'),   // New Field
+  newPinRadius: document.getElementById('newPinRadius'), 
+  newPinColor: document.getElementById('newPinColor'),   
   saveBtn: document.getElementById('savePinBtn'),
   cancelBtn: document.getElementById('cancelPinBtn'),
   calibrationTools: document.getElementById('calibrationTools'),
@@ -56,26 +55,27 @@ const elements = {
   recalibrateBtn: document.getElementById('recalibrateBtn'),
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
   cancelDeployBtn: document.getElementById('cancelDeployBtn'),
-  exportReconBtn: document.getElementById('exportReconBtn'), // Pack Sharing
-  importReconBtn: document.getElementById('importReconBtn')  // Pack Sharing
+  exportReconBtn: document.getElementById('exportReconBtn'), 
+  importReconBtn: document.getElementById('importReconBtn')  
 };
 
+// JARVIS UPGRADE: Relocated, Copy-able Tactical HUD
 const coordDisplay = document.createElement('div');
-coordDisplay.style.position = 'absolute';
-coordDisplay.style.bottom = '10px';
-coordDisplay.style.left = '10px';
-coordDisplay.style.background = 'rgba(15, 23, 42, 0.8)';
-coordDisplay.style.border = '1px solid var(--primary)';
-coordDisplay.style.padding = '5px 10px';
-coordDisplay.style.borderRadius = '8px';
-coordDisplay.style.color = 'var(--primary)';
-coordDisplay.style.fontSize = '0.85em';
-coordDisplay.style.fontFamily = 'monospace';
-coordDisplay.style.pointerEvents = 'none';
-coordDisplay.style.zIndex = '100';
-coordDisplay.style.boxShadow = '0 4px 6px rgba(0,0,0,0.5)';
-coordDisplay.innerHTML = 'GPS: Standby...';
+coordDisplay.className = 'hud-display';
+coordDisplay.innerHTML = '<span id="hudText">GPS: Standby...</span><span class="copy-hint">(Click to Copy)</span>';
 elements.mapWindow.appendChild(coordDisplay);
+
+coordDisplay.addEventListener('click', () => {
+    const textToCopy = document.getElementById('hudText').innerText;
+    if (textToCopy && textToCopy !== 'GPS: Standby...') {
+        navigator.clipboard.writeText(textToCopy);
+        showToast('Tactical data copied to clipboard.', 'info');
+    }
+});
+
+const updateHudText = (text) => {
+    document.getElementById('hudText').innerText = text;
+};
 
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
@@ -129,7 +129,7 @@ elements.mapWindow.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 elements.mapWindow.addEventListener('mousedown', (e) => {
-  if (currentMode !== 'pan' || e.button !== 0) return;
+  if (currentMode !== 'pan' || e.button !== 0 || e.target.closest('.route-node')) return;
   isDragging = true;
   startDragX = e.clientX - translateX;
   startDragY = e.clientY - translateY;
@@ -142,30 +142,26 @@ window.addEventListener('mousemove', (e) => {
   updateTransform();
 });
 
-// JARVIS UPGRADE: Integrates Ruler Distance Calcs into the Live HUD
 elements.mapWindow.addEventListener('mousemove', (e) => {
     const coords = getMapCoordinates(e.clientX, e.clientY);
     
-    // Ruler Calculation
     if (currentMode === 'ruler' && rulerStartPoint) {
         elements.rulerLine.setAttribute('x2', coords.x);
         elements.rulerLine.setAttribute('y2', coords.y);
         
-        // 100% Map Width = 8,200 Meters (410,000 Radius * 2 / 100)
         const distanceMeters = Math.sqrt(Math.pow(coords.x - rulerStartPoint.x, 2) + Math.pow(coords.y - rulerStartPoint.y, 2)) * 82;
         const sprintSeconds = (distanceMeters / 10).toFixed(0); 
         
-        coordDisplay.innerHTML = `📏 Distance: ${distanceMeters.toFixed(0)}m | ⏱️ Est. Sprint: ${sprintSeconds}s`;
+        updateHudText(`📏 Distance: ${distanceMeters.toFixed(0)}m | ⏱️ Est. Sprint: ${sprintSeconds}s`);
         return;
     }
 
-    // Standard GPS Calculation
     const offset = db.mapOffset || {x: -1.5, y: -1.5};
     const rawX = coords.x - offset.x;
     const rawY = coords.y - offset.y;
     const xUU = Math.round(((rawX - 50) / 50) * 410000);
     const yUU = Math.round(((rawY - 50) / 50) * 410000);
-    coordDisplay.innerHTML = `GPS: X=${xUU}, Y=${yUU}`;
+    updateHudText(`X=${xUU}, Y=${yUU}`);
 });
 
 window.addEventListener('mouseup', () => { isDragging = false; });
@@ -185,13 +181,12 @@ const setMode = (mode) => {
   elements.mapWindow.classList.toggle('route-mode', mode === 'route');
   elements.mapWindow.classList.toggle('ruler-mode', mode === 'ruler');
 
-  // Reset Ruler
   rulerStartPoint = null;
   elements.rulerLine.style.display = 'none';
 
   if (mode === 'route') {
     elements.routeTools.classList.remove('is-hidden');
-    showToast("Route Mode Engaged: Click map to place waypoints.", "info");
+    showToast("Route Mode: Click map to place nodes. Drag nodes to adjust. Right-click node to delete.", "info");
   } else {
     elements.routeTools.classList.add('is-hidden');
     if (activeRoutePoints.length > 0 && !confirm('Discard currently unsaved route?')) {
@@ -213,7 +208,7 @@ elements.modeRouteBtn.addEventListener('click', () => setMode('route'));
 elements.modeRulerBtn.addEventListener('click', () => setMode('ruler'));
 
 elements.mapWindow.addEventListener('touchstart', (e) => {
-  if (currentMode !== 'pan' || e.touches.length !== 1) return;
+  if (currentMode !== 'pan' || e.touches.length !== 1 || e.target.closest('.route-node')) return;
   isDragging = true;
   startDragX = e.touches[0].clientX - translateX;
   startDragY = e.touches[0].clientY - translateY;
@@ -229,13 +224,67 @@ window.addEventListener('touchmove', (e) => {
 
 window.addEventListener('touchend', () => { isDragging = false; });
 
+// JARVIS UPGRADE: Advanced Interactive Route UI
 const renderActiveRoute = () => {
+  document.querySelectorAll('.route-node').forEach(node => node.remove());
+
   if (activeRoutePoints.length === 0) {
     elements.activeRoutePolyline.setAttribute('points', '');
     return;
   }
+
   const pointsStr = activeRoutePoints.map(p => `${p.x},${p.y}`).join(' ');
   elements.activeRoutePolyline.setAttribute('points', pointsStr);
+
+  activeRoutePoints.forEach((pt, index) => {
+    const node = document.createElement('div');
+    node.className = 'route-node';
+    node.style.width = `calc(12px / var(--map-scale, 1))`;
+    node.style.height = `calc(12px / var(--map-scale, 1))`;
+    node.style.left = `${pt.x}%`;
+    node.style.top = `${pt.y}%`;
+    node.style.transform = `translate(-50%, -50%)`;
+    node.title = `Waypoint ${index + 1}\nDrag to move\nRight-click to delete`;
+
+    // Make waypoints draggable
+    node.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || currentMode !== 'route') return;
+        e.stopPropagation();
+        let isDraggingNode = true;
+        
+        const onNodeMove = (moveEvent) => {
+            if (!isDraggingNode) return;
+            const newCoords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+            activeRoutePoints[index] = newCoords;
+            // Update line and node visually without a full re-render loop
+            const newPointsStr = activeRoutePoints.map(p => `${p.x},${p.y}`).join(' ');
+            elements.activeRoutePolyline.setAttribute('points', newPointsStr);
+            node.style.left = `${newCoords.x}%`;
+            node.style.top = `${newCoords.y}%`;
+        };
+
+        const onNodeUp = () => {
+            isDraggingNode = false;
+            window.removeEventListener('mousemove', onNodeMove);
+            window.removeEventListener('mouseup', onNodeUp);
+            renderActiveRoute(); // Final lock-in render
+        };
+
+        window.addEventListener('mousemove', onNodeMove);
+        window.addEventListener('mouseup', onNodeUp);
+    });
+
+    // Right click to delete specific waypoint
+    node.addEventListener('contextmenu', (e) => {
+        if (currentMode !== 'route') return;
+        e.preventDefault();
+        e.stopPropagation();
+        activeRoutePoints.splice(index, 1);
+        renderActiveRoute();
+    });
+
+    elements.pinLayer.appendChild(node);
+  });
 };
 
 const renderRoutes = () => {
@@ -311,6 +360,7 @@ elements.cancelRouteBtn.addEventListener('click', () => {
 elements.mapWindow.addEventListener('contextmenu', (e) => {
   if (currentMode === 'route') {
     e.preventDefault();
+    if (e.target.closest('.route-node')) return; // Let the node handle its own deletion
     if (activeRoutePoints.length > 0) {
       activeRoutePoints.pop();
       renderActiveRoute();
@@ -318,7 +368,6 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
-// Explicit Calibration Tool
 elements.recalibrateBtn.addEventListener('click', () => {
     const coordsText = prompt("GPS CALIBRATION\n\nPlease paste your exact in-game /loc coordinates to begin calibration:");
     if(!coordsText) return;
@@ -448,7 +497,12 @@ if (elements.mobileCoordBtn) {
 const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filterVal = elements.filter.value;
-  elements.pinLayer.innerHTML = '';
+  
+  // Clean up old pins and zones before re-rendering
+  document.querySelectorAll('.map-pin').forEach(el => {
+      if(el !== tempCalibrationMarker && !el.classList.contains('route-node')) el.remove();
+  });
+  document.querySelectorAll('.danger-zone').forEach(el => el.remove());
   elements.pinList.innerHTML = '';
   
   const filteredPins = (db.pins || []).filter(pin => {
@@ -462,7 +516,6 @@ const renderPins = () => {
 
   [...filteredPins].sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
     
-    // JARVIS ADDITION: Danger Zone Renderer
     if (pin.radius && pin.radius > 0) {
         const zone = document.createElement('div');
         const radiusPercent = (pin.radius / 8200) * 100;
@@ -640,7 +693,6 @@ elements.clearAllBtn.addEventListener('click', () => {
   }
 });
 
-// JARVIS UPGRADE: Pack Sharing Integration
 elements.exportReconBtn.addEventListener('click', () => {
     const payload = JSON.stringify({ pins: db.pins || [], routes: db.routes || [] });
     const encodedData = btoa(encodeURIComponent(payload));
