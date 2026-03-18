@@ -42,6 +42,7 @@ const elements = {
 
   // Member Modal
   memberModal: document.getElementById('memberModal'),
+  memberModalTitle: document.getElementById('memberModalTitle'),
   memberNameInput: document.getElementById('newMemberName'),
   memberGenInput: document.getElementById('newMemberGen'),
   memberRoleInput: document.getElementById('newMemberRole'),
@@ -119,13 +120,20 @@ const renderList = () => {
   });
 };
 
-// --- Visual Node Tree Engine ---
+// --- JARVIS UPGRADE: Advanced Visual Node Tree Engine ---
 const drawConnections = () => {
-    elements.treeLines.innerHTML = '';
+    const svg = elements.treeLines;
+    svg.innerHTML = '';
+    
     const pack = db.lineage.find(l => l.id === currentLineageId);
     if (!pack || activeTab !== 'tree') return;
 
-    const containerRect = elements.treeNodes.getBoundingClientRect();
+    const container = elements.treeNodes;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Scale SVG to match the full scrollable area
+    svg.style.width = container.scrollWidth + 'px';
+    svg.style.height = container.scrollHeight + 'px';
 
     pack.members.forEach(member => {
         if (member.status !== 'Alive') return; 
@@ -133,8 +141,10 @@ const drawConnections = () => {
         const childNode = document.getElementById(`node-${member.id}`);
         if (!childNode) return;
         const childRect = childNode.getBoundingClientRect();
-        const childX = childRect.left + (childRect.width / 2) - containerRect.left;
-        const childY = childRect.top - containerRect.top;
+        
+        // Calculate absolute position within the scrollable container
+        const childX = (childRect.left - containerRect.left) + container.scrollLeft + (childRect.width / 2);
+        const childY = (childRect.top - containerRect.top) + container.scrollTop;
 
         const drawLineToParent = (parentId, strokeColor) => {
             if (!parentId) return;
@@ -142,20 +152,20 @@ const drawConnections = () => {
             if (!parentNode) return;
 
             const parentRect = parentNode.getBoundingClientRect();
-            const parentX = parentRect.left + (parentRect.width / 2) - containerRect.left;
-            const parentY = parentRect.bottom - containerRect.top;
+            const parentX = (parentRect.left - containerRect.left) + container.scrollLeft + (parentRect.width / 2);
+            const parentY = (parentRect.bottom - containerRect.top) + container.scrollTop;
 
-            // Draw a curved bezier line for aesthetics
+            // Draw a curved bezier line 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const d = `M ${parentX} ${parentY} C ${parentX} ${parentY + 30}, ${childX} ${childY - 30}, ${childX} ${childY}`;
             
             path.setAttribute('d', d);
             path.setAttribute('stroke', strokeColor);
-            path.setAttribute('stroke-width', '2');
+            path.setAttribute('stroke-width', '2.5');
             path.setAttribute('fill', 'none');
-            path.setAttribute('opacity', '0.5');
+            path.setAttribute('opacity', '0.6');
             
-            elements.treeLines.appendChild(path);
+            svg.appendChild(path);
         };
 
         drawLineToParent(member.sireId, '#3b82f6'); // Blue for Sire
@@ -196,7 +206,7 @@ const renderWorkspace = () => {
       elements.treeLines.innerHTML = '';
 
       if (aliveMembers.length === 0) {
-        elements.treeNodes.innerHTML = '<div class="muted" style="text-align:center; padding: 40px;">No living members. Add a Founder to begin the family tree.</div>';
+        elements.treeNodes.innerHTML = '<div class="muted" style="text-align:center; padding: 40px; width: 100%;">No living members. Add a Founder to begin the family tree.</div>';
         return;
       }
 
@@ -233,12 +243,15 @@ const renderWorkspace = () => {
           let trophiesHtml = (member.titles || []).map(t => `<span class="trophy-chip">${t}</span>`).join('');
           if (isAlpha) trophiesHtml = `<span class="trophy-chip alpha-badge">👑 Alpha</span>` + trophiesHtml;
 
+          // Expanded Suite of Card Actions
           card.innerHTML = `
             <div class="card-actions">
+                <button class="action-btn" title="Edit Details" onclick="window.EAHA_EditMember('${member.id}')">✎</button>
                 <button class="action-btn" title="Award Trophy" onclick="window.EAHA_TriggerTrophy('${member.id}')">🏅</button>
-                <button class="action-btn" title="Mark as Deceased" onclick="window.EAHA_TriggerDeath('${member.id}')">☠️</button>
+                <button class="action-btn" title="Send to Memorial" onclick="window.EAHA_TriggerDeath('${member.id}')">☠️</button>
+                <button class="action-btn" title="Delete Permanently" onclick="window.EAHA_DeleteMember('${member.id}')" style="color: var(--danger);">✕</button>
             </div>
-            <strong style="color: var(--text); font-size: 1.1em; display:block; padding-right: 45px;">${member.name}</strong>
+            <strong style="color: var(--text); font-size: 1.1em; display:block;">${member.name}</strong>
             <div style="font-size: 0.8em; color: var(--primary); font-weight: bold;">${member.packRole || 'Subordinate'}</div>
             ${member.notes ? `<p class="muted" style="font-size: 0.8em; margin-top: 5px;">${member.notes}</p>` : ''}
             <div class="trophy-container">${trophiesHtml}</div>
@@ -249,7 +262,7 @@ const renderWorkspace = () => {
         elements.treeNodes.appendChild(row);
       });
 
-      // Draw lines after DOM renders
+      // Draw lines after layout recalculates
       setTimeout(drawConnections, 50);
 
   } else {
@@ -273,6 +286,7 @@ const renderWorkspace = () => {
           card.innerHTML = `
             <div class="card-actions">
                 <button class="action-btn" title="Revive / Correct Error" onclick="window.EAHA_Revive('${member.id}')">❤️‍🩹</button>
+                <button class="action-btn" title="Delete Permanently" onclick="window.EAHA_DeleteMember('${member.id}')" style="color: var(--danger);">✕</button>
             </div>
             <strong style="color: var(--danger); font-size: 1.2em; display:block;">${member.name}</strong>
             <div style="font-size: 0.8em; color: var(--muted); margin-bottom: 10px;">Former ${member.packRole || 'Member'} • Gen ${member.generation}</div>
@@ -291,6 +305,7 @@ const renderWorkspace = () => {
 };
 
 window.addEventListener('resize', drawConnections);
+elements.treeContainer.addEventListener('scroll', drawConnections); // Ensure lines stay attached while scrolling
 
 // Tab Listeners
 elements.tabs.forEach(tab => {
@@ -302,7 +317,7 @@ elements.tabs.forEach(tab => {
     });
 });
 
-// JARVIS UPGRADE: Dropdowns
+// Dropdowns
 const populateSpeciesDropdown = () => {
   elements.packSpeciesInput.innerHTML = '<option value="Unknown">Select Species...</option>';
   const defaultSpecies = [
@@ -323,12 +338,12 @@ const populateSpeciesDropdown = () => {
   });
 };
 
-const populateParentDropdowns = (pack) => {
+const populateParentDropdowns = (pack, excludeId = null) => {
     elements.memberSireInput.innerHTML = '<option value="">Unknown / None</option>';
     elements.memberDamInput.innerHTML = '<option value="">Unknown / None</option>';
     
     if(!pack) return;
-    const living = pack.members.filter(m => m.status === 'Alive');
+    const living = pack.members.filter(m => m.status === 'Alive' && m.id !== excludeId);
     
     living.forEach(m => {
         elements.memberSireInput.appendChild(new Option(`${m.name} (Gen ${m.generation})`, m.id));
@@ -361,10 +376,14 @@ elements.savePackBtn.addEventListener('click', async () => {
   showToast('New Bloodline established.');
 });
 
-// Add Member
+// Add / Edit Member
 document.getElementById('addMemberBtn').addEventListener('click', () => {
   const pack = db.lineage.find(l => l.id === currentLineageId);
+  editingMemberId = null;
   populateParentDropdowns(pack);
+  
+  elements.memberModalTitle.textContent = 'Add Family Member';
+  elements.saveMemberBtn.textContent = 'Save to Lineage';
   
   elements.memberNameInput.value = '';
   elements.memberGenInput.value = '1';
@@ -376,7 +395,34 @@ document.getElementById('addMemberBtn').addEventListener('click', () => {
   elements.memberModal.classList.remove('is-hidden');
   elements.memberNameInput.focus();
 });
-elements.cancelMemberBtn.addEventListener('click', () => elements.memberModal.classList.add('is-hidden'));
+
+// Editor Initialization
+window.EAHA_EditMember = (memberId) => {
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const member = pack?.members.find(m => m.id === memberId);
+    if(!member) return;
+
+    editingMemberId = memberId;
+    populateParentDropdowns(pack, memberId); // Exclude self from parent options
+    
+    elements.memberModalTitle.textContent = 'Edit Member Profile';
+    elements.saveMemberBtn.textContent = 'Update Record';
+    
+    elements.memberNameInput.value = member.name;
+    elements.memberGenInput.value = member.generation || 1;
+    elements.memberRoleInput.value = member.packRole || 'Subordinate';
+    elements.memberSireInput.value = member.sireId || '';
+    elements.memberDamInput.value = member.damId || '';
+    elements.memberNotesInput.value = member.notes || '';
+    
+    elements.memberModal.classList.remove('is-hidden');
+};
+
+elements.cancelMemberBtn.addEventListener('click', () => {
+    elements.memberModal.classList.add('is-hidden');
+    editingMemberId = null;
+});
+
 elements.saveMemberBtn.addEventListener('click', async () => {
   const pack = db.lineage.find(l => l.id === currentLineageId);
   if (!pack) return;
@@ -384,25 +430,62 @@ elements.saveMemberBtn.addEventListener('click', async () => {
   const name = elements.memberNameInput.value.trim();
   if (!name) return showToast('Member name is required.', 'error');
 
-  pack.members.push({
-    id: generateId(),
-    name: name,
-    generation: parseInt(elements.memberGenInput.value, 10) || 1,
-    packRole: elements.memberRoleInput.value,
-    sireId: elements.memberSireInput.value || null,
-    damId: elements.memberDamInput.value || null,
-    notes: elements.memberNotesInput.value.trim(),
-    titles: [],
-    status: 'Alive',
-    dateAdded: Date.now()
-  });
+  if (editingMemberId) {
+      // Update Mode
+      const member = pack.members.find(m => m.id === editingMemberId);
+      if(member) {
+          member.name = name;
+          member.generation = parseInt(elements.memberGenInput.value, 10) || 1;
+          member.packRole = elements.memberRoleInput.value;
+          member.sireId = elements.memberSireInput.value || null;
+          member.damId = elements.memberDamInput.value || null;
+          member.notes = elements.memberNotesInput.value.trim();
+      }
+      showToast(`${name}'s profile updated.`);
+  } else {
+      // Create Mode
+      pack.members.push({
+        id: generateId(),
+        name: name,
+        generation: parseInt(elements.memberGenInput.value, 10) || 1,
+        packRole: elements.memberRoleInput.value,
+        sireId: elements.memberSireInput.value || null,
+        damId: elements.memberDamInput.value || null,
+        notes: elements.memberNotesInput.value.trim(),
+        titles: [],
+        status: 'Alive',
+        dateAdded: Date.now()
+      });
+      showToast(`${name} added to the family tree.`);
+  }
 
   await window.EAHADataStore.saveData(db);
   elements.memberModal.classList.add('is-hidden');
+  editingMemberId = null;
   renderWorkspace();
   renderList();
-  showToast(`${name} added to the family tree.`);
 });
+
+// Total Deletion Logic
+window.EAHA_DeleteMember = async (memberId) => {
+    if(!confirm("WARNING: This will completely erase this member from the database, not archive them. Proceed?")) return;
+    
+    const pack = db.lineage.find(l => l.id === currentLineageId);
+    if(pack) {
+        pack.members = pack.members.filter(m => m.id !== memberId);
+        
+        // Remove this member as a parent from any offspring to prevent corrupt lines
+        pack.members.forEach(m => {
+            if (m.sireId === memberId) m.sireId = null;
+            if (m.damId === memberId) m.damId = null;
+        });
+
+        await window.EAHADataStore.saveData(db);
+        renderWorkspace();
+        renderList();
+        showToast('Member data purged.', 'error');
+    }
+};
 
 // Trophy Modal Logic
 window.EAHA_TriggerTrophy = (memberId) => {
