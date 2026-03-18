@@ -23,7 +23,7 @@
     .pin-label { position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); border: 1px solid var(--primary); padding: 4px 10px; border-radius: 6px; font-size: calc(12px / var(--map-scale, 1)); font-weight: bold; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s, bottom 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); color: #fff; }
     .map-pin:hover .pin-label { opacity: 1; bottom: 130%; }
     
-    /* JARVIS UPGRADE: Vibrant Danger Zones - Removed opacity fade here, handled dynamically in JS */
+    /* Tactical Danger Zone Radii */
     .danger-zone { position: absolute; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); border: 3px solid; z-index: 5; box-shadow: inset 0 0 20px rgba(0,0,0,0.3); }
     
     /* Active Route Draggable Nodes */
@@ -47,7 +47,7 @@
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 9999; display: flex; justify-content: center; align-items: center; }
 
-    /* JARVIS UPGRADE: Rapid Tactical Swatches */
+    /* Rapid Tactical Swatches */
     .color-picker-grid { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
     .color-swatch { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; transition: transform 0.15s, border-color 0.15s; outline: none; }
     .color-swatch:hover { transform: scale(1.1); }
@@ -80,6 +80,13 @@
       <h2 style="font-size: 1.5em; margin-bottom: 10px;">Recon Data</h2>
       <p class="muted" style="margin-bottom: 15px; font-size: 0.9em; line-height: 1.4;">Your saved tactical markers and migration routes.</p>
       
+      <div class="field" style="margin-bottom: 15px; background: var(--bg-alt); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+        <label style="font-weight: 600; color: var(--primary); font-size: 0.85em; display: block; margin-bottom: 5px;">Active Operator Recon</label>
+        <select id="mapCreatureSelect" class="full-width" style="cursor: pointer; background: var(--bg); border: 1px solid var(--border);">
+          <option value="global">🌍 Global Roster (All Data)</option>
+        </select>
+      </div>
+
       <div style="display: flex; gap: 5px; margin-bottom: 15px;">
         <button class="btn btn-sm full-width" id="exportReconBtn" style="background: var(--info);">📤 Export</button>
         <button class="btn btn-sm btn-ghost full-width" id="importReconBtn" style="color: var(--info); border-color: var(--info);">📥 Import</button>
@@ -103,7 +110,7 @@
       </div>
       
       <div id="pinList" class="preset-list" style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;"></div>
-      <button class="btn btn-ghost btn-sm full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">⚠️ Clear All Markers</button>
+      <button class="btn btn-ghost btn-sm full-width" id="clearAllPinsBtn" style="color: var(--danger); border-color: var(--danger);">⚠️ Clear Active Markers</button>
 
       <hr style="border-color: var(--border); margin: 20px 0;">
 
@@ -219,7 +226,7 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Created/Maintained by PixelPacket</footer>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Engineered by PixelPacket</footer>
   
   <script type="module" src="data-store.js"></script>
   <script type="module" src="map.js"></script>
