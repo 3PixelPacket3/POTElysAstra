@@ -143,7 +143,6 @@ window.EAHADataStore = {
       userData.customPresets = userData.customPresets || {};
       userData.pins = userData.pins || [];
       userData.routes = userData.routes || [];
-      // JARVIS FIX: Load Map Calibration Data
       userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
 
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
@@ -200,7 +199,7 @@ window.EAHADataStore = {
     const user = auth.currentUser;
     if (!user) return false;
 
-    // JARVIS OVERRIDE: Grants absolute God-Mode to eradicate ghost data universally.
+    // JARVIS OVERRIDE: Absolute God-Mode. Bypasses all email checks.
     const isAppAdmin = true; 
 
     try {
@@ -213,11 +212,9 @@ window.EAHADataStore = {
           customPresets: cleanData.customPresets || {},
           pins: cleanData.pins || [],
           routes: cleanData.routes || [],
-          // JARVIS FIX: Saves Map Calibration Data to the Cloud
           mapOffset: cleanData.mapOffset || {x: -1.5, y: -1.5}
       }, { merge: true }); 
 
-      // Using Atomic Batch Writes to guarantee deletions are processed correctly
       const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
           const colRef = collection(db, ...basePath, colName);
           const existingSnap = await getDocs(colRef);
