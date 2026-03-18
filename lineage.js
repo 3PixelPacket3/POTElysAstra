@@ -193,11 +193,42 @@ const renderWorkspace = () => {
   });
 };
 
+// JARVIS UPGRADE: Robust Dropdown Implementation with Fallback Roster
+const populateSpeciesDropdown = () => {
+  elements.packSpeciesInput.innerHTML = '<option value="Unknown">Select Species...</option>';
+  
+  // Default Path of Titans Roster Fallback (Guarantees Population)
+  const defaultSpecies = [
+    "Acrocanthosaurus", "Albertosaurus", "Alioramus", "Amargasaurus", "Ano", 
+    "Barsboldia", "Camptosaurus", "Ceratosaurus", "Concavenator", "Daspletosaurus", 
+    "Deinocheirus", "Deinonychus", "Eotriceratops", "Eurhinosaurus", "Hatzegopteryx", 
+    "Iguanodon", "Kaiwhekea", "Kentrosaurus", "Latenivenatrix", "Megalo", 
+    "Megalania", "Metriacanthosaurus", "Pachycephalosaurus", "Pycnonemosaurus", 
+    "Sarcosuchus", "Spinosaurus", "Stegosaurus", "Styracosaurus", "Suchomimus", 
+    "Thalassodromeus", "Tyrannosaurus", "Triceratops"
+  ];
+  
+  const speciesSet = new Set(defaultSpecies);
+  
+  // Merge dynamically loaded user species
+  if (db.creatures && db.creatures.length > 0) {
+    db.creatures.forEach(c => {
+      if (c.name) speciesSet.add(c.name);
+    });
+  }
+
+  const sortedSpecies = Array.from(speciesSet).sort((a, b) => a.localeCompare(b));
+  
+  sortedSpecies.forEach(speciesName => {
+    elements.packSpeciesInput.appendChild(new Option(speciesName, speciesName));
+  });
+};
+
 // --- Modals & Data Entry ---
 elements.createBtn.addEventListener('click', () => {
   elements.packNameInput.value = '';
-  elements.packSpeciesInput.value = 'Unknown';
   populateSpeciesDropdown();
+  elements.packSpeciesInput.value = 'Unknown';
   elements.packModal.classList.remove('is-hidden');
 });
 
@@ -284,17 +315,12 @@ elements.deleteBtn.addEventListener('click', async () => {
   }
 });
 
-const populateSpeciesDropdown = () => {
-  elements.packSpeciesInput.innerHTML = '<option value="Unknown">Select Species...</option>';
-  if (db.creatures) {
-    const sortedCreatures = [...db.creatures].sort((a, b) => a.name.localeCompare(b.name));
-    sortedCreatures.forEach(c => {
-      elements.packSpeciesInput.appendChild(new Option(c.name, c.name));
-    });
-  }
-};
-
 elements.search.addEventListener('input', renderList);
+
+// JARVIS UPGRADE: UI Sync Listeners for Lineage
+window.addEventListener('eaha-sync-complete', () => {
+    showToast('Bloodline Sync Confirmed.', 'success');
+});
 
 // --- Initialization ---
 const init = async () => {
