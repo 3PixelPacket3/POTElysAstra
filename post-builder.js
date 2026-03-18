@@ -141,8 +141,8 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => toast.className = 'toast', 3000);
 };
 
-// Insert text at cursor (for Emoji/Dividers)
-const insertAtCursor = (text) => {
+// JARVIS FIX: Expose function to global scope so HTML inline onclick events can find it
+window.insertAtCursor = (text) => {
   if (!activeTextarea) {
     showToast("Click inside a text box first to insert design elements.", "error");
     return;
@@ -357,8 +357,8 @@ const renderPresets = () => {
     item.innerHTML = `
       <div style="font-weight: 600; width: 100%;">${preset.name}</div>
       <div style="display:flex; gap:10px; width: 100%;">
-        <button class="btn btn-sm" style="flex: 1;" onclick="loadPreset('${preset.id}')">Load</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="deletePreset('${preset.id}')">Delete</button>
+        <button class="btn btn-sm" style="flex: 1;" onclick="window.loadPreset('${preset.id}')">Load</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="window.deletePreset('${preset.id}')">Delete</button>
       </div>
     `;
     elements.presetListEl.appendChild(item);
@@ -486,7 +486,7 @@ const init = () => {
   // Setup Emoji Libraries
   const renderChips = (containerId, items, isDivider) => {
     document.getElementById(containerId).innerHTML = items.map(item => 
-      `<button type="button" class="chip" onclick="insertAtCursor('${isDivider ? '\\n'+item+'\\n' : item}')">${item}</button>`
+      `<button type="button" class="chip" onclick="window.insertAtCursor('${isDivider ? '\\n'+item+'\\n' : item}')">${item}</button>`
     ).join('');
   };
   renderChips('emojiStatus', emojiLibrary.status, false);
