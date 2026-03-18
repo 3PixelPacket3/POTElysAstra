@@ -91,7 +91,7 @@ window.EAHADataStore = {
   DB_NAME: 'EAHADatabase',
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
-  isSyncing: false, // JARVIS UPGRADE: Tracks background save state
+  isSyncing: false,
 
   async initDB() {
     return new Promise((resolve, reject) => {
@@ -146,25 +146,33 @@ window.EAHADataStore = {
       userData.routes = userData.routes || [];
       userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
 
+      // JARVIS UPGRADE: Parallelized Fetch Execution to dramatically reduce load times
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
-      for (const colName of subCollections) {
-          userData[colName] = [];
+      
+      const userColPromises = subCollections.map(async (colName) => {
           const colRef = collection(db, "users", user.uid, colName);
           const snap = await getDocs(colRef);
+          userData[colName] = [];
           snap.forEach(doc => userData[colName].push(doc.data()));
-      }
+      });
 
       const adminRef = doc(db, "system", "admin_baseline");
-      const adminSnap = await getDoc(adminRef);
+      const adminRulesRef = collection(db, "system", "admin_baseline", "rules");
+      const adminCreaRef = collection(db, "system", "admin_baseline", "creatures");
+
+      // Execute all database queries concurrently
+      const [adminSnap, adminRulesSnap, adminCreaSnap] = await Promise.all([
+          getDoc(adminRef),
+          getDocs(adminRulesRef),
+          getDocs(adminCreaRef),
+          ...userColPromises 
+      ]);
+
       const adminData = adminSnap.exists() ? adminSnap.data() : { system_settings: null };
       
-      const adminRulesRef = collection(db, "system", "admin_baseline", "rules");
-      const adminRulesSnap = await getDocs(adminRulesRef);
       adminData.rules = [];
       adminRulesSnap.forEach(d => adminData.rules.push(d.data()));
 
-      const adminCreaRef = collection(db, "system", "admin_baseline", "creatures");
-      const adminCreaSnap = await getDocs(adminCreaRef);
       adminData.creatures = [];
       adminCreaSnap.forEach(d => adminData.creatures.push(d.data()));
 
@@ -231,7 +239,6 @@ window.EAHADataStore = {
     }
   },
 
-  // JARVIS UPGRADE: The Background Synchronization Engine
   async _executeCloudSync(user, cleanData) {
       const isAppAdmin = true; 
 
@@ -258,7 +265,6 @@ window.EAHADataStore = {
               if(!item.id) item.id = 'gen_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
               const docRef = doc(db, ...basePath, colName, item.id);
               
-              // JARVIS EFFICIENCY PROTOCOL: Only write to Firebase if the item ACTUALLY changed.
               const existingData = existingMap.get(item.id);
               if (!existingData || JSON.stringify(existingData) !== JSON.stringify(item)) {
                   batch.set(docRef, item);
@@ -267,7 +273,6 @@ window.EAHADataStore = {
               existingMap.delete(item.id);
           });
 
-          // Any IDs remaining in existingMap were deleted by you
           existingMap.forEach((_, id) => {
               const docRef = doc(db, ...basePath, colName, id);
               batch.delete(docRef);
@@ -336,11 +341,11 @@ window.EAHADataStore = {
   }
 };
 
-// JARVIS UPGRADE: Global Safety Catch for Navigation during Sync
+// JARVIS UPGRADE: Detailed Global Safety Catch for Navigation during Sync
 window.addEventListener('beforeunload', (e) => {
   if (window.EAHADataStore && window.EAHADataStore.isSyncing) {
     e.preventDefault();
-    e.returnValue = 'Data is currently synchronizing with the cloud. Leaving now may result in lost changes.';
+    e.returnValue = 'The system needs time to securely save your changes to the cloud. Leaving now may interrupt the upload and result in lost data. Please wait a moment.';
     return e.returnValue;
   }
 });
