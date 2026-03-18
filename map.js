@@ -56,10 +56,12 @@ const elements = {
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
   cancelDeployBtn: document.getElementById('cancelDeployBtn'),
   exportReconBtn: document.getElementById('exportReconBtn'), 
-  importReconBtn: document.getElementById('importReconBtn')  
+  importReconBtn: document.getElementById('importReconBtn'),
+  
+  // JARVIS ADDITION: Swatch Selector Grid
+  colorSwatches: document.querySelectorAll('.color-swatch')
 };
 
-// JARVIS UPGRADE: Relocated, Copy-able Tactical HUD
 const coordDisplay = document.createElement('div');
 coordDisplay.className = 'hud-display';
 coordDisplay.innerHTML = '<span id="hudText">GPS: Standby...</span><span class="copy-hint">(Click to Copy)</span>';
@@ -224,7 +226,6 @@ window.addEventListener('touchmove', (e) => {
 
 window.addEventListener('touchend', () => { isDragging = false; });
 
-// JARVIS UPGRADE: Advanced Interactive Route UI
 const renderActiveRoute = () => {
   document.querySelectorAll('.route-node').forEach(node => node.remove());
 
@@ -246,7 +247,6 @@ const renderActiveRoute = () => {
     node.style.transform = `translate(-50%, -50%)`;
     node.title = `Waypoint ${index + 1}\nDrag to move\nRight-click to delete`;
 
-    // Make waypoints draggable
     node.addEventListener('mousedown', (e) => {
         if (e.button !== 0 || currentMode !== 'route') return;
         e.stopPropagation();
@@ -256,7 +256,6 @@ const renderActiveRoute = () => {
             if (!isDraggingNode) return;
             const newCoords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
             activeRoutePoints[index] = newCoords;
-            // Update line and node visually without a full re-render loop
             const newPointsStr = activeRoutePoints.map(p => `${p.x},${p.y}`).join(' ');
             elements.activeRoutePolyline.setAttribute('points', newPointsStr);
             node.style.left = `${newCoords.x}%`;
@@ -267,14 +266,13 @@ const renderActiveRoute = () => {
             isDraggingNode = false;
             window.removeEventListener('mousemove', onNodeMove);
             window.removeEventListener('mouseup', onNodeUp);
-            renderActiveRoute(); // Final lock-in render
+            renderActiveRoute(); 
         };
 
         window.addEventListener('mousemove', onNodeMove);
         window.addEventListener('mouseup', onNodeUp);
     });
 
-    // Right click to delete specific waypoint
     node.addEventListener('contextmenu', (e) => {
         if (currentMode !== 'route') return;
         e.preventDefault();
@@ -360,7 +358,7 @@ elements.cancelRouteBtn.addEventListener('click', () => {
 elements.mapWindow.addEventListener('contextmenu', (e) => {
   if (currentMode === 'route') {
     e.preventDefault();
-    if (e.target.closest('.route-node')) return; // Let the node handle its own deletion
+    if (e.target.closest('.route-node')) return; 
     if (activeRoutePoints.length > 0) {
       activeRoutePoints.pop();
       renderActiveRoute();
@@ -449,6 +447,25 @@ elements.cancelDeployBtn.addEventListener('click', () => {
     showToast("Calibration aborted.", "info");
 });
 
+// JARVIS UPGRADE: Sets the UI swatch based on incoming color hex
+const setSwatchColor = (hexValue) => {
+    elements.newPinColor.value = hexValue;
+    elements.colorSwatches.forEach(btn => {
+        if (btn.dataset.color === hexValue) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+};
+
+// Listeners for the Swatch grid
+elements.colorSwatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+        setSwatchColor(swatch.dataset.color);
+    });
+});
+
 const processCoordinates = (text) => {
   const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
   const match = text.match(coordRegex);
@@ -469,7 +486,7 @@ const processCoordinates = (text) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
-    elements.newPinColor.value = '#ef4444';
+    setSwatchColor('#ef4444'); // Default to red
     
     setMode('pin');
     elements.modal.classList.remove('is-hidden');
@@ -498,7 +515,6 @@ const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filterVal = elements.filter.value;
   
-  // Clean up old pins and zones before re-rendering
   document.querySelectorAll('.map-pin').forEach(el => {
       if(el !== tempCalibrationMarker && !el.classList.contains('route-node')) el.remove();
   });
@@ -516,6 +532,7 @@ const renderPins = () => {
 
   [...filteredPins].sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
     
+    // JARVIS UPGRADE: High Visibility Danger Zone Render
     if (pin.radius && pin.radius > 0) {
         const zone = document.createElement('div');
         const radiusPercent = (pin.radius / 8200) * 100;
@@ -524,8 +541,11 @@ const renderPins = () => {
         zone.style.height = `${radiusPercent * 2}%`;
         zone.style.left = `${pin.x}%`;
         zone.style.top = `${pin.y}%`;
-        zone.style.borderColor = pin.color || '#ef4444';
-        zone.style.backgroundColor = pin.color || '#ef4444';
+        
+        const pinColor = pin.color || '#ef4444';
+        zone.style.borderColor = pinColor; // 100% Solid Border
+        zone.style.backgroundColor = pinColor + '4D'; // Append Hex Alpha (~30% opacity) for background only
+
         elements.pinLayer.appendChild(zone);
     }
 
@@ -589,7 +609,7 @@ const renderPins = () => {
       elements.newPinType.value = pin.type;
       elements.newPinLabel.value = pin.label;
       elements.newPinRadius.value = pin.radius || '';
-      elements.newPinColor.value = pin.color || '#ef4444';
+      setSwatchColor(pin.color || '#ef4444');
       elements.modal.classList.remove('is-hidden');
     });
 
@@ -615,7 +635,7 @@ elements.mapWindow.addEventListener('click', (e) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
-    elements.newPinColor.value = '#ef4444';
+    setSwatchColor('#ef4444'); // Default back to red on new
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
   } 
