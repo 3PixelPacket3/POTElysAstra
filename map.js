@@ -201,37 +201,40 @@ const renderRoutes = () => {
       showToast(`Tactical Route Loaded: ${route.name}`);
     });
 
-    item.querySelector('.delete-route-btn').addEventListener('click', async (e) => {
+    item.querySelector('.delete-route-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       if (confirm(`Remove tactical route: ${route.name}?`)) {
         db.routes = db.routes.filter(r => r.id !== route.id);
-        await window.EAHADataStore.saveData(db);
         if (activeRoutePoints.length > 0) {
            activeRoutePoints = [];
            renderActiveRoute();
            setMode('pan');
         }
+        // JARVIS FIX: Instant UI update, background save
         renderRoutes();
         showToast('Route deleted.');
+        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route delete sync failed", err));
       }
     });
     elements.routeList.appendChild(item);
   });
 };
 
-elements.saveRouteBtn.addEventListener('click', async () => {
+elements.saveRouteBtn.addEventListener('click', () => {
   if (activeRoutePoints.length < 2) return showToast('Route requires at least two waypoints.', 'error');
   const routeName = prompt('Enter a name for this tactical route:', 'Migration Path');
   if (!routeName) return;
 
   db.routes.push({ id: generateId(), name: routeName.trim(), points: [...activeRoutePoints], timestamp: Date.now() });
-  await window.EAHADataStore.saveData(db);
   
+  // JARVIS FIX: Instant UI update, background save
   activeRoutePoints = [];
   renderActiveRoute();
   renderRoutes();
   setMode('pan');
   showToast('Route saved successfully.');
+  
+  window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route save sync failed", err));
 });
 
 elements.cancelRouteBtn.addEventListener('click', () => {
@@ -319,14 +322,16 @@ if (elements.mobileCoordBtn) {
     });
 }
 
-elements.confirmDeployBtn.addEventListener('click', async () => {
+elements.confirmDeployBtn.addEventListener('click', () => {
+    // JARVIS FIX: Apply data instantly and open the modal *before* launching background saves.
     if (pendingRawLocation && pendingPin) {
         db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
         db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
-        await window.EAHADataStore.saveData(db);
     }
+    
     elements.calibrationTools.classList.add('is-hidden');
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
+    
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     setMode('pin');
@@ -377,22 +382,23 @@ const renderPins = () => {
         pin.y = coords.y;
       };
 
-      const onMouseUp = async () => {
+      const onMouseUp = () => {
         isDraggingPin = false;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        await window.EAHADataStore.saveData(db); 
+        // JARVIS FIX: Fire and forget background save
+        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin move sync failed", err));
       };
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     });
 
-    mapMarker.addEventListener('contextmenu', async (e) => {
+    mapMarker.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
         db.pins = db.pins.filter(p => p.id !== pin.id);
-        await window.EAHADataStore.saveData(db);
         renderPins();
+        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin delete sync failed", err));
       }
     });
 
@@ -418,11 +424,11 @@ const renderPins = () => {
       elements.modal.classList.remove('is-hidden');
     });
 
-    listItem.querySelector('.delete-pin-btn').addEventListener('click', async () => {
+    listItem.querySelector('.delete-pin-btn').addEventListener('click', () => {
       if(confirm(`Remove marker: ${pin.label}?`)) {
         db.pins = db.pins.filter(p => p.id !== pin.id);
-        await window.EAHADataStore.saveData(db);
         renderPins();
+        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin delete sync failed", err));
       }
     });
     elements.pinList.appendChild(listItem);
@@ -457,7 +463,7 @@ const closeModal = () => {
 
 elements.cancelBtn.addEventListener('click', closeModal);
 
-elements.saveBtn.addEventListener('click', async () => {
+elements.saveBtn.addEventListener('click', () => {
   if (!db.pins) db.pins = [];
 
   if (editingPinId) {
@@ -468,16 +474,22 @@ elements.saveBtn.addEventListener('click', async () => {
     db.pins.push({ id: generateId(), type: elements.newPinType.value, label: elements.newPinLabel.value.trim() || 'Marker', x: pendingPin.x, y: pendingPin.y, timestamp: Date.now() });
   }
   
-  await window.EAHADataStore.saveData(db);
-  closeModal(); renderPins();
+  // JARVIS FIX: Close instantly, save to cloud in background
+  closeModal(); 
+  renderPins();
+  window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin save sync failed", err));
 });
 
 elements.newPinLabel.addEventListener('keypress', (e) => { if (e.key === 'Enter') elements.saveBtn.click(); });
 
 elements.search.addEventListener('input', renderPins);
 elements.filter.addEventListener('change', renderPins);
-elements.clearAllBtn.addEventListener('click', async () => {
-  if (db.pins.length > 0 && confirm('WARNING: Wipe ALL markers?')) { db.pins = []; await window.EAHADataStore.saveData(db); renderPins(); }
+elements.clearAllBtn.addEventListener('click', () => {
+  if (db.pins.length > 0 && confirm('WARNING: Wipe ALL markers?')) { 
+      db.pins = []; 
+      renderPins(); 
+      window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
+  }
 });
 
 const init = async () => {
