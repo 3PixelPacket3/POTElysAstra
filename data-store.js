@@ -2,7 +2,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- FIREBASE CLOUD CONFIGURATION ---
 const firebaseConfig = {
@@ -139,15 +139,36 @@ window.EAHADataStore = {
     }
 
     try {
+      // Fetch core user settings
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
 
+      // JARVIS ARCHITECTURE UPGRADE: Fetch Sub-Collections to bypass 1MB limit
+      const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
+      for (const colName of subCollections) {
+          userData[colName] = [];
+          const colRef = collection(db, "users", user.uid, colName);
+          const snap = await getDocs(colRef);
+          snap.forEach(doc => userData[colName].push(doc.data()));
+      }
+
+      // Fetch Admin Baseline
       const adminRef = doc(db, "system", "admin_baseline");
       const adminSnap = await getDoc(adminRef);
-      const adminData = adminSnap.exists() ? adminSnap.data() : { rules: [], creatures: [], system_settings: null };
+      const adminData = adminSnap.exists() ? adminSnap.data() : { system_settings: null };
+      
+      const adminRulesRef = collection(db, "system", "admin_baseline", "rules");
+      const adminRulesSnap = await getDocs(adminRulesRef);
+      adminData.rules = [];
+      adminRulesSnap.forEach(d => adminData.rules.push(d.data()));
 
-      userData.rules = adminData.rules || [];
+      const adminCreaRef = collection(db, "system", "admin_baseline", "creatures");
+      const adminCreaSnap = await getDocs(adminCreaRef);
+      adminData.creatures = [];
+      adminCreaSnap.forEach(d => adminData.creatures.push(d.data()));
+
+      userData.rules = [...(adminData.rules || []), ...(userData.rules || [])];
       
       if (adminData.system_settings) {
           userData.system_settings = adminData.system_settings;
@@ -183,27 +204,55 @@ window.EAHADataStore = {
     if (!user) return false;
 
     try {
-      // JARVIS FIX: Deep Sanitize Payload. 
-      // This strips out any 'undefined' ghost variables that cause Firestore to silently crash and reject the save.
       const cleanData = JSON.parse(JSON.stringify(dataObj));
 
+      // 1. Save core settings (lightweight)
       const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, cleanData); 
+      await setDoc(userRef, { system_settings: cleanData.system_settings || {} }); 
 
+      // 2. Synchronize Collections (Bypasses 1MB Limit)
+      const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
+          const colRef = collection(db, ...basePath, colName);
+          const existingSnap = await getDocs(colRef);
+          const existingIds = new Set();
+          existingSnap.forEach(d => existingIds.add(d.id));
+
+          const promises = [];
+
+          items.forEach(item => {
+              if(!item.id) item.id = 'gen_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+              const docRef = doc(db, ...basePath, colName, item.id);
+              promises.push(setDoc(docRef, item));
+              existingIds.delete(item.id);
+          });
+
+          // Purge deleted items
+          existingIds.forEach(id => {
+              const docRef = doc(db, ...basePath, colName, id);
+              promises.push(deleteDoc(docRef));
+          });
+
+          await Promise.all(promises);
+      };
+
+      await syncCollection('rules', cleanData.rules || []);
+      await syncCollection('creatures', cleanData.creatures || []);
+      await syncCollection('encounters', cleanData.encounters || []);
+      await syncCollection('lineage', cleanData.lineage || []);
+
+      // 3. Admin Broadcasting
       if (user.email === ADMIN_EMAIL) {
-        console.log("Jarvis: Admin authority recognized. Updating global baseline.");
+        console.log("Jarvis: Admin authority recognized. Updating global baseline via collections.");
         const adminRef = doc(db, "system", "admin_baseline");
         
         let currentSystemSettings = cleanData.system_settings || {};
         if (!currentSystemSettings.modifiers) {
             currentSystemSettings.modifiers = window.EAHAModifiers;
         }
+        await setDoc(adminRef, { system_settings: currentSystemSettings }); 
 
-        await setDoc(adminRef, {
-          rules: cleanData.rules || [],
-          creatures: cleanData.creatures || [],
-          system_settings: currentSystemSettings
-        }); 
+        await syncCollection('rules', cleanData.rules || [], ["system", "admin_baseline"]);
+        await syncCollection('creatures', cleanData.creatures || [], ["system", "admin_baseline"]);
       }
 
       await this.setIndexedData(this.MASTER_KEY, cleanData);
@@ -211,8 +260,7 @@ window.EAHADataStore = {
 
     } catch (error) {
       console.error("Jarvis Error: Could not transmit data to central server.", error);
-      // JARVIS FIX: Expose silent failures via aggressive alert.
-      alert(`⚠️ SYSTEM ALERT: Cloud Synchronization Failed!\n\nReason: ${error.message}\n\nIf the error mentions size, you have hit the 1MB Cloud Document limit and must remove some Base64 profile images from your Creature Roster.`);
+      alert(`⚠️ SYSTEM ALERT: Cloud Synchronization Failed!\n\nReason: ${error.message}`);
       return false;
     }
   },
