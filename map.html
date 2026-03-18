@@ -12,6 +12,7 @@
     .map-window:active { cursor: grabbing; }
     .map-window.pin-mode { cursor: crosshair; }
     .map-window.route-mode { cursor: crosshair; }
+    .map-window.ruler-mode { cursor: crosshair; }
     #mapTransform { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1); }
     #mapImage { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
     
@@ -21,6 +22,9 @@
     
     .pin-label { position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); border: 1px solid var(--primary); padding: 4px 10px; border-radius: 6px; font-size: calc(12px / var(--map-scale, 1)); font-weight: bold; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s, bottom 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); color: #fff; }
     .map-pin:hover .pin-label { opacity: 1; bottom: 130%; }
+    
+    /* JARVIS ADDITION: Tactical Danger Zone Radii */
+    .danger-zone { position: absolute; border-radius: 50%; opacity: 0.35; pointer-events: none; transform: translate(-50%, -50%); border: 2px dashed; z-index: 5; }
     
     #routeLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
     
@@ -60,6 +64,11 @@
       <h2 style="font-size: 1.5em; margin-bottom: 10px;">Recon Data</h2>
       <p class="muted" style="margin-bottom: 15px; font-size: 0.9em; line-height: 1.4;">Your saved tactical markers and migration routes.</p>
       
+      <div style="display: flex; gap: 5px; margin-bottom: 15px;">
+        <button class="btn btn-sm full-width" id="exportReconBtn" style="background: var(--info);">📤 Export</button>
+        <button class="btn btn-sm btn-ghost full-width" id="importReconBtn" style="color: var(--info); border-color: var(--info);">📥 Import</button>
+      </div>
+
       <div class="field" style="margin-bottom: 10px;">
         <input type="text" id="pinSearch" placeholder="Search markers...">
       </div>
@@ -93,9 +102,10 @@
             <h2 style="margin: 0; color: var(--primary);">Gondwa Tactical Map</h2>
             
             <div class="chip-group" style="margin: 0;">
-                <button class="chip active" id="modePanBtn" style="background: var(--primary); color: white; border-color: var(--primary);">🤚 Navigation</button>
+                <button class="chip active" id="modePanBtn" style="background: var(--primary); color: white; border-color: var(--primary);">🤚 Nav</button>
                 <button class="chip" id="modePinBtn">📍 Deploy Marker</button>
                 <button class="chip" id="modeRouteBtn">🛤️ Draw Route</button>
+                <button class="chip" id="modeRulerBtn">📏 Measure</button>
             </div>
         </div>
 
@@ -127,6 +137,7 @@
               <img id="mapImage" src="gondwa.jpg" alt="Gondwa Map" draggable="false">
               <svg id="routeLayer" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <polyline id="activeRoutePolyline" />
+                  <line id="rulerLine" x1="0" y1="0" x2="0" y2="0" stroke="var(--info)" stroke-width="0.3" stroke-dasharray="1" style="display:none; pointer-events:none; filter: drop-shadow(0 0 1px rgba(56, 189, 248, 0.8));" />
               </svg>
               <div id="pinLayer"></div>
           </div>
@@ -164,6 +175,14 @@
             <label class="field">
                 <span>Label / Notes (Optional)</span>
                 <input type="text" id="newPinLabel" placeholder="e.g., Rex Corpse, Hidden Cave">
+            </label>
+            <label class="field">
+                <span>Danger Zone Radius (Meters) - Optional</span>
+                <input type="number" id="newPinRadius" placeholder="e.g. 500" min="0">
+            </label>
+            <label class="field">
+                <span>Zone Color</span>
+                <input type="color" id="newPinColor" value="#ef4444" style="height: 40px;">
             </label>
             <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button class="btn full-width" id="savePinBtn">Save Marker</button>
