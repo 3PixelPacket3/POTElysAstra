@@ -7,33 +7,48 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
   <style>
-    .guide-section { margin-bottom: 50px; background: var(--bg); padding: 30px; border-radius: 16px; border: 1px solid var(--border); }
-    .guide-section h2 { color: var(--primary); margin-bottom: 20px; font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 10px; }
-    .guide-section h3 { color: var(--text); margin-top: 25px; margin-bottom: 15px; font-size: 1.4em; display: flex; align-items: center; gap: 10px; }
+    .guide-section { margin-bottom: 50px; background: var(--bg); padding: 35px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+    .guide-section h2 { color: var(--primary); margin-bottom: 20px; font-size: 2.2em; border-bottom: 2px solid var(--border); padding-bottom: 10px; }
+    .guide-section h3 { color: var(--text); margin-top: 30px; margin-bottom: 15px; font-size: 1.5em; display: flex; align-items: center; gap: 10px; border-left: 4px solid var(--primary); padding-left: 10px; }
+    .guide-section h4 { color: var(--info); margin-top: 20px; margin-bottom: 10px; font-size: 1.2em; }
     .guide-section p { margin-bottom: 15px; line-height: 1.7; font-size: 1.05em; color: var(--muted); }
     .guide-section ul { margin-left: 20px; margin-bottom: 20px; line-height: 1.8; color: var(--muted); }
+    .guide-section li { margin-bottom: 8px; }
     .guide-section li strong { color: var(--text); }
     
     .jarvis-note {
       background: color-mix(in srgb, var(--info) 10%, transparent);
       border-left: 4px solid var(--info);
-      padding: 15px 20px;
+      padding: 20px;
       border-radius: 0 12px 12px 0;
-      margin: 20px 0;
+      margin: 25px 0;
       font-size: 0.95em;
+      line-height: 1.6;
     }
-    .jarvis-note strong { color: var(--info); display: block; margin-bottom: 5px; font-size: 1.1em; }
+    .jarvis-note strong { color: var(--info); display: block; margin-bottom: 8px; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px; }
+
+    .warning-note {
+      background: color-mix(in srgb, var(--danger) 10%, transparent);
+      border-left: 4px solid var(--danger);
+      padding: 20px;
+      border-radius: 0 12px 12px 0;
+      margin: 25px 0;
+      font-size: 0.95em;
+      line-height: 1.6;
+    }
+    .warning-note strong { color: var(--danger); display: block; margin-bottom: 8px; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px; }
     
     .code-block {
       background: var(--bg-alt);
       padding: 15px;
       border-radius: 8px;
-      font-family: monospace;
+      font-family: 'Courier New', monospace;
       color: #10b981;
       border: 1px solid var(--border);
       margin-bottom: 15px;
       display: block;
       overflow-x: auto;
+      font-size: 0.9em;
     }
   </style>
 </head>
@@ -64,13 +79,13 @@
       
       <div style="display: flex; flex-direction: column; gap: 5px;">
         <a href="#architecture" class="btn btn-ghost full-width" style="text-align: left;">1. Core Architecture</a>
-        <a href="#dashboard" class="btn btn-ghost full-width" style="text-align: left;">2. The Lifeline Dashboard</a>
-        <a href="#profiles" class="btn btn-ghost full-width" style="text-align: left;">3. Profiles & Matrix Importer</a>
-        <a href="#combat" class="btn btn-ghost full-width" style="text-align: left;">4. Threat Assessor Engine</a>
-        <a href="#mapping" class="btn btn-ghost full-width" style="text-align: left;">5. Tactical Map & Radar</a>
-        <a href="#lineage" class="btn btn-ghost full-width" style="text-align: left;">6. Lineage & Analytics</a>
-        <a href="#tools" class="btn btn-ghost full-width" style="text-align: left;">7. Formatting & Rules</a>
-        <a href="#troubleshooting" class="btn btn-ghost full-width" style="text-align: left; color: var(--danger);">8. Troubleshooting</a>
+        <a href="#dashboard" class="btn btn-ghost full-width" style="text-align: left;">2. Operations Dashboard</a>
+        <a href="#profiles" class="btn btn-ghost full-width" style="text-align: left;">3. Profiles & Importer</a>
+        <a href="#combat" class="btn btn-ghost full-width" style="text-align: left;">4. Threat Assessor Math</a>
+        <a href="#mapping" class="btn btn-ghost full-width" style="text-align: left;">5. Tactical Recon Map</a>
+        <a href="#lineage" class="btn btn-ghost full-width" style="text-align: left;">6. Pack Lineage Tracker</a>
+        <a href="#tools" class="btn btn-ghost full-width" style="text-align: left;">7. Comms & Rulebook</a>
+        <a href="#troubleshooting" class="btn btn-ghost full-width" style="text-align: left; color: var(--danger);">8. Troubleshooting & FAQ</a>
       </div>
     </aside>
 
@@ -79,161 +94,164 @@
       <div class="card" style="border-top: 5px solid var(--primary); box-shadow: none; padding: 40px; margin-bottom: 40px;">
         <h1 style="color: var(--primary); font-size: 3em; margin-bottom: 10px;">EAHA Operations Manual</h1>
         <p class="muted" style="font-size: 1.2em; line-height: 1.6;">
-          Welcome to the Elys Astra Helper Application. This system is a highly advanced tactical suite designed to provide immediate analytical advantages, cloud-synchronized record-keeping, and rapid LFG deployments for Path of Titans survival operations.
+          Welcome to the definitive knowledge base for the Elys Astra Helper Application. This documentation details the mathematical algorithms, strategic mapping protocols, and data synchronization engines utilized by the system to provide you with absolute tactical superiority in Path of Titans.
         </p>
       </div>
 
       <section id="architecture" class="guide-section">
-        <h2>1. System Architecture & Cloud Synchronization</h2>
+        <h2>1. Architecture & Cloud Synchronization</h2>
         <p>
-          The Elys Astra Helper Application operates on a secure, serverless cloud architecture. Your data is split into two distinct tiers: Global Data and Personal Data.
+          The EAHA utilizes a dual-layer, hybrid storage architecture designed for rapid deployment, offline resilience, and secure data integrity. 
         </p>
         
         <ul>
-          <li><strong>Global Baseline (Admin Controlled):</strong> Base creature stats, overarching server rules, and system formulas are maintained exclusively by the Administration. When you log in, your application automatically downloads the latest baseline.</li>
-          <li><strong>Personal Data (Private):</strong> Your map markers, custom creature builds, lineage charts, and combat logs are encrypted and tied strictly to your account. No other user can access your personal data.</li>
-          <li><strong>Auto-Save Protocol:</strong> There is no "Save" button. Every modification you make to your personal data is instantly cached locally and synchronized with the cloud backend in real-time.</li>
-          <li><strong>Manual Sync:</strong> Should the Admin announce an update to server rules or base creature stats, navigate to the <strong>Settings</strong> page and click "Sync with Central Server". This will download the new global data without overwriting your personal modifications.</li>
+          <li><strong>Parallel Cloud Fetching:</strong> When initializing, the system triggers simultaneous Firebase queries. By executing requests for rules, lineages, and baselines concurrently rather than sequentially, initial payload times are drastically reduced.</li>
+          <li><strong>The Global Baseline:</strong> Server rules, administration release notes, and base creature statistics are pushed globally. The application automatically downloads these changes without overwriting your localized edits.</li>
+          <li><strong>Encrypted Personal Profiles:</strong> Your tactical maps, custom dinosaur modifiers, and family trees are bound strictly to your UID. This data is continuously cached locally via IndexedDB to ensure zero data loss during network interruptions.</li>
+          <li><strong>The Smart Latch Protocol:</strong> There is no manual "Save" button. The system utilizes an auto-sync engine that saves in the background. If you attempt to navigate away while data is actively transmitting to Firebase, a 2.5-second expiration safety latch will intercept your browser, warning you to stay on the page. The latch auto-expires to prevent false-positive lockups.</li>
         </ul>
-        
-        <div class="jarvis-note">
-          <strong>Account Security</strong>
-          Your session is secured via encrypted authentication tokens. If you need to update your password, you may do so within the <strong>Settings</strong> panel while logged in. If you are locked out of your account, utilize the "Forgot Password?" protocol on the main gateway to securely reset your credentials via email. 
-        </div>
       </section>
 
       <section id="dashboard" class="guide-section">
-        <h2>2. The Lifeline Dashboard</h2>
+        <h2>2. The Operations Dashboard</h2>
         <p>
-          The Dashboard is your active survival HUD. It tracks your current session's vitals, milestones, and immediate tactical needs.
+          The Dashboard serves as your live tactical HUD, centralizing immediate combat threats, active vitals, and overarching faction statistics.
         </p>
+        
+        <h3>Combat Analytics Engine</h3>
+        <p>
+          Every logged encounter generates data for your Overall Faction K/D and your Active Creature K/D. The system utilizes a specialized Chart.js radial graph to map casualty distribution (e.g., PvP vs. Starvation vs. Drowning). The Engagement Split ledger isolates exactly how lethal your current session is.
+        </p>
+
+        <h3>Elysian Lifeline & Upkeep</h3>
         <ul>
-          <li><strong>Active Dinosaur Selection:</strong> Engaging the dropdown will pull your designated creature from the database. This automatically populates the dashboard with their specific Dietary needs, Habitats, Upkeep tasks, and their Adult Combat Arsenal (Base Damage and True DPS).</li>
-          <li><strong>Vital Decay Timers:</strong> Enter a minute value (e.g., 60) and initialize the countdown. Your Comfort, Hygiene, and Satiation bars will simulate decay. Clicking <strong>Reset Timer</strong> pauses the countdown without erasing your current percentages, allowing you to manually adjust them after a successful mud roll or hunt.</li>
-          <li><strong>Eldering Protocol:</strong> Log your successful migrations. The UI automatically tracks your progress toward the 16-migration Rebirth token threshold.</li>
-          <li><strong>Quick Log:</strong> Instantly record a Victory, Defeat, or Starvation event. The engine automatically tags the event with your currently active dinosaur and files it into the Combat Analytics database.</li>
+          <li><strong>Active Dinosaur Briefing:</strong> Engaging the active dropdown pulls your designated creature from the database. This instantly injects their Adult Base Damage, True DPS, Dietary needs, and assigned Roles/Mutations directly into the dashboard.</li>
+          <li><strong>Vital Decay Timers:</strong> Input a minute value to simulate real-time decay on your Satiation, Comfort, and Hygiene. The system provides visual, color-coded alerts when thresholds hit critical levels (0%). Click 'Reset' to pause the timer and manually adjust the sliders after completing an upkeep task.</li>
+          <li><strong>Eldering Tracker:</strong> Use the plus/minus toggles to log successful server migrations. The system will track your progress through the 4 Eldering Stages, automatically applying the respective statistical decays or buffs to the briefing panel. At 16 migrations, Rebirth token selection is unlocked.</li>
         </ul>
       </section>
 
       <section id="profiles" class="guide-section">
-        <h2>3. Profiles & The Raw Matrix Importer</h2>
+        <h2>3. Profiles & Matrix Importer</h2>
         <p>
-          The Creature Profiles tab is where you construct the database that feeds the rest of the application's math engines. 
+          The Creature Profiles database relies on a 5-Stage Data Matrix to fuel the Threat Assessor. This is where you configure the raw numbers for every species.
         </p>
-        <h3>✨ Magic Auto-Fill (OCR)</h3>
+
+        <h3>✨ Magic Auto-Fill (Optical Character Recognition)</h3>
         <p>
-          Paste or drop a screenshot of a creature's Discord profile card directly into the designated zone. The Optical Character Recognition (OCR) engine will filter out visual noise, automatically crop the avatar to a perfect square, and extract the Name, Tier, Diet, Habitats, and Behaviors to save you from manual data entry.
+          Drop an image of a creature's Discord profile card directly into the designated drop zone. The OCR engine reads the raw pixel data, filters out visual noise, and extracts the Name, Tier, Diet, Habitats, and Behaviors, converting it into database text to save you from manual data entry.
         </p>
 
         <h3>⚡ 5-Stage Data Matrix Importer</h3>
         <p>
-          To power the Threat Assessor, you must import the game's actual code. Paste raw configuration variables into the Matrix Importer. The engine uses a Regular Expression scanner to hunt for arrays formatted exactly like this:
+          To power the Threat Assessor, you must import the game's actual code variables. Paste raw configuration strings into the Matrix Importer. The engine uses a Regular Expression scanner to hunt for arrays formatted exactly like this:
         </p>
         <span class="code-block">BiteDamage",Values=(20,30,40,50,60))<br>Core.MaxHealth",Values=(150,262.5,375,487.5,600))</span>
         <ul>
-          <li><strong>Order Independence:</strong> You can paste massive, unorganized walls of text. The engine will accurately pluck out the data it needs.</li>
-          <li><strong>The 5-Stage Array:</strong> Values represent the Path of Titans growth stages: <em>Hatchling, Baby, Adolescent, Sub-Adult, Adult.</em></li>
-          <li><strong>Smart Sorting:</strong> Core attributes (Health, Weight, Speed, Stamina, Armor, Capacity) are mapped to the primary grid. All other recognized values are generated as <strong>Custom Mechanics</strong>. These are further categorized—stats containing terms like "Damage" or "Bleed" are promoted to the red Primary Mechanics dropdown, while obscure data is filed under Advanced Variables.</li>
+          <li><strong>Order Independence:</strong> Paste massive, unorganized walls of text directly from the server files. The engine isolates what it needs.</li>
+          <li><strong>The 5-Stage Array:</strong> Values represent the growth stages: <em>Hatchling, Baby, Adolescent, Sub-Adult, Adult.</em></li>
+          <li><strong>Smart Categorization:</strong> Any imported variable with "Damage", "Bleed", "Bonebreak", or "Cooldown" is automatically isolated and flagged as a Primary Combat Statistic, prioritizing it in the UI and the DPS calculator.</li>
         </ul>
       </section>
 
       <section id="combat" class="guide-section">
-        <h2>4. Threat Assessor Engine & Sandbox</h2>
+        <h2>4. Threat Assessor Mathematics</h2>
         <p>
-          The Stats tab houses the application's most advanced mathematical algorithms, serving as a dynamic battle simulator that mirrors the backend code of Path of Titans.
+          The core of EAHA's intelligence lies in the Threat Assessor (located on the Stats page). It mimics the game's actual backend formulas to provide an objective combat verdict.
         </p>
 
-        <h3>The Sandbox Calculator</h3>
+        <h3>The Scenario Sandbox</h3>
         <p>
-          Select a stat (e.g., Health) and input a percentage modifier (e.g., +15% for a Lone Survivor buff). The engine unpacks the creature's entire 5-stage growth array, calculates the buff simultaneously across all life stages, and outputs the brand-new matrix.
+          Select a stat (e.g., Health) and input a percentage modifier (e.g., +15%). The engine unpacks the creature's entire 5-stage growth array, calculates the buff simultaneously across all life stages, and outputs the brand-new matrix.
         </p>
 
-        <h3>Behind the Scenes: How the Threat Assessor Works</h3>
-        <p>
-          When you select an Attacker, a Defender, and their respective <strong>Growth Stages</strong> (Hatchling to Adult), the engine isolates the precise integer for that life stage from the matrix and executes the following game-accurate calculations:
-        </p>
-        <ol style="margin-left: 20px; line-height: 1.8; color: var(--text);">
-          <li>
-            <strong>Combat Weight & Armor Deflection:</strong><br>
-            <span class="muted">The absolute core of PoT math. The engine takes the Attacker's Weight, divides it by the Defender's Weight, and then factors in the Defender's Base Armor modifier. <em>Formula: (Attacker CW / Defender CW) / Defender Armor.</em> This generates the master Damage Multiplier (e.g. 150%).</span>
-          </li>
-          <li style="margin-top: 10px;">
-            <strong>The Arsenal Breakdown (True DPS Math):</strong><br>
-            <span class="muted">The simulator doesn't just look at one bite. It scans the Attacker's entire matrix for <em>any</em> variable containing "Damage" (e.g., <code>TailDamage</code>, <code>KickDamage</code>, <code>BiteDamage</code>). It then hunts for its matching cooldown (e.g., <code>TailCooldown</code>). It runs the Base Damage through the Combat Weight Multiplier to find the <strong>Estimated Hit HP</strong>, and then divides that by the Cooldown to give you the <strong>True DPS (Damage Per Second)</strong>. The results are sorted with the most lethal attacks at the top.</span>
-          </li>
-          <li style="margin-top: 10px;">
-            <strong>Sprint Endurance Engine:</strong><br>
-            <span class="muted">Stamina pools don't tell the whole story. The engine locates <code>Core.MaxStamina</code> and divides it by <code>StaminaSprintCostPerSecond</code>. This outputs the exact, real-world seconds a dinosaur can sprint before gassing out, allowing you to gauge if you can out-endure a pursuit.</span>
-          </li>
-          <li style="margin-top: 10px;">
-            <strong>Agility & Turn Radius Scanners:</strong><br>
-            <span class="muted">The engine checks <code>TurnRadiusMultiplier</code> for both combatants. If the Defender has a superior turn multiplier, it generates an Agility Warning to caution you against getting tail-ridden.</span>
-          </li>
-          <li style="margin-top: 10px;">
-            <strong>Status Effect Badges:</strong><br>
-            <span class="muted">The simulator looks for custom mechanics like <code>BleedAmount</code>, <code>BoneBreakChance</code>, <code>Venom</code>, or <code>Poison</code>. If these values are greater than 0 at the selected growth stage, it generates a visual threat badge on the dinosaur's card.</span>
-          </li>
-          <li style="margin-top: 10px;">
-            <strong>The Tactical Banner:</strong><br>
-            <span class="muted">Finally, the engine weighs your total DPS against your Combat Weight advantage, combining them into a final AI-generated tactical verdict (e.g., "OVERWHELMING ADVANTAGE" or "LETHAL THREAT").</span>
-          </li>
+        <h3>How the Assessor Calculates Lethality</h3>
+        <ol style="margin-left: 20px; line-height: 1.8; color: var(--muted);">
+          <li><strong>Weight & Deflection:</strong> The engine takes the <code>Attacker Combat Weight</code>, divides it by the <code>Defender Combat Weight</code>, and factors in the Defender's Armor multiplier. <em>Formula: (Attacker CW / Defender CW) / Defender Armor.</em> This yields the Master Damage Multiplier.</li>
+          <li><strong>True DPS Parsing:</strong> The algorithm scans the creature's data for any string containing "Damage". It finds the corresponding Cooldown, applies the Weight Multiplier, and calculates exactly how much Health is stripped away per second (DPS).</li>
+          <li><strong>Sprint Endurance:</strong> The system divides <code>Core.MaxStamina</code> by <code>StaminaSprintCostPerSecond</code> to output exactly how many seconds a creature can sustain pursuit before complete exhaustion.</li>
+          <li><strong>Agility Scanners:</strong> The engine checks <code>TurnRadiusMultiplier</code> for both combatants, issuing warnings if you are at risk of being tail-ridden.</li>
+          <li><strong>The Tactical Banner:</strong> Finally, the engine weighs your total DPS against your Combat Weight advantage, combining them into a final AI-generated tactical verdict (e.g., "OVERWHELMING ADVANTAGE" or "LETHAL THREAT").</li>
         </ol>
       </section>
 
       <section id="mapping" class="guide-section">
         <h2>5. Tactical Map & Recon Radar</h2>
         <p>
-          The Map Room offers complete spatial awareness of Gondwa. Scroll to zoom; click and drag to pan the camera.
+          The Gondwa Map Room is engineered for precise spatial coordination and pack-level intelligence sharing.
         </p>
+        
         <div class="jarvis-note">
-          <strong>System Directive: Recon Sync Engine</strong>
-          To instantly find your coordinates, press <strong>Ctrl+V</strong> to paste a fully zoomed-out screenshot of your in-game map. When the radar popup appears, you must <strong>click directly on the tip of your player arrow</strong> within the image. The engine will calculate the X/Y percentages, correct for ultra-wide monitor aspect ratios, and seamlessly drop a tactical marker at your precise location.
+          <strong>System Directive: Auto-Plotting</strong>
+          To instantly find your coordinates, press <strong>Ctrl+V</strong> to paste a raw <code>X=... Y=...</code> text string, or paste a fully zoomed-out screenshot of your in-game map. The engine will calculate the map scale and seamlessly drop a tactical marker at your precise location.
         </div>
+
+        <h3>GPS Navigation & Tracking</h3>
         <ul>
-          <li><strong>Deploying Markers:</strong> Switch to "📍 Deploy Marker" mode. Click anywhere on the map to place categorized pins (PvP Kills, Food, Danger Zones). Markers can be dragged to adjust their position, or right-clicked to delete them.</li>
-          <li><strong>Tactical Routes:</strong> Switch to "🛤️ Draw Route" mode. Click sequentially across the map to connect waypoints (e.g., mapping a migration path to a Homecave). If you make an error, <strong>Right-Click</strong> to undo the last drawn point. Save the route to access it from the sidebar later.</li>
+          <li><strong>Live Coordinates:</strong> A tactical HUD in the top-left corner dynamically translates your mouse position into precise Unreal Engine coordinates. Click the HUD to instantly copy the data to your clipboard.</li>
+          <li><strong>Distance Ruler:</strong> Activate <code>📏 Measure</code> mode. Click to anchor a start point, and move your cursor to see the exact distance in meters. The HUD will simultaneously calculate the estimated travel time in seconds assuming a 10m/s sprint.</li>
+        </ul>
+
+        <h3>Markers, Routes, and Danger Zones</h3>
+        <ul>
+          <li><strong>Danger Zone Radii:</strong> When placing a marker, input a radius in meters (e.g., 500) and select a tactical color swatch. The engine draws a perfectly scaled, semi-transparent border around the point—ideal for outlining territories or Quest Zones.</li>
+          <li><strong>Interactive Route Drawing:</strong> Engage <code>🛤️ Draw Route</code> to map out migration paths. Every click deploys a highly visible waypoint node. Click and drag nodes to adjust the path dynamically, or right-click a node to erase it.</li>
+          <li><strong>Recon Base64 Sharing (Export/Import):</strong> Your map data is highly valuable. Click <strong>Export</strong> to compress your active pins, zones, and routes into a secure, encrypted text string. Paste this into Discord; allies can hit <strong>Import</strong> to seamlessly merge your tactical layout directly onto their screens.</li>
         </ul>
       </section>
 
       <section id="lineage" class="guide-section">
-        <h2>6. Lineage Tracker & Combat Analytics</h2>
+        <h2>6. Pack Lineage Tracker</h2>
         <p>
-          These modules provide long-term historical data for your survival operations.
+          Designed for complex roleplay and pack history, the Lineage Tracker archives family bloodlines across generations using advanced visual rendering.
         </p>
         <ul>
-          <li><strong>Lineage Tracker:</strong> Establish a named Bloodline or Pack. Add Founders (Gen 1) and subsequent hatchlings to the family tree. Clicking on a family member's card toggles their status between "Alive" (🌿) and "Deceased" (💀), providing an instant overview of your pack's survival rate.</li>
-          <li><strong>Combat Analytics:</strong> Navigate to the Combat Log to review the data recorded by your Dashboard's Quick Logger. The engine charts your performance. Use the sidebar dropdown to isolate the data to a specific dinosaur, revealing exactly which creatures in your roster are highly lethal versus which ones frequently die.</li>
+          <li><strong>Visual Node Tree:</strong> The lineage workspace utilizes dynamic SVG mathematics to draw curved connection lines linking assigned Sires (Blue) and Dams (Pink) to their respective offspring, creating an interactive, flowing family tree.</li>
+          <li><strong>Dynamic Pack Hierarchy:</strong> Assign roles to members (Alpha, Beta, Scout, Subordinate). Members designated as 'Alpha' receive golden tactical borders, a crown emblem, and are automatically prioritized to the top of their generational row.</li>
+          <li><strong>The Trophy Case:</strong> Click the 🏅 icon on any living member to open the Milestone Editor. Award custom Legacy Titles (e.g., "Firstborn", "Survivor") which render as specialized chips on their profile card.</li>
+          <li><strong>The Memorial Hall:</strong> Death is permanent. Clicking the ☠️ icon prompts you to record a member's Cause of Death and Location. They are subsequently removed from the active SVG tree and permanently archived in the Memorial Hall tab for historical RP tracking. (Mistakes can be corrected using the ❤️‍🩹 Revive button in the archive).</li>
         </ul>
       </section>
 
       <section id="tools" class="guide-section">
-        <h2>7. Formatter & Rulebook</h2>
+        <h2>7. Communications & Rulebook</h2>
         <p>
-          Administrative tools for interacting with the Elys Astra community.
+          Administrative and operational tools to streamline out-of-game coordination.
         </p>
         <ul>
-          <li><strong>Post Builder:</strong> Utilize pre-configured templates (Event Setup, Nesting) to rapidly generate Discord LFG posts. Click the visual chips to inject custom dividers and emojis. Highlight text to apply Unicode fonts (like 𝔊𝔬𝔱𝔥𝔦𝔠) or Discord markdown without leaving the app.</li>
-          <li><strong>Rules Engine:</strong> An offline, instantly searchable encyclopedia of server regulations. Search by keyword to immediately filter relevant rulings during an active dispute.</li>
+          <li><strong>Discord Post Builder:</strong> A comprehensive text editor featuring syntax highlighting for Discord markdown (bold, italics, code blocks), quick-inject templates for LFG and Trading, and a Unicode text converter to deploy stylized fonts (e.g., 𝔊𝔬𝔱𝔥𝔦𝔠).</li>
+          <li><strong>Rules Database:</strong> The complete server rulebook is cached locally. Use the search bar to instantly query specific keywords during active disputes, retrieving the exact administrative phrasing without dropping your game frame rate to check Discord.</li>
         </ul>
       </section>
 
       <section id="troubleshooting" class="guide-section" style="border-color: var(--danger);">
-        <h2 style="color: var(--danger);">8. Troubleshooting & Diagnostics</h2>
+        <h2 style="color: var(--danger);">8. Troubleshooting & FAQ</h2>
         
+        <div class="warning-note">
+          <strong>Hardware Calibration (Multi-Monitor & Ultra-Wide)</strong>
+          The Gondwa map boundaries can shift, and utilizing different resolution arrays (such as spanning between an MSI G32 165Hz and a secondary Acer 2k display) can slightly distort coordinate math. 
+          <br><br>
+          <strong>Fix:</strong> Click the <strong>⚙️ Calibrate GPS</strong> button on the Map page. Paste your exact <code>/loc</code>, then drag the gear icon to your exact visual location to permanently lock in a corrected global offset for your specific hardware.
+        </div>
+
         <p><strong>Q: I'm in the Map Room, but I can't click or drag my markers anymore.</strong><br>
-        <span class="muted">A: You are likely locked in "Draw Route" mode. Click the "🤚 Navigation" button in the top toolbar to re-engage standard interaction protocols.</span></p>
+        <span class="muted">A: You are likely locked in "Draw Route" or "Measure" mode. Click the <strong>🤚 Nav</strong> button in the top toolbar to re-engage standard interaction protocols.</span></p>
+
+        <p><strong>Q: My Lineage Tree lines are disconnected or floating in space.</strong><br>
+        <span class="muted">A: The SVG engine relies on the scroll position of the workspace container. If you rapidly resize the window, the math may temporarily desync. Simply scroll the window slightly or refresh the page to force the geometry engine to recalculate the anchor points.</span></p>
+
+        <p><strong>Q: The Threat Assessor says "No primary damage stats found in matrix."</strong><br>
+        <span class="muted">A: The simulator hunts specifically for custom variables containing the word <code>Damage</code>. If your dinosaur's imported code is missing those lines, the engine cannot auto-calculate the DPS. Ensure you paste the full array list into the Importer.</span></p>
 
         <p><strong>Q: The OCR Auto-Fill is extracting gibberish or merging words incorrectly.</strong><br>
         <span class="muted">A: The OCR engine reads raw pixel data. If your Discord screenshot contains complex background UI elements or reaction emojis, the engine will attempt to translate them into text. Crop your screenshot tightly around the text block before importing.</span></p>
 
-        <p><strong>Q: The Threat Assessor says "No primary damage stats found in matrix."</strong><br>
-        <span class="muted">A: The simulator hunts specifically for custom variables containing the word <code>Damage</code>. If your dinosaur's imported code is missing those lines, or they are spelled differently in the server files without "Damage" in the title, the engine cannot auto-calculate the DPS.</span></p>
       </section>
 
     </section>
   </main>
 
-  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Created/Maintained by PixelPacket</footer>
+  <footer style="text-align: center; padding: 20px; color: var(--muted); font-size: 0.9em;">© 2026 EAHA All Rights Reserved, Engineered by PixelPacket</footer>
   
   <script type="module">
     import { auth } from './data-store.js';
