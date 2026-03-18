@@ -20,7 +20,7 @@ export const db = getFirestore(app);
 
 const ADMIN_EMAIL = "admin@elysastra.com"; 
 
-// JARVIS NOTE: These are the hardcoded defaults. Mounted to the cloud baseline below.
+// JARVIS NOTE: Hardcoded Defaults. Mounted to the cloud baseline below.
 window.EAHAModifiers = {
   roles: {
     "None": { description: "No role equipped." },
@@ -134,17 +134,22 @@ window.EAHADataStore = {
   async getData() {
     const user = auth.currentUser;
     if (!user) {
-      console.warn("Jarvis: User not authenticated. Serving local cache only.");
       return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
     }
 
     try {
-      // Fetch core user settings
+      // 1. Fetch core user settings
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
       let userData = userSnap.exists() ? userSnap.data() : this.getEmptyDB();
 
-      // JARVIS ARCHITECTURE UPGRADE: Fetch Sub-Collections to bypass 1MB limit
+      // Ensure base arrays exist
+      userData.stats = userData.stats || [];
+      userData.customPresets = userData.customPresets || {};
+      userData.pins = userData.pins || [];
+      userData.routes = userData.routes || [];
+
+      // 2. Fetch User Sub-Collections
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
       for (const colName of subCollections) {
           userData[colName] = [];
@@ -153,7 +158,7 @@ window.EAHADataStore = {
           snap.forEach(doc => userData[colName].push(doc.data()));
       }
 
-      // Fetch Admin Baseline
+      // 3. Fetch Admin Baseline
       const adminRef = doc(db, "system", "admin_baseline");
       const adminSnap = await getDoc(adminRef);
       const adminData = adminSnap.exists() ? adminSnap.data() : { system_settings: null };
@@ -168,8 +173,17 @@ window.EAHADataStore = {
       adminData.creatures = [];
       adminCreaSnap.forEach(d => adminData.creatures.push(d.data()));
 
-      userData.rules = [...(adminData.rules || []), ...(userData.rules || [])];
+      // JARVIS FIX 1: Deduplicate global variables so rules don't clone themselves visually.
+      const ruleMap = new Map();
+      (adminData.rules || []).forEach(r => ruleMap.set(r.id, r));
+      (userData.rules || []).forEach(r => ruleMap.set(r.id, r));
+      userData.rules = Array.from(ruleMap.values());
       
+      const creaMap = new Map();
+      (adminData.creatures || []).forEach(c => creaMap.set(c.id, c));
+      (userData.creatures || []).forEach(c => creaMap.set(c.id, c));
+      userData.creatures = Array.from(creaMap.values());
+
       if (adminData.system_settings) {
           userData.system_settings = adminData.system_settings;
           if (userData.system_settings.modifiers) {
@@ -178,23 +192,12 @@ window.EAHADataStore = {
       } else {
           userData.system_settings = this.getEmptyDB().system_settings;
       }
-      
-      if (adminData.creatures) {
-        adminData.creatures.forEach(adminCrea => {
-          const existingIndex = userData.creatures.findIndex(c => c.id === adminCrea.id);
-          if (existingIndex === -1) {
-            userData.creatures.push(adminCrea); 
-          } else {
-            userData.creatures[existingIndex] = adminCrea;
-          }
-        });
-      }
 
       await this.setIndexedData(this.MASTER_KEY, userData);
       return userData;
 
     } catch (error) {
-      console.error("Jarvis Error: Cloud Sync failed. Serving local cache.", error);
+      console.error("Jarvis Error: Cloud Sync failed.", error);
       return await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
     }
   },
@@ -206,11 +209,17 @@ window.EAHADataStore = {
     try {
       const cleanData = JSON.parse(JSON.stringify(dataObj));
 
-      // 1. Save core settings (lightweight)
+      // JARVIS FIX 2: Restore missing legacy variables so Maps and Presets don't erase themselves.
       const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, { system_settings: cleanData.system_settings || {} }); 
+      await setDoc(userRef, { 
+          system_settings: cleanData.system_settings || {},
+          stats: cleanData.stats || [],
+          customPresets: cleanData.customPresets || {},
+          pins: cleanData.pins || [],
+          routes: cleanData.routes || []
+      }, { merge: true }); 
 
-      // 2. Synchronize Collections (Bypasses 1MB Limit)
+      // Logic to sync Arrays to infinite folders
       const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
           const colRef = collection(db, ...basePath, colName);
           const existingSnap = await getDocs(colRef);
@@ -235,32 +244,41 @@ window.EAHADataStore = {
           await Promise.all(promises);
       };
 
-      await syncCollection('rules', cleanData.rules || []);
-      await syncCollection('creatures', cleanData.creatures || []);
-      await syncCollection('encounters', cleanData.encounters || []);
-      await syncCollection('lineage', cleanData.lineage || []);
+      // JARVIS FIX 3: Blast Shields. If one folder crashes (like a 2MB image in Creatures), the others will still delete/save properly.
+      const safeSync = async (colName, items, basePath) => {
+          try {
+              await syncCollection(colName, items, basePath);
+          } catch (err) {
+              console.error(`Failed to sync ${colName}:`, err);
+              if (colName === 'creatures') {
+                  alert(`⚠️ Sync Warning: One or more of your Creatures failed to upload to the cloud.\n\nPlease replace any direct uploaded profile images with image URLs. The document limit is 1MB.`);
+              }
+          }
+      };
 
-      // 3. Admin Broadcasting
+      await safeSync('rules', cleanData.rules || []);
+      await safeSync('creatures', cleanData.creatures || []);
+      await safeSync('encounters', cleanData.encounters || []);
+      await safeSync('lineage', cleanData.lineage || []);
+
+      // Admin Broadcasting 
       if (user.email === ADMIN_EMAIL) {
-        console.log("Jarvis: Admin authority recognized. Updating global baseline via collections.");
         const adminRef = doc(db, "system", "admin_baseline");
-        
         let currentSystemSettings = cleanData.system_settings || {};
         if (!currentSystemSettings.modifiers) {
             currentSystemSettings.modifiers = window.EAHAModifiers;
         }
-        await setDoc(adminRef, { system_settings: currentSystemSettings }); 
+        await setDoc(adminRef, { system_settings: currentSystemSettings }, { merge: true }); 
 
-        await syncCollection('rules', cleanData.rules || [], ["system", "admin_baseline"]);
-        await syncCollection('creatures', cleanData.creatures || [], ["system", "admin_baseline"]);
+        await safeSync('rules', cleanData.rules || [], ["system", "admin_baseline"]);
+        await safeSync('creatures', cleanData.creatures || [], ["system", "admin_baseline"]);
       }
 
       await this.setIndexedData(this.MASTER_KEY, cleanData);
       return true;
 
     } catch (error) {
-      console.error("Jarvis Error: Could not transmit data to central server.", error);
-      alert(`⚠️ SYSTEM ALERT: Cloud Synchronization Failed!\n\nReason: ${error.message}`);
+      console.error("Jarvis Error: Critical save failure.", error);
       return false;
     }
   },
