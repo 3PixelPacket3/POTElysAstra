@@ -44,17 +44,36 @@ const elements = {
   saveBtn: document.getElementById('savePinBtn'),
   cancelBtn: document.getElementById('cancelPinBtn'),
   calibrationTools: document.getElementById('calibrationTools'),
-  confirmDeployBtn: document.getElementById('confirmDeployBtn'),
-  cancelDeployBtn: document.getElementById('cancelDeployBtn'),
   mobileCoordInput: document.getElementById('mobileCoordInput'),
-  mobileCoordBtn: document.getElementById('mobileCoordBtn')
+  mobileCoordBtn: document.getElementById('mobileCoordBtn'),
+  recalibrateBtn: document.getElementById('recalibrateBtn'),
+  confirmDeployBtn: document.getElementById('confirmDeployBtn'),
+  cancelDeployBtn: document.getElementById('cancelDeployBtn')
 };
+
+const coordDisplay = document.createElement('div');
+coordDisplay.style.position = 'absolute';
+coordDisplay.style.bottom = '10px';
+coordDisplay.style.left = '10px';
+coordDisplay.style.background = 'rgba(15, 23, 42, 0.8)';
+coordDisplay.style.border = '1px solid var(--primary)';
+coordDisplay.style.padding = '5px 10px';
+coordDisplay.style.borderRadius = '8px';
+coordDisplay.style.color = 'var(--primary)';
+coordDisplay.style.fontSize = '0.85em';
+coordDisplay.style.fontFamily = 'monospace';
+coordDisplay.style.pointerEvents = 'none';
+coordDisplay.style.zIndex = '100';
+coordDisplay.style.boxShadow = '0 4px 6px rgba(0,0,0,0.5)';
+coordDisplay.innerHTML = 'GPS: Standby...';
+elements.mapWindow.appendChild(coordDisplay);
 
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type} show`;
   if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+  else if (type === 'warning') toast.style.backgroundColor = 'var(--warning)';
   else toast.style.backgroundColor = 'var(--primary)';
   setTimeout(() => toast.className = 'toast', 3000);
 };
@@ -111,6 +130,16 @@ window.addEventListener('mousemove', (e) => {
   translateX = e.clientX - startDragX;
   translateY = e.clientY - startDragY;
   updateTransform();
+});
+
+elements.mapWindow.addEventListener('mousemove', (e) => {
+    const coords = getMapCoordinates(e.clientX, e.clientY);
+    const offset = db.mapOffset || {x: -1.5, y: -1.5};
+    const rawX = coords.x - offset.x;
+    const rawY = coords.y - offset.y;
+    const xUU = Math.round(((rawX - 50) / 50) * 410000);
+    const yUU = Math.round(((rawY - 50) / 50) * 410000);
+    coordDisplay.innerHTML = `GPS: X=${xUU}, Y=${yUU}`;
 });
 
 window.addEventListener('mouseup', () => { isDragging = false; });
@@ -251,6 +280,90 @@ elements.mapWindow.addEventListener('contextmenu', (e) => {
   }
 });
 
+// JARVIS UPGRADE: Explicit Calibration Tool
+elements.recalibrateBtn.addEventListener('click', () => {
+    const coordsText = prompt("GPS CALIBRATION\n\nPlease paste your exact in-game /loc coordinates to begin calibration:");
+    if(!coordsText) return;
+
+    const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
+    const match = coordsText.match(coordRegex);
+
+    if(match) {
+        const xUU = parseFloat(match[1]);
+        const yUU = parseFloat(match[2]);
+        const mapRadiusUU = 410000;
+        let rawX = ((xUU / mapRadiusUU) * 50) + 50;
+        let rawY = ((yUU / mapRadiusUU) * 50) + 50;
+
+        pendingRawLocation = { x: rawX, y: rawY };
+
+        // Start pin exactly at the raw mathematical center, ignoring the old offset
+        let startX = Math.max(0, Math.min(rawX, 100));
+        let startY = Math.max(0, Math.min(rawY, 100));
+        pendingPin = { x: startX, y: startY };
+
+        if (tempCalibrationMarker) tempCalibrationMarker.remove();
+        tempCalibrationMarker = document.createElement('div');
+        tempCalibrationMarker.className = 'map-pin';
+        tempCalibrationMarker.style.left = `${startX}%`;
+        tempCalibrationMarker.style.top = `${startY}%`;
+        tempCalibrationMarker.style.zIndex = '50';
+        tempCalibrationMarker.innerHTML = `⚙️<div class="pin-label" style="opacity:1; background:var(--warning); color:#000;">Drag to your EXACT visual position</div>`;
+        elements.pinLayer.appendChild(tempCalibrationMarker);
+
+        let isDraggingTemp = false;
+        tempCalibrationMarker.addEventListener('mousedown', (dragE) => {
+            if (dragE.button !== 0) return;
+            dragE.stopPropagation();
+            isDraggingTemp = true;
+
+            const onMove = (moveEvent) => {
+                if (!isDraggingTemp) return;
+                const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+                tempCalibrationMarker.style.left = `${coords.x}%`;
+                tempCalibrationMarker.style.top = `${coords.y}%`;
+                pendingPin = coords;
+            };
+
+            const onUp = () => {
+                isDraggingTemp = false;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        });
+
+        elements.calibrationTools.classList.remove('is-hidden');
+        setMode('pan'); // Disable normal click deployment to prevent misclicks
+        showToast("Calibration Mode: Drag the gear to your visual location.", "warning");
+    } else {
+        showToast("Invalid coordinates format.", "error");
+    }
+});
+
+elements.confirmDeployBtn.addEventListener('click', () => {
+    if(pendingRawLocation && pendingPin) {
+        db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
+        db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
+        window.EAHADataStore.saveData(db).catch(e => console.error("Jarvis: Offset Sync Error", e));
+        showToast("Global GPS offset recalibrated securely.", "success");
+    }
+    elements.calibrationTools.classList.add('is-hidden');
+    if (tempCalibrationMarker) tempCalibrationMarker.remove();
+    pendingRawLocation = null;
+    pendingPin = null;
+});
+
+elements.cancelDeployBtn.addEventListener('click', () => {
+    elements.calibrationTools.classList.add('is-hidden');
+    if (tempCalibrationMarker) tempCalibrationMarker.remove();
+    pendingRawLocation = null;
+    pendingPin = null;
+    showToast("Calibration aborted.", "info");
+});
+
+// Standard Parsing Workflow - No longer hijacked by calibration
 const processCoordinates = (text) => {
   const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
   const match = text.match(coordRegex);
@@ -266,43 +379,16 @@ const processCoordinates = (text) => {
     let startX = Math.max(0, Math.min(rawX + db.mapOffset.x, 100));
     let startY = Math.max(0, Math.min(rawY + db.mapOffset.y, 100));
 
-    pendingRawLocation = { x: rawX, y: rawY };
     pendingPin = { x: startX, y: startY };
+    
+    elements.modalTitle.textContent = "Deploy Tactical Marker";
+    elements.newPinLabel.value = '';
+    setMode('pin');
+    elements.modal.classList.remove('is-hidden');
+    elements.newPinLabel.focus();
 
-    if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    tempCalibrationMarker = document.createElement('div');
-    tempCalibrationMarker.className = 'map-pin';
-    tempCalibrationMarker.style.left = `${startX}%`;
-    tempCalibrationMarker.style.top = `${startY}%`;
-    tempCalibrationMarker.style.zIndex = '50';
-    tempCalibrationMarker.innerHTML = `🎯<div class="pin-label" style="opacity:1; background:#10b981; color:#fff;">Target: Drag to Refine</div>`;
-    elements.pinLayer.appendChild(tempCalibrationMarker);
+    showToast("Coordinates acquired. Deploying marker.", "info");
 
-    let isDraggingTemp = false;
-    tempCalibrationMarker.addEventListener('mousedown', (dragE) => {
-      if (dragE.button !== 0) return;
-      dragE.stopPropagation();
-      isDraggingTemp = true;
-
-      const onMove = (moveEvent) => {
-        if (!isDraggingTemp) return;
-        const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
-        tempCalibrationMarker.style.left = `${coords.x}%`;
-        tempCalibrationMarker.style.top = `${coords.y}%`;
-        pendingPin = coords; 
-      };
-
-      const onUp = () => {
-        isDraggingTemp = false;
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    });
-
-    elements.calibrationTools.classList.remove('is-hidden');
-    showToast("Target acquired. Drag the pin to alignment, then Confirm.", "info");
   } else {
       showToast("Could not parse coordinates. Format must be X=... Y=...", "error");
   }
@@ -319,32 +405,6 @@ if (elements.mobileCoordBtn) {
         elements.mobileCoordInput.value = '';
     });
 }
-
-elements.confirmDeployBtn.addEventListener('click', () => {
-    // JARVIS FIX: Updates the offset, quietly saves to cloud, and cleans up the UI.
-    if (pendingRawLocation && pendingPin) {
-        db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
-        db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
-        
-        window.EAHADataStore.saveData(db).catch(err => console.error(err));
-    }
-    
-    elements.calibrationTools.classList.add('is-hidden');
-    if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    
-    elements.modalTitle.textContent = "Deploy Tactical Marker";
-    elements.newPinLabel.value = '';
-    setMode('pin');
-    elements.modal.classList.remove('is-hidden');
-    elements.newPinLabel.focus();
-});
-
-elements.cancelDeployBtn.addEventListener('click', () => {
-    elements.calibrationTools.classList.add('is-hidden');
-    if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    pendingPin = null; pendingRawLocation = null;
-    showToast("Targeting aborted.");
-});
 
 const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
@@ -455,7 +515,11 @@ elements.mapWindow.addEventListener('click', (e) => {
 });
 
 const closeModal = () => {
-  pendingPin = null; editingPinId = null; 
+  pendingPin = null; editingPinId = null; pendingRawLocation = null;
+  if (tempCalibrationMarker) {
+      tempCalibrationMarker.remove();
+      tempCalibrationMarker = null;
+  }
   elements.modal.classList.add('is-hidden');
   setMode('pan'); 
 };
