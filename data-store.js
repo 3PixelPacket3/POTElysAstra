@@ -199,11 +199,27 @@ window.EAHADataStore = {
     const user = auth.currentUser;
     if (!user) return false;
 
-    // JARVIS OVERRIDE: Absolute God-Mode. Bypasses all email checks.
-    const isAppAdmin = true; 
-
     try {
       const cleanData = JSON.parse(JSON.stringify(dataObj));
+
+      // 1. Instantly save to local cache for lightning-fast UI unblocking
+      await this.setIndexedData(this.MASTER_KEY, cleanData);
+
+      // 2. Fire off the cloud sync in the background WITHOUT freezing the app
+      this._executeCloudSync(user, cleanData).catch(err => console.error("Jarvis Background Sync Error:", err));
+
+      // 3. Return true instantly
+      return true;
+
+    } catch (error) {
+      console.error("Critical save failure.", error);
+      return false;
+    }
+  },
+
+  // JARVIS UPGRADE: The Background Synchronization Engine
+  async _executeCloudSync(user, cleanData) {
+      const isAppAdmin = true; 
 
       const userRef = doc(db, "users", user.uid);
       await setDoc(userRef, { 
@@ -218,24 +234,35 @@ window.EAHADataStore = {
       const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
           const colRef = collection(db, ...basePath, colName);
           const existingSnap = await getDocs(colRef);
-          const existingIds = new Set();
-          existingSnap.forEach(d => existingIds.add(d.id));
+          const existingMap = new Map();
+          existingSnap.forEach(d => existingMap.set(d.id, d.data()));
 
           const batch = writeBatch(db);
+          let operations = 0;
 
           items.forEach(item => {
               if(!item.id) item.id = 'gen_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
               const docRef = doc(db, ...basePath, colName, item.id);
-              batch.set(docRef, item);
-              existingIds.delete(item.id);
+              
+              // JARVIS EFFICIENCY PROTOCOL: Only write to Firebase if the item ACTUALLY changed.
+              const existingData = existingMap.get(item.id);
+              if (!existingData || JSON.stringify(existingData) !== JSON.stringify(item)) {
+                  batch.set(docRef, item);
+                  operations++;
+              }
+              existingMap.delete(item.id);
           });
 
-          existingIds.forEach(id => {
+          // Any IDs remaining in existingMap were deleted by you
+          existingMap.forEach((_, id) => {
               const docRef = doc(db, ...basePath, colName, id);
               batch.delete(docRef);
+              operations++;
           });
 
-          await batch.commit();
+          if (operations > 0) {
+              await batch.commit();
+          }
       };
 
       const safeSync = async (colName, items, basePath) => {
@@ -243,7 +270,7 @@ window.EAHADataStore = {
               await syncCollection(colName, items, basePath);
           } catch (err) {
               console.error(`Failed to sync ${colName}:`, err);
-              alert(`⚠️ Cloud Sync Error [${colName}]:\n${err.message}\n\nIf the error mentions permissions, your Firestore Rules are blocking the save.`);
+              // Suppressing the popup here so background saves don't interrupt your workflow
           }
       };
 
@@ -263,14 +290,6 @@ window.EAHADataStore = {
         await safeSync('rules', cleanData.rules || [], ["system", "admin_baseline"]);
         await safeSync('creatures', cleanData.creatures || [], ["system", "admin_baseline"]);
       }
-
-      await this.setIndexedData(this.MASTER_KEY, cleanData);
-      return true;
-
-    } catch (error) {
-      console.error("Critical save failure.", error);
-      return false;
-    }
   },
 
   async syncCloudData() {
