@@ -1,10 +1,18 @@
 // login.js
 import { auth } from './data-store.js';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    sendPasswordResetEmail, 
+    onAuthStateChanged,
+    GoogleAuthProvider,
+    signInWithPopup 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const btnLogin = document.getElementById('btnLogin');
 const btnRegister = document.getElementById('btnRegister');
 const btnReset = document.getElementById('btnReset');
+const btnGoogleLogin = document.getElementById('btnGoogleLogin');
 const authMessage = document.getElementById('authMessage');
 
 // --- THE REVERSE GUARD ---
@@ -33,13 +41,32 @@ function getFriendlyErrorMessage(error) {
         case 'auth/weak-password': return "Your password is too weak. Please use at least 6 characters.";
         case 'auth/invalid-email': return "Please enter a valid email address.";
         case 'auth/network-request-failed': return "Network connection failed. Please check your internet.";
-        case 'auth/operation-not-allowed': return "Server Error: Email/Password authentication is disabled in Firebase Console.";
-        case 'auth/unauthorized-domain': return "Security Error: GitHub Pages domain is not authorized in Firebase.";
+        case 'auth/operation-not-allowed': return "Server Error: Authentication provider is disabled in Firebase Console.";
+        case 'auth/unauthorized-domain': return "Security Error: Your current domain is not authorized in Firebase Settings.";
+        case 'auth/popup-closed-by-user': return "Google Sign-In was cancelled.";
         default: return `System Error (${error.code}): ${error.message}`;
     }
 }
 
-// --- LOGIN LOGIC ---
+// --- GOOGLE AUTHENTICATION LOGIC ---
+if (btnGoogleLogin) {
+    btnGoogleLogin.addEventListener('click', async () => {
+        btnGoogleLogin.disabled = true;
+        showMessage("Initiating Google Secure Sign-In...", "info");
+        
+        const provider = new GoogleAuthProvider();
+        
+        try {
+            await signInWithPopup(auth, provider);
+            // On success, the reverse guard at the top will automatically redirect the user
+        } catch (error) {
+            showMessage(getFriendlyErrorMessage(error), "danger");
+            btnGoogleLogin.disabled = false;
+        }
+    });
+}
+
+// --- EMAIL LOGIN LOGIC ---
 if (btnLogin) {
     btnLogin.addEventListener('click', async () => {
         const email = document.getElementById('loginEmail').value.trim();
