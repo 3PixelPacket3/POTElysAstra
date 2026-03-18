@@ -91,6 +91,7 @@ window.EAHADataStore = {
   DB_NAME: 'EAHADatabase',
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
+  isSyncing: false, // JARVIS UPGRADE: Tracks background save state
 
   async initDB() {
     return new Promise((resolve, reject) => {
@@ -205,8 +206,21 @@ window.EAHADataStore = {
       // 1. Instantly save to local cache for lightning-fast UI unblocking
       await this.setIndexedData(this.MASTER_KEY, cleanData);
 
+      // JARVIS UPGRADE: Broadcast Sync Start
+      this.isSyncing = true;
+      window.dispatchEvent(new CustomEvent('eaha-sync-start'));
+
       // 2. Fire off the cloud sync in the background WITHOUT freezing the app
-      this._executeCloudSync(user, cleanData).catch(err => console.error("Jarvis Background Sync Error:", err));
+      this._executeCloudSync(user, cleanData)
+        .then(() => {
+          this.isSyncing = false;
+          window.dispatchEvent(new CustomEvent('eaha-sync-complete'));
+        })
+        .catch(err => {
+          console.error("Jarvis Background Sync Error:", err);
+          this.isSyncing = false;
+          window.dispatchEvent(new CustomEvent('eaha-sync-error'));
+        });
 
       // 3. Return true instantly
       return true;
@@ -270,7 +284,6 @@ window.EAHADataStore = {
               await syncCollection(colName, items, basePath);
           } catch (err) {
               console.error(`Failed to sync ${colName}:`, err);
-              // Suppressing the popup here so background saves don't interrupt your workflow
           }
       };
 
@@ -322,3 +335,12 @@ window.EAHADataStore = {
     };
   }
 };
+
+// JARVIS UPGRADE: Global Safety Catch for Navigation during Sync
+window.addEventListener('beforeunload', (e) => {
+  if (window.EAHADataStore && window.EAHADataStore.isSyncing) {
+    e.preventDefault();
+    e.returnValue = 'Data is currently synchronizing with the cloud. Leaving now may result in lost changes.';
+    return e.returnValue;
+  }
+});
