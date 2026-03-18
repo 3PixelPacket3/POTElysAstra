@@ -91,7 +91,10 @@ window.EAHADataStore = {
   DB_NAME: 'EAHADatabase',
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
+  
+  // JARVIS UPGRADE: Track sync state with an expiration override
   isSyncing: false,
+  _syncFallbackTimer: null,
 
   async initDB() {
     return new Promise((resolve, reject) => {
@@ -146,9 +149,8 @@ window.EAHADataStore = {
       userData.routes = userData.routes || [];
       userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
 
-      // JARVIS UPGRADE: Parallelized Fetch Execution to dramatically reduce load times
+      // Parallel Fetch Execution 
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
-      
       const userColPromises = subCollections.map(async (colName) => {
           const colRef = collection(db, "users", user.uid, colName);
           const snap = await getDocs(colRef);
@@ -160,7 +162,7 @@ window.EAHADataStore = {
       const adminRulesRef = collection(db, "system", "admin_baseline", "rules");
       const adminCreaRef = collection(db, "system", "admin_baseline", "creatures");
 
-      // Execute all database queries concurrently
+      // Await all fetch pipelines simultaneously
       const [adminSnap, adminRulesSnap, adminCreaSnap] = await Promise.all([
           getDoc(adminRef),
           getDocs(adminRulesRef),
@@ -210,15 +212,19 @@ window.EAHADataStore = {
 
     try {
       const cleanData = JSON.parse(JSON.stringify(dataObj));
-
-      // 1. Instantly save to local cache for lightning-fast UI unblocking
       await this.setIndexedData(this.MASTER_KEY, cleanData);
 
-      // JARVIS UPGRADE: Broadcast Sync Start
+      // JARVIS UPGRADE: Apply sync lock with auto-expiration
       this.isSyncing = true;
+      clearTimeout(this._syncFallbackTimer);
+      
+      // Force unlock after 2.5 seconds regardless of cloud response
+      this._syncFallbackTimer = setTimeout(() => {
+          this.isSyncing = false;
+      }, 2500);
+
       window.dispatchEvent(new CustomEvent('eaha-sync-start'));
 
-      // 2. Fire off the cloud sync in the background WITHOUT freezing the app
       this._executeCloudSync(user, cleanData)
         .then(() => {
           this.isSyncing = false;
@@ -230,7 +236,6 @@ window.EAHADataStore = {
           window.dispatchEvent(new CustomEvent('eaha-sync-error'));
         });
 
-      // 3. Return true instantly
       return true;
 
     } catch (error) {
@@ -341,7 +346,7 @@ window.EAHADataStore = {
   }
 };
 
-// JARVIS UPGRADE: Detailed Global Safety Catch for Navigation during Sync
+// JARVIS UPGRADE: The safety net will now respect the 2.5-second auto-expiration 
 window.addEventListener('beforeunload', (e) => {
   if (window.EAHADataStore && window.EAHADataStore.isSyncing) {
     e.preventDefault();
