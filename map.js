@@ -57,11 +57,41 @@ const elements = {
   cancelDeployBtn: document.getElementById('cancelDeployBtn'),
   exportReconBtn: document.getElementById('exportReconBtn'), 
   importReconBtn: document.getElementById('importReconBtn'),
+  colorSwatches: document.querySelectorAll('.color-swatch'),
   
-  // JARVIS ADDITION: Swatch Selector Grid
-  colorSwatches: document.querySelectorAll('.color-swatch')
+  // JARVIS UPGRADE: The Active Operator Bridge
+  mapCreatureSelect: document.getElementById('mapCreatureSelect')
 };
 
+// --- Per-Dino Integration ---
+const populateCreatureDropdown = () => {
+    elements.mapCreatureSelect.innerHTML = '<option value="global">🌍 Global Roster (All Data)</option>';
+    
+    if (db.creatures && db.creatures.length > 0) {
+        const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+        sorted.forEach(c => {
+            elements.mapCreatureSelect.appendChild(new Option(c.name, c.id));
+        });
+    }
+
+    const savedActive = localStorage.getItem('eahaActiveCreature');
+    if (savedActive && savedActive !== 'none' && db.creatures.find(c => c.id === savedActive)) {
+        elements.mapCreatureSelect.value = savedActive;
+    } else {
+        elements.mapCreatureSelect.value = 'global';
+    }
+
+    elements.mapCreatureSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val !== 'global') {
+            localStorage.setItem('eahaActiveCreature', val);
+        }
+        renderPins();
+        renderRoutes();
+    });
+};
+
+// --- Tactical HUD ---
 const coordDisplay = document.createElement('div');
 coordDisplay.className = 'hud-display';
 coordDisplay.innerHTML = '<span id="hudText">GPS: Standby...</span><span class="copy-hint">(Click to Copy)</span>';
@@ -287,12 +317,19 @@ const renderActiveRoute = () => {
 
 const renderRoutes = () => {
   elements.routeList.innerHTML = '';
-  if (!db.routes || db.routes.length === 0) {
-    elements.routeList.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No saved routes.</p>';
+  const activeId = elements.mapCreatureSelect.value;
+  
+  // Filter logic: Show global if selected, otherwise show only dinos specific routes
+  const filteredRoutes = (db.routes || []).filter(r => {
+      return activeId === 'global' || r.creatureId === activeId;
+  });
+
+  if (filteredRoutes.length === 0) {
+    elements.routeList.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No routes logged for this configuration.</p>';
     return;
   }
 
-  const sortedRoutes = [...db.routes].sort((a, b) => b.timestamp - a.timestamp);
+  const sortedRoutes = [...filteredRoutes].sort((a, b) => b.timestamp - a.timestamp);
   sortedRoutes.forEach(route => {
     const item = document.createElement('div');
     item.className = 'list-item';
@@ -338,13 +375,21 @@ elements.saveRouteBtn.addEventListener('click', () => {
   const routeName = prompt('Enter a name for this tactical route:', 'Migration Path');
   if (!routeName) return;
 
-  db.routes.push({ id: generateId(), name: routeName.trim(), points: [...activeRoutePoints], timestamp: Date.now() });
+  const activeId = elements.mapCreatureSelect.value;
+
+  db.routes.push({ 
+      id: generateId(), 
+      creatureId: activeId === 'global' ? null : activeId,
+      name: routeName.trim(), 
+      points: [...activeRoutePoints], 
+      timestamp: Date.now() 
+  });
   
   activeRoutePoints = [];
   renderActiveRoute();
   renderRoutes();
   setMode('pan');
-  showToast('Route saved successfully.');
+  showToast('Route secured to active profile.');
   
   window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route save sync failed", err));
 });
@@ -447,7 +492,6 @@ elements.cancelDeployBtn.addEventListener('click', () => {
     showToast("Calibration aborted.", "info");
 });
 
-// JARVIS UPGRADE: Sets the UI swatch based on incoming color hex
 const setSwatchColor = (hexValue) => {
     elements.newPinColor.value = hexValue;
     elements.colorSwatches.forEach(btn => {
@@ -459,7 +503,6 @@ const setSwatchColor = (hexValue) => {
     });
 };
 
-// Listeners for the Swatch grid
 elements.colorSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => {
         setSwatchColor(swatch.dataset.color);
@@ -486,7 +529,7 @@ const processCoordinates = (text) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
-    setSwatchColor('#ef4444'); // Default to red
+    setSwatchColor('#ef4444'); 
     
     setMode('pin');
     elements.modal.classList.remove('is-hidden');
@@ -514,6 +557,7 @@ if (elements.mobileCoordBtn) {
 const renderPins = () => {
   const searchTerm = elements.search.value.toLowerCase();
   const filterVal = elements.filter.value;
+  const activeId = elements.mapCreatureSelect.value;
   
   document.querySelectorAll('.map-pin').forEach(el => {
       if(el !== tempCalibrationMarker && !el.classList.contains('route-node')) el.remove();
@@ -522,17 +566,19 @@ const renderPins = () => {
   elements.pinList.innerHTML = '';
   
   const filteredPins = (db.pins || []).filter(pin => {
-    return pin.label.toLowerCase().includes(searchTerm) && (filterVal === 'all' || pin.type === filterVal);
+    const matchesSearch = pin.label.toLowerCase().includes(searchTerm);
+    const matchesFilter = filterVal === 'all' || pin.type === filterVal;
+    const matchesDino = activeId === 'global' || pin.creatureId === activeId;
+    return matchesSearch && matchesFilter && matchesDino;
   });
 
   if (filteredPins.length === 0) {
-    elements.pinList.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No markers found.</p>';
+    elements.pinList.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No markers logged for this configuration.</p>';
     return;
   }
 
   [...filteredPins].sort((a, b) => b.timestamp - a.timestamp).forEach(pin => {
     
-    // JARVIS UPGRADE: High Visibility Danger Zone Render
     if (pin.radius && pin.radius > 0) {
         const zone = document.createElement('div');
         const radiusPercent = (pin.radius / 8200) * 100;
@@ -543,8 +589,8 @@ const renderPins = () => {
         zone.style.top = `${pin.y}%`;
         
         const pinColor = pin.color || '#ef4444';
-        zone.style.borderColor = pinColor; // 100% Solid Border
-        zone.style.backgroundColor = pinColor + '4D'; // Append Hex Alpha (~30% opacity) for background only
+        zone.style.borderColor = pinColor; 
+        zone.style.backgroundColor = pinColor + '4D'; 
 
         elements.pinLayer.appendChild(zone);
     }
@@ -635,7 +681,7 @@ elements.mapWindow.addEventListener('click', (e) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
-    setSwatchColor('#ef4444'); // Default back to red on new
+    setSwatchColor('#ef4444'); 
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
   } 
@@ -675,6 +721,7 @@ elements.saveBtn.addEventListener('click', () => {
 
   const safeRadius = parseInt(elements.newPinRadius.value, 10) || 0;
   const safeColor = elements.newPinColor.value || '#ef4444';
+  const activeId = elements.mapCreatureSelect.value;
 
   if (editingPinId) {
     const pin = db.pins.find(p => p.id === editingPinId);
@@ -683,11 +730,13 @@ elements.saveBtn.addEventListener('click', () => {
         pin.label = elements.newPinLabel.value.trim() || 'Marker'; 
         pin.radius = safeRadius;
         pin.color = safeColor;
+        // Do not override original creatureId on edit to maintain data integrity
     }
   } else {
     if (!pendingPin) return;
     db.pins.push({ 
         id: generateId(), 
+        creatureId: activeId === 'global' ? null : activeId, // JARVIS UPGRADE: Attach Pin to Active Dino
         type: elements.newPinType.value, 
         label: elements.newPinLabel.value.trim() || 'Marker', 
         x: pendingPin.x, y: pendingPin.y, 
@@ -706,8 +755,13 @@ elements.newPinLabel.addEventListener('keypress', (e) => { if (e.key === 'Enter'
 elements.search.addEventListener('input', renderPins);
 elements.filter.addEventListener('change', renderPins);
 elements.clearAllBtn.addEventListener('click', () => {
-  if (db.pins.length > 0 && confirm('WARNING: Wipe ALL markers?')) { 
-      db.pins = []; 
+  if (confirm('WARNING: Wipe markers for the CURRENTLY selected filter view?')) { 
+      const activeId = elements.mapCreatureSelect.value;
+      if(activeId === 'global') {
+          db.pins = []; 
+      } else {
+          db.pins = db.pins.filter(p => p.creatureId !== activeId);
+      }
       renderPins(); 
       window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
   }
@@ -759,7 +813,11 @@ elements.importReconBtn.addEventListener('click', () => {
 const init = async () => {
   if (typeof window.EAHADataStore !== 'undefined') db = await window.EAHADataStore.getData();
   if (!db.pins) db.pins = []; if (!db.routes) db.routes = []; if (!db.mapOffset) db.mapOffset = {x: -1.5, y: -1.5};
-  renderPins(); renderRoutes(); updateTransform(); 
+  
+  populateCreatureDropdown(); // JARVIS UPGRADE: Initialize the Operator Dropdown
+  renderPins(); 
+  renderRoutes(); 
+  updateTransform(); 
 };
 
 let hasInitialized = false;
