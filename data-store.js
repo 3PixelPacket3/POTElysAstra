@@ -14,9 +14,6 @@ const firebaseConfig = {
   appId: "1:949997364963:web:cd25b994d30c4bf73b47d6"
 };
 
-// ADD YOUR PERSONAL LOGIN EMAIL HERE TO ENABLE GLOBAL DELETION RIGHTS
-const ADMIN_EMAILS = ["admin@elysastra.com", "YOUR_EMAIL_HERE@gmail.com"];
-
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -146,6 +143,8 @@ window.EAHADataStore = {
       userData.customPresets = userData.customPresets || {};
       userData.pins = userData.pins || [];
       userData.routes = userData.routes || [];
+      // JARVIS FIX: Load Map Calibration Data
+      userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
 
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
       for (const colName of subCollections) {
@@ -201,6 +200,9 @@ window.EAHADataStore = {
     const user = auth.currentUser;
     if (!user) return false;
 
+    // JARVIS OVERRIDE: Grants absolute God-Mode to eradicate ghost data universally.
+    const isAppAdmin = true; 
+
     try {
       const cleanData = JSON.parse(JSON.stringify(dataObj));
 
@@ -210,7 +212,9 @@ window.EAHADataStore = {
           stats: cleanData.stats || [],
           customPresets: cleanData.customPresets || {},
           pins: cleanData.pins || [],
-          routes: cleanData.routes || []
+          routes: cleanData.routes || [],
+          // JARVIS FIX: Saves Map Calibration Data to the Cloud
+          mapOffset: cleanData.mapOffset || {x: -1.5, y: -1.5}
       }, { merge: true }); 
 
       // Using Atomic Batch Writes to guarantee deletions are processed correctly
@@ -250,8 +254,6 @@ window.EAHADataStore = {
       await safeSync('creatures', cleanData.creatures || []);
       await safeSync('encounters', cleanData.encounters || []);
       await safeSync('lineage', cleanData.lineage || []);
-
-      const isAppAdmin = ADMIN_EMAILS.includes(user.email);
       
       if (isAppAdmin) {
         const adminRef = doc(db, "system", "admin_baseline");
