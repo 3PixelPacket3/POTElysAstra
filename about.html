@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>EAHA | Statistics & Threat Assessment</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -51,17 +52,17 @@
 
       <div id="statContent" class="is-hidden">
         
-        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid var(--border);">
+        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid var(--border); flex-wrap: wrap;">
           <img id="statCreatureImage" src="" alt="Profile" style="width: 80px; height: 80px; border-radius: 12px; object-fit: cover; border: 2px solid var(--primary); display: none;">
-          <div style="flex: 1;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="flex: 1; min-width: 250px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
               <h2 id="statCreatureName" style="margin: 0 0 10px 0; font-size: 2em; color: var(--text);">Name</h2>
-              <div class="mode-toggle">
+              <div class="mode-toggle" style="margin-top: 0; margin-bottom: 10px;">
                 <button class="btn active" data-mode="view">View Stats</button>
                 <button class="btn-ghost" data-mode="edit">Edit Variables</button>
               </div>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
               <span id="statCreatureTier" style="background: var(--bg-alt); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600;">Tier</span>
               <span id="statCreatureGroup" style="background: var(--bg-alt); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600;">Group</span>
             </div>
@@ -70,18 +71,18 @@
 
         <div id="statView">
           <h3 style="color: var(--primary); margin-bottom: 15px;">Base Mechanics</h3>
-          <div id="baseStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;"></div>
+          <div id="baseStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px;"></div>
 
           <div id="customStatsWrapper" class="is-hidden">
             <h3 style="color: var(--primary); margin-bottom: 15px;">Custom Server Variables</h3>
-            <div id="customStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;"></div>
+            <div id="customStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;"></div>
           </div>
         </div>
 
         <div id="statEdit" class="is-hidden">
           <h3 style="color: var(--primary); margin-bottom: 15px;">Edit Base Mechanics (5-Stage Arrays)</h3>
           <p class="muted" style="margin-bottom: 15px; font-size: 0.85em;">Separate growth stages with commas (e.g., 100, 200, 300, 400, 500).</p>
-          <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 30px;">
+          <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 30px;">
             <label class="field"><span>Health</span><input type="text" id="editStatHealth"></label>
             <label class="field"><span>Combat Weight</span><input type="text" id="editStatWeight"></label>
             <label class="field"><span>Armor</span><input type="text" id="editStatArmor"></label>
@@ -90,7 +91,7 @@
             <label class="field"><span>Speed</span><input type="text" id="editStatSpeed"></label>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
             <h3 style="color: var(--primary); margin: 0;">Edit Custom Variables</h3>
             <button class="btn btn-sm" id="addEditCustomStatBtn">+ Add Custom Stat</button>
           </div>
@@ -112,22 +113,24 @@
               <option value="speed">Speed</option>
             </select>
             
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 120px; justify-content: center;">
               <span style="font-size: 1.2em; font-weight: bold;">±</span>
               <input type="number" id="calcModifier" placeholder="%" style="width: 100px; text-align: center; font-weight: bold;">
               <span style="font-weight: bold; color: var(--muted);">%</span>
             </div>
             
-            <button class="btn" id="applyCalcBtn" style="background: var(--info); border-color: var(--info);">Calculate</button>
-            <button class="btn btn-ghost" id="resetCalcBtn">Reset</button>
+            <div style="display: flex; gap: 10px; flex: 1; min-width: 200px;">
+              <button class="btn" id="applyCalcBtn" style="background: var(--info); border-color: var(--info); flex: 1;">Calculate</button>
+              <button class="btn btn-ghost" id="resetCalcBtn" style="flex: 1;">Reset</button>
+            </div>
           </div>
 
-          <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+          <div style="background: var(--bg-alt); padding: 20px; border-radius: 12px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; flex-direction: column;">
               <strong style="color: var(--muted); font-size: 0.85em; text-transform: uppercase;">Modified Matrix Result</strong>
               <span id="calcFormulaDisplay" class="muted" style="font-size: 0.9em; margin-top: 4px;">Select a stat and apply a percentage modifier.</span>
             </div>
-            <div id="calcResultDisplay" style="font-size: 2em; font-weight: 900; color: var(--text);">---</div>
+            <div id="calcResultDisplay" style="font-size: 1.8em; font-weight: 900; color: var(--text); word-break: break-all;">---</div>
           </div>
         </div>
 
@@ -137,7 +140,7 @@
         <h2 style="color: #eab308; margin-bottom: 5px;">⏱️ Tactical Chronograph</h2>
         <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Track critical in-game cooldowns and growth ticks.</p>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">
             <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border); text-align: center;">
                 <strong style="color: var(--info);">Waystone Cooldown</strong>
                 <div id="timerWaystone" style="font-size: 2.2em; font-weight: 900; color: var(--text); margin: 10px 0; font-family: monospace;">00:00</div>
@@ -160,7 +163,7 @@
           <h2 style="color: var(--success); margin-bottom: 5px;">Live Pack Telemetry</h2>
           <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Real-time vitals, combat weights, and active mutations of your connected pack mates.</p>
           
-          <div id="packTelemetryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px;">
+          <div id="packTelemetryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
           </div>
       </div>
 
@@ -174,7 +177,7 @@
             <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--primary);">Your Dinosaur (Attacker)</label>
             <select id="fighterASelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 10px; border: 2px solid var(--primary); margin-bottom: 10px;"></select>
             
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin-bottom: 10px;">
               <select id="fighterAStage" style="font-size: 0.85em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
                 <option value="4" selected>Adult</option>
                 <option value="3">Sub-Adult</option>
@@ -203,7 +206,7 @@
               
               <div style="border: 1px solid var(--success); border-radius: 8px; padding: 8px; background: color-mix(in srgb, var(--success) 5%, transparent);">
                 <label style="display: block; font-size: 0.8em; color: var(--success); margin-bottom: 6px; font-weight: bold; text-transform: uppercase;">Genetics (Equip up to 6)</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px;">
                   <select class="fighterAGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
                   <select class="fighterAGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
                   <select class="fighterAGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
@@ -215,7 +218,7 @@
             </div>
           </div>
           
-          <div style="display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; color: var(--muted); padding: 20px 0;">
+          <div style="display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: 800; color: var(--muted); padding: 10px 0; width: 100%; max-width: 40px; margin: auto;">
             VS
           </div>
 
@@ -223,7 +226,7 @@
             <label style="display: block; font-weight: bold; margin-bottom: 8px; color: var(--danger);">Target (Defender)</label>
             <select id="fighterBSelect" class="full-width" style="font-size: 1.1em; cursor: pointer; padding: 10px; border: 2px solid var(--danger); margin-bottom: 10px;"></select>
             
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin-bottom: 10px;">
               <select id="fighterBStage" style="font-size: 0.85em; cursor: pointer; padding: 8px; border: 1px solid var(--border); background: var(--bg-alt);">
                 <option value="4" selected>Adult</option>
                 <option value="3">Sub-Adult</option>
@@ -252,7 +255,7 @@
               
               <div style="border: 1px solid var(--success); border-radius: 8px; padding: 8px; background: color-mix(in srgb, var(--success) 5%, transparent);">
                 <label style="display: block; font-size: 0.8em; color: var(--success); margin-bottom: 6px; font-weight: bold; text-transform: uppercase;">Genetics (Equip up to 6)</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px;">
                   <select class="fighterBGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
                   <select class="fighterBGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
                   <select class="fighterBGeneticSelect" style="font-size: 0.85em; cursor: pointer; padding: 6px; background: color-mix(in srgb, var(--success) 15%, var(--bg)); border: 1px solid var(--success); color: var(--text);"></select>
@@ -270,8 +273,8 @@
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
-          <div id="simOutputA" class="stat-card" style="background: color-mix(in srgb, var(--primary) 10%, var(--bg)); border: 1px solid var(--primary); text-align: left;"></div>
-          <div id="simOutputB" class="stat-card" style="background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border: 1px solid var(--danger); text-align: left;"></div>
+          <div id="simOutputA" class="stat-card" style="background: color-mix(in srgb, var(--primary) 10%, var(--bg)); border: 1px solid var(--primary); text-align: left; word-break: break-word;"></div>
+          <div id="simOutputB" class="stat-card" style="background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border: 1px solid var(--danger); text-align: left; word-break: break-word;"></div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 10px; background: var(--bg-alt); padding: 15px; border-radius: 12px; border: 1px solid var(--border); font-size: 0.95em; font-weight: 600;">
