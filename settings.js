@@ -27,6 +27,11 @@ const adminMigrations = document.getElementById('adminMigrations');
 const adminRebirths = document.getElementById('adminRebirths');
 const saveSystemConfigBtn = document.getElementById('saveSystemConfigBtn');
 
+// JARVIS UPGRADE: Timer Admin Elements
+const adminTimerWaystone = document.getElementById('adminTimerWaystone');
+const adminTimerTrophy = document.getElementById('adminTimerTrophy');
+const adminTimerGrowth = document.getElementById('adminTimerGrowth');
+
 // --- NEW: Admin Matrix Editor Elements ---
 const matrixCategorySelect = document.getElementById('matrixCategorySelect');
 const matrixEntrySelect = document.getElementById('matrixEntrySelect');
@@ -215,6 +220,12 @@ if (saveSystemConfigBtn) {
             maxMigrations: parseInt(adminMigrations.value, 10),
             maxRebirths: parseInt(adminRebirths.value, 10),
             modifiers: activeModifiers,
+            // JARVIS UPGRADE: Syncing the timer overrides
+            timers: {
+                waystone: parseInt(adminTimerWaystone.value, 10) || 1800,
+                trophy: parseInt(adminTimerTrophy.value, 10) || 600,
+                growth: parseInt(adminTimerGrowth.value, 10) || 2700
+            },
             lastUpdated: Date.now()
         };
 
@@ -366,6 +377,11 @@ onAuthStateChanged(auth, async (user) => {
                 if (adminReleaseNotes) adminReleaseNotes.value = localDb.system_settings.releaseNotes || '';
                 if (adminMigrations) adminMigrations.value = localDb.system_settings.maxMigrations || 1;
                 if (adminRebirths) adminRebirths.value = localDb.system_settings.maxRebirths || 3;
+                
+                // JARVIS UPGRADE: Load previously saved timer overrides
+                if (adminTimerWaystone) adminTimerWaystone.value = localDb.system_settings.timers?.waystone || 1800;
+                if (adminTimerTrophy) adminTimerTrophy.value = localDb.system_settings.timers?.trophy || 600;
+                if (adminTimerGrowth) adminTimerGrowth.value = localDb.system_settings.timers?.growth || 2700;
             }
 
             if (matrixCategorySelect && matrixEntrySelect) {
