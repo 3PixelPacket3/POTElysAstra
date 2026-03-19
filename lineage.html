@@ -99,10 +99,23 @@
             <div>
               <h1 id="packNameDisplay" style="color: var(--text); margin: 0 0 5px 0;">Pack Name</h1>
               <span id="speciesDisplay" style="background: var(--bg-alt); padding: 5px 12px; border-radius: 50px; font-size: 0.85em; font-weight: 600; color: var(--primary);">Species</span>
+              
+              <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                  <span id="inviteCodeDisplay" class="badge" style="background: var(--bg-lighter); padding: 6px 12px; border-radius: 6px; display: none; font-size: 0.9em;">
+                      Invite Code: <strong id="inviteCodeText" style="color: var(--primary); letter-spacing: 1.5px; margin-left: 5px;">---</strong>
+                  </span>
+                  <button id="joinPackBtn" class="btn" style="padding: 6px 14px; font-size: 0.85em; background: var(--bg-lighter); color: var(--text); border: 1px solid var(--border);">🔗 Join Live Pack</button>
+                  <label style="font-size: 0.85em; display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); margin-left: 5px;">
+                      <input type="checkbox" id="broadcastToggle" checked> Broadcast My Stats
+                  </label>
+              </div>
             </div>
-            <div style="display: flex; gap: 10px;">
-              <button class="btn" id="addMemberBtn">🥚 Add Member</button>
-              <button class="btn btn-ghost" id="deleteLineageBtn" style="color: var(--danger); border-color: var(--danger);">Erase Bloodline</button>
+
+            <div style="display: flex; gap: 10px; flex-direction: column; align-items: flex-end;">
+              <div style="display: flex; gap: 10px;">
+                <button class="btn" id="addMemberBtn">🥚 Add Member</button>
+                <button class="btn btn-ghost" id="deleteLineageBtn" style="color: var(--danger); border-color: var(--danger);">Erase Bloodline</button>
+              </div>
             </div>
           </div>
 
@@ -124,12 +137,23 @@
 
         <div class="lineage-tabs">
             <button class="lineage-tab active" data-tab="tree">🌳 Family Tree</button>
+            <button class="lineage-tab" data-tab="board">📢 Roar Board (Live)</button>
             <button class="lineage-tab" data-tab="memorial">🪦 Memorial Hall</button>
         </div>
 
         <div id="treeContainer" class="tree-workspace" style="background: var(--bg); border: 1px solid var(--border); border-radius: 16px;">
             <svg id="treeLines"></svg>
             <div id="treeNodes"></div>
+        </div>
+
+        <div id="boardContainer" class="is-hidden" style="width: 100%; height: 500px; overflow-y: auto; padding: 25px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
+                <h3 style="color: var(--primary); margin: 0; font-size: 1.2em;">Tactical Intelligence</h3>
+                <button id="addNoteBtn" class="btn" style="padding: 6px 16px; font-size: 0.9em;">+ Add Note</button>
+            </div>
+            <div id="boardMessages" style="display: flex; flex-direction: column; gap: 12px;">
+                <p class="muted" style="text-align:center; padding: 20px;">Connect to a Live Pack to view the board.</p>
+            </div>
         </div>
 
         <div id="memorialContainer" class="memorial-grid is-hidden" style="background: var(--bg); border: 1px solid var(--danger); border-radius: 16px; padding: 25px;">
@@ -158,6 +182,40 @@
         <button class="btn btn-ghost" id="cancelPackBtn" style="flex: 1;">Cancel</button>
       </div>
     </div>
+  </div>
+
+  <div id="joinPackModal" class="modal-overlay is-hidden">
+      <div class="card" style="width: 100%; max-width: 400px; border-top: 5px solid var(--primary);">
+          <h2 style="color: var(--primary); margin-bottom: 15px;">Join Live Pack</h2>
+          <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Enter the 6-character invite code provided by your Alpha to sync data.</p>
+          <div class="form-grid">
+              <label class="field">
+                  <span>Invite Code</span>
+                  <input type="text" id="joinCodeInput" placeholder="e.g., A7X9V2" style="text-transform: uppercase; letter-spacing: 3px; text-align: center; font-size: 1.3em; font-weight: bold;" maxlength="6">
+              </label>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 25px;">
+              <button id="confirmJoinBtn" class="btn" style="flex: 1;">Connect</button>
+              <button id="cancelJoinBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+          </div>
+      </div>
+  </div>
+
+  <div id="noteModal" class="modal-overlay is-hidden">
+      <div class="card" style="width: 100%; max-width: 500px; border-top: 5px solid var(--primary);">
+          <h2 style="color: var(--primary); margin-bottom: 15px;">Post to Roar Board</h2>
+          <p class="muted" style="margin-bottom: 20px; font-size: 0.9em;">Broadcast tactical intel to all active pack mates.</p>
+          <div class="form-grid">
+              <label class="field">
+                  <span>Message / Intel</span>
+                  <textarea id="noteContentInput" rows="4" placeholder="e.g., KOS Megalania spotted near Green Hills." style="width: 100%; resize: vertical; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit;"></textarea>
+              </label>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 25px;">
+              <button id="postNoteBtn" class="btn" style="flex: 1;">Broadcast Note</button>
+              <button id="cancelNoteBtn" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+          </div>
+      </div>
   </div>
 
   <div id="memberModal" class="modal-overlay is-hidden">
