@@ -32,7 +32,6 @@
     .lineage-card.role-alpha { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
     .lineage-card.is-dead { filter: grayscale(0.8); border-style: dashed; border-color: var(--danger); }
     
-    /* JARVIS UPGRADE: Refined Floating Action Bar */
     .card-actions { position: absolute; top: -15px; right: -10px; display: flex; gap: 5px; background: var(--bg-alt); padding: 4px 8px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 2px 6px rgba(0,0,0,0.6); opacity: 0; transition: opacity 0.2s; }
     .lineage-card:hover .card-actions { opacity: 1; }
     .action-btn { background: transparent; border: none; cursor: pointer; font-size: 1.1em; transition: transform 0.2s; padding: 0 2px; }
@@ -104,6 +103,9 @@
                   <span id="inviteCodeDisplay" class="badge" style="background: var(--bg-lighter); padding: 6px 12px; border-radius: 6px; display: none; font-size: 0.9em;">
                       Invite Code: <strong id="inviteCodeText" style="color: var(--primary); letter-spacing: 1.5px; margin-left: 5px;">---</strong>
                   </span>
+                  
+                  <button id="makeLiveBtn" class="btn" style="padding: 6px 14px; font-size: 0.85em; background: var(--primary); color: white; border: none; display: none;">📡 Make Pack Live</button>
+                  
                   <button id="joinPackBtn" class="btn" style="padding: 6px 14px; font-size: 0.85em; background: var(--bg-lighter); color: var(--text); border: 1px solid var(--border);">🔗 Join Live Pack</button>
                   <label style="font-size: 0.85em; display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); margin-left: 5px;">
                       <input type="checkbox" id="broadcastToggle" checked> Broadcast My Stats
