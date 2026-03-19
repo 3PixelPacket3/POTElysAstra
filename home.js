@@ -1,15 +1,17 @@
 // home.js
-import { auth } from './data-store.js';
+import { auth, db as firestoreDb } from './data-store.js'; // JARVIS UPGRADE: Added firestoreDb
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; // JARVIS UPGRADE
 
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
 const COMMANDS_KEY = 'eahaCommands';
 const LIFELINES_KEY = 'eahaLifelines'; 
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
+const WIDGET_PREFS_KEY = 'eaha_widgets'; // JARVIS UPGRADE
 
 // --- Global State ---
-let db = { creatures: [], encounters: [] }; 
+let db = { creatures: [], encounters: [], system_settings: {}, activeGroupId: null }; // JARVIS UPGRADE: Added system_settings & activeGroupId
 let activeCreatureId = null;
 let isEditMode = false;
 
@@ -18,6 +20,9 @@ let decayTimerInterval = null;
 let decayEndTime = null;
 let exactVitals = { comfort: null, hygiene: null, satiation: null };
 let drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
+
+// JARVIS UPGRADE: Live Telemetry State
+let activeTelemetryListener = null;
 
 // Default Quick Commands
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
@@ -628,6 +633,9 @@ const saveEncounter = async (type) => {
   await window.EAHADataStore.saveData(db);
   showToast(`${outcomeText} logged successfully against ${oppName}.`);
   updateCombatAnalytics(); 
+  
+  // JARVIS UPGRADE: Re-render the new widgets if they are active
+  renderDashboardWidgets();
 
   if (targetSelect) {
       targetSelect.value = 'none';
@@ -785,12 +793,181 @@ const renderDeathChart = (causesData) => {
   });
 };
 
+// --- JARVIS UPGRADE: Widget Management & Telemetry Logic ---
+const applyWidgetPreferences = () => {
+    let activeWidgets = JSON.parse(localStorage.getItem(WIDGET_PREFS_KEY));
+    if (!activeWidgets) {
+        // Defaults if user hasn't touched the settings yet
+        activeWidgets = ['widget-timers', 'widget-telemetry', 'widget-roster', 'widget-encounters'];
+        localStorage.setItem(WIDGET_PREFS_KEY, JSON.stringify(activeWidgets));
+    }
+
+    const checks = document.querySelectorAll('.widget-check');
+    checks.forEach(check => {
+        check.checked = activeWidgets.includes(check.value);
+    });
+
+    const containers = document.querySelectorAll('.widget-container');
+    containers.forEach(container => {
+        if (activeWidgets.includes(container.id)) {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    });
+};
+
+const setupWidgetCustomizer = () => {
+    const toggleBtn = document.getElementById('widgetToggleBtn');
+    const menu = document.getElementById('widgetMenu');
+    const checks = document.querySelectorAll('.widget-check');
+
+    if (!toggleBtn || !menu) return;
+
+    toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('is-hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target) && e.target !== toggleBtn) {
+            menu.classList.add('is-hidden');
+        }
+    });
+
+    checks.forEach(check => {
+        check.addEventListener('change', () => {
+            const active = Array.from(checks).filter(c => c.checked).map(c => c.value);
+            localStorage.setItem(WIDGET_PREFS_KEY, JSON.stringify(active));
+            applyWidgetPreferences();
+        });
+    });
+};
+
+const startTacticalTimer = (elementId, secondsStr) => {
+    const seconds = parseInt(secondsStr, 10);
+    window.EAHA_ActiveTimers = window.EAHA_ActiveTimers || {};
+    
+    if (window.EAHA_ActiveTimers[elementId]) clearInterval(window.EAHA_ActiveTimers[elementId]);
+    
+    let remaining = seconds;
+    const el = document.getElementById(elementId);
+    if(!el) return;
+    
+    const updateDisplay = () => {
+        const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+        const s = (remaining % 60).toString().padStart(2, '0');
+        el.textContent = `${m}:${s}`;
+    };
+    
+    updateDisplay();
+    window.EAHA_ActiveTimers[elementId] = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(window.EAHA_ActiveTimers[elementId]);
+            el.textContent = "READY";
+            showToast(`${elementId.replace('timer','')} Timer Complete!`, 'success');
+        } else {
+            updateDisplay();
+        }
+    }, 1000);
+};
+
+const renderDashboardWidgets = () => {
+    const rosterEl = document.getElementById('quickRoster');
+    const encountersEl = document.getElementById('quickEncounters');
+    const telemetryGrid = document.getElementById('packTelemetryGrid');
+
+    if (rosterEl) {
+        rosterEl.innerHTML = '';
+        if (!db.creatures || db.creatures.length === 0) {
+            rosterEl.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">Roster empty.</p>';
+        } else {
+            const sortedRoster = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+            sortedRoster.forEach(c => {
+                rosterEl.innerHTML += `
+                    <div style="display: flex; justify-content: space-between; background: var(--bg-alt); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+                        <strong style="color: var(--text);">${c.name}</strong>
+                        <span style="color: var(--primary); font-size: 0.85em;">${c.tier || 'Unknown'}</span>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    if (encountersEl) {
+        encountersEl.innerHTML = '';
+        if (!db.encounters || db.encounters.length === 0) {
+            encountersEl.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No encounters logged.</p>';
+        } else {
+            const sortedEncounters = [...db.encounters].sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 10);
+            sortedEncounters.forEach(e => {
+                const outcome = e.outcome || e.type || 'Unknown';
+                let color = 'var(--text)';
+                let icon = '⚔️';
+                if (outcome.includes('Victory') || outcome === 'win') { color = 'var(--success)'; icon = '👑'; }
+                else if (outcome.includes('Defeat') || outcome === 'loss' || outcome === 'starved') { color = 'var(--danger)'; icon = '💀'; }
+                
+                encountersEl.innerHTML += `
+                    <div style="display: flex; justify-content: space-between; background: var(--bg-alt); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+                        <strong style="color: ${color};">${icon} vs ${e.opponent || 'Unknown'}</strong>
+                        <span style="color: var(--muted); font-size: 0.8em;">${e.location || 'Unknown'}</span>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    if (telemetryGrid) {
+        if (db.activeGroupId) {
+            const membersRef = collection(firestoreDb, "groups", db.activeGroupId, "members");
+            activeTelemetryListener = onSnapshot(membersRef, (snap) => {
+                telemetryGrid.innerHTML = '';
+                if(snap.empty) {
+                    telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No pack signals detected.</p>';
+                    return;
+                }
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const isSelf = docSnap.id === auth.currentUser?.uid;
+                    const timeDiff = Math.floor((Date.now() - (data.timestamp || Date.now())) / 60000);
+                    let timeStr = `<span style="color:var(--success)">Live</span>`;
+                    if (timeDiff > 10) timeStr = `<span style="color:var(--danger)">Offline</span>`;
+                    else if (timeDiff > 2) timeStr = `<span style="color:var(--info)">Away</span>`;
+
+                    telemetryGrid.innerHTML += `
+                        <div style="background: ${isSelf ? 'color-mix(in srgb, var(--success) 10%, var(--bg))' : 'var(--bg-alt)'}; padding: 8px 12px; border-radius: 6px; border: 1px solid ${isSelf ? 'var(--success)' : 'var(--border)'};">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong style="color: ${isSelf ? 'var(--success)' : 'var(--text)'}; font-size: 0.9em;">${data.displayName} ${isSelf ? '(You)' : ''}</strong>
+                                <span style="font-size: 0.7em;">${timeStr}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8em; color: var(--muted);">
+                                <span>${data.dinoName}</span>
+                                <span><span style="color: var(--danger);">♥</span> ${data.health || '?'} | <span style="color: var(--info);">⚖</span> ${data.combatWeight || '?'}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        } else {
+            telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">Not connected to a Live Pack. Join via Lineage tab.</p>';
+        }
+    }
+};
+
 const init = async () => {
   if (typeof window.EAHADataStore !== 'undefined') {
     db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
+
+  // JARVIS UPGRADE: Apply user's widget preferences
+  applyWidgetPreferences();
+  setupWidgetCustomizer();
+
+  const welcomeName = document.getElementById('welcomeName');
+  if (welcomeName && auth.currentUser) welcomeName.textContent = auth.currentUser.displayName || 'Operator';
 
   const logWinBtn = document.getElementById('logWinBtn');
   const logLossBtn = document.getElementById('logLossBtn');
@@ -799,6 +976,28 @@ const init = async () => {
   if (logWinBtn) logWinBtn.addEventListener('click', () => saveEncounter('win'));
   if (logLossBtn) logLossBtn.addEventListener('click', () => saveEncounter('loss'));
   if (logStarveBtn) logStarveBtn.addEventListener('click', () => saveEncounter('starved'));
+
+  // JARVIS UPGRADE: Load Timers from system settings
+  const tSet = db.system_settings?.timers || { waystone: 1800, trophy: 600, growth: 2700 };
+  
+  const startWaystoneBtn = document.getElementById('startWaystoneBtn');
+  const startTrophyBtn = document.getElementById('startTrophyBtn');
+  const startGrowthBtn = document.getElementById('startGrowthBtn');
+  
+  if(startWaystoneBtn) {
+      startWaystoneBtn.textContent = `Start ${Math.round(tSet.waystone/60)}m`;
+      startWaystoneBtn.addEventListener('click', () => startTacticalTimer('timerWaystone', tSet.waystone));
+  }
+  if(startTrophyBtn) {
+      startTrophyBtn.textContent = `Start ${Math.round(tSet.trophy/60)}m`;
+      startTrophyBtn.addEventListener('click', () => startTacticalTimer('timerTrophy', tSet.trophy));
+  }
+  if(startGrowthBtn) {
+      startGrowthBtn.textContent = `Start ${Math.round(tSet.growth/60)}m`;
+      startGrowthBtn.addEventListener('click', () => startTacticalTimer('timerGrowth', tSet.growth));
+  }
+
+  renderDashboardWidgets();
 
   populateCreatureDropdown();
   
