@@ -1,9 +1,8 @@
 // map.js
 import { auth, db as firestoreDb } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// JARVIS FIX: Prevent namespace collision
 let localDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5}, activeGroupId: null };
 let pendingPin = null; 
 let editingPinId = null; 
@@ -20,9 +19,10 @@ let currentMode = 'pan';
 let activeRoutePoints = [];
 let rulerStartPoint = null;
 
-// JARVIS UPGRADE: Live Map State
 let livePackPins = [];
 let activeMapListener = null;
+let activeKillfeedListener = null;
+let activePingListener = null;
 
 const elements = {
   mapWindow: document.getElementById('mapWindow'),
@@ -40,8 +40,8 @@ const elements = {
   modePinBtn: document.getElementById('modePinBtn'),
   modeRouteBtn: document.getElementById('modeRouteBtn'), 
   modeRulerBtn: document.getElementById('modeRulerBtn'), 
+  modePingBtn: document.getElementById('modePingBtn'), // JARVIS UPGRADE
   
-  // Live Pack Elements
   sosDistressBtn: document.getElementById('sosDistressBtn'),
   broadcastPinWrapper: document.getElementById('broadcastPinWrapper'),
   broadcastPinToggle: document.getElementById('broadcastPinToggle'),
@@ -63,23 +63,77 @@ const elements = {
   calibrationTools: document.getElementById('calibrationTools'),
   mobileCoordInput: document.getElementById('mobileCoordInput'),
   mobileCoordBtn: document.getElementById('mobileCoordBtn'),
+  pingCoordBtn: document.getElementById('pingCoordBtn'), // JARVIS UPGRADE
   recalibrateBtn: document.getElementById('recalibrateBtn'),
   confirmDeployBtn: document.getElementById('confirmDeployBtn'),
   cancelDeployBtn: document.getElementById('cancelDeployBtn'),
   exportReconBtn: document.getElementById('exportReconBtn'), 
   importReconBtn: document.getElementById('importReconBtn'),
   colorSwatches: document.querySelectorAll('.color-swatch'),
-  mapCreatureSelect: document.getElementById('mapCreatureSelect')
+  mapCreatureSelect: document.getElementById('mapCreatureSelect'),
+  killfeedContainer: document.getElementById('killfeedContainer') // JARVIS UPGRADE
 };
 
 // --- Live Telemetry Setup ---
+const showKillfeedToast = (data) => {
+    if (!elements.killfeedContainer) return;
+    
+    const feedItem = document.createElement('div');
+    feedItem.style.background = 'rgba(15, 23, 42, 0.9)';
+    feedItem.style.border = `1px solid ${data.type === 'kill' ? 'var(--success)' : 'var(--danger)'}`;
+    feedItem.style.color = '#fff';
+    feedItem.style.padding = '8px 12px';
+    feedItem.style.borderRadius = '6px';
+    feedItem.style.fontSize = '0.9em';
+    feedItem.style.boxShadow = '0 4px 6px rgba(0,0,0,0.5)';
+    feedItem.style.display = 'flex';
+    feedItem.style.alignItems = 'center';
+    feedItem.style.gap = '10px';
+    feedItem.style.animation = 'slideInRight 0.3s ease-out';
+    
+    const icon = data.type === 'kill' ? '⚔️' : '☠️';
+    const color = data.type === 'kill' ? 'var(--success)' : 'var(--danger)';
+    
+    feedItem.innerHTML = `
+        <strong style="color: var(--primary);">${data.player}</strong>
+        <span style="color: var(--muted); font-size: 0.8em;">[${data.dino}]</span>
+        <span>${icon}</span>
+        <strong style="color: ${color};">${data.opponent}</strong>
+    `;
+    
+    elements.killfeedContainer.appendChild(feedItem);
+    setTimeout(() => {
+        feedItem.style.opacity = '0';
+        feedItem.style.transition = 'opacity 0.5s';
+        setTimeout(() => feedItem.remove(), 500);
+    }, 6000);
+};
+
+const renderRadarPing = (data) => {
+    const pingEl = document.createElement('div');
+    pingEl.className = 'map-ping';
+    pingEl.style.left = `${data.x}%`;
+    pingEl.style.top = `${data.y}%`;
+    
+    const label = document.createElement('div');
+    label.className = 'pin-label';
+    label.innerText = `Ping: ${data.author}`;
+    pingEl.appendChild(label);
+    
+    elements.pinLayer.appendChild(pingEl);
+    setTimeout(() => pingEl.remove(), 8000); 
+};
+
 const startMapTelemetry = () => {
-    if (activeMapListener) activeMapListener(); // Clear old listener
+    if (activeMapListener) activeMapListener(); 
+    if (activePingListener) activePingListener();
+    if (activeKillfeedListener) activeKillfeedListener();
     
     if (localDb.activeGroupId) {
         elements.sosDistressBtn.style.display = 'inline-block';
         elements.broadcastPinWrapper.classList.remove('is-hidden');
         
+        // Listen for standard markers
         const pinsRef = collection(firestoreDb, "groups", localDb.activeGroupId, "map_pins");
         activeMapListener = onSnapshot(pinsRef, (snap) => {
             livePackPins = [];
@@ -88,6 +142,27 @@ const startMapTelemetry = () => {
             });
             renderPins();
         });
+
+        // Listen for temporary Radar Pings
+        const pingsRef = collection(firestoreDb, "groups", localDb.activeGroupId, "pings");
+        activePingListener = onSnapshot(query(pingsRef, where("timestamp", ">", Date.now() - 15000)), (snap) => {
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    renderRadarPing(change.doc.data());
+                }
+            });
+        });
+
+        // Listen for Killfeed Updates
+        const kfRef = collection(firestoreDb, "groups", localDb.activeGroupId, "killfeed");
+        activeKillfeedListener = onSnapshot(query(kfRef, where("timestamp", ">", Date.now() - 30000)), (snap) => {
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    showKillfeedToast(change.doc.data());
+                }
+            });
+        });
+
     } else {
         elements.sosDistressBtn.style.display = 'none';
         elements.broadcastPinWrapper.classList.add('is-hidden');
@@ -99,17 +174,31 @@ const startMapTelemetry = () => {
 window.addEventListener('eaha-group-updated', () => startMapTelemetry());
 window.addEventListener('eaha-group-disconnected', () => {
     if (activeMapListener) activeMapListener();
+    if (activePingListener) activePingListener();
+    if (activeKillfeedListener) activeKillfeedListener();
     livePackPins = [];
     elements.sosDistressBtn.style.display = 'none';
     elements.broadcastPinWrapper.classList.add('is-hidden');
     renderPins();
 });
 
+// Broadcast Radar Ping Function
+const sendRadarPing = async (x, y) => {
+    if (!localDb.activeGroupId) return showToast('Not connected to a Live Pack.', 'error');
+    try {
+        await addDoc(collection(firestoreDb, "groups", localDb.activeGroupId, "pings"), {
+            x, y,
+            author: auth.currentUser?.displayName || 'Pack Mate',
+            timestamp: Date.now() 
+        });
+        showToast('Radar Ping Transmitted.', 'success');
+    } catch(e) { console.error(e); }
+};
+
 // SOS Distress Logic
 elements.sosDistressBtn.addEventListener('click', async () => {
     if (!localDb.activeGroupId || !auth.currentUser) return showToast('Not connected to a Live Pack.', 'error');
     
-    // Calculate the center of the current screen map view
     const mapRect = elements.mapWindow.getBoundingClientRect();
     const centerX = mapRect.width / 2;
     const centerY = mapRect.height / 2;
@@ -134,35 +223,26 @@ elements.sosDistressBtn.addEventListener('click', async () => {
     }
 });
 
-// --- Per-Dino Integration ---
 const populateCreatureDropdown = () => {
     elements.mapCreatureSelect.innerHTML = '<option value="global">🌍 Global Roster (All Data)</option>';
-    
     if (localDb.creatures && localDb.creatures.length > 0) {
         const sorted = [...localDb.creatures].sort((a,b) => a.name.localeCompare(b.name));
-        sorted.forEach(c => {
-            elements.mapCreatureSelect.appendChild(new Option(c.name, c.id));
-        });
+        sorted.forEach(c => elements.mapCreatureSelect.appendChild(new Option(c.name, c.id)));
     }
-
     const savedActive = localStorage.getItem('eahaActiveCreature');
     if (savedActive && savedActive !== 'none' && localDb.creatures.find(c => c.id === savedActive)) {
         elements.mapCreatureSelect.value = savedActive;
     } else {
         elements.mapCreatureSelect.value = 'global';
     }
-
     elements.mapCreatureSelect.addEventListener('change', (e) => {
         const val = e.target.value;
-        if (val !== 'global') {
-            localStorage.setItem('eahaActiveCreature', val);
-        }
+        if (val !== 'global') localStorage.setItem('eahaActiveCreature', val);
         renderPins();
         renderRoutes();
     });
 };
 
-// --- Tactical HUD ---
 const coordDisplay = document.createElement('div');
 coordDisplay.className = 'hud-display';
 coordDisplay.innerHTML = '<span id="hudText">GPS: Standby...</span><span class="copy-hint">(Click to Copy)</span>';
@@ -176,9 +256,7 @@ coordDisplay.addEventListener('click', () => {
     }
 });
 
-const updateHudText = (text) => {
-    document.getElementById('hudText').innerText = text;
-};
+const updateHudText = (text) => document.getElementById('hudText').innerText = text;
 
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
@@ -204,10 +282,7 @@ const getMapCoordinates = (clientX, clientY) => {
     let xPercent = (trueX / mapRect.width) * 100;
     let yPercent = (trueY / mapRect.height) * 100;
     
-    return {
-        x: Math.max(0, Math.min(xPercent, 100)),
-        y: Math.max(0, Math.min(yPercent, 100))
-    };
+    return { x: Math.max(0, Math.min(xPercent, 100)), y: Math.max(0, Math.min(yPercent, 100)) };
 };
 
 const updateTransform = () => {
@@ -277,10 +352,12 @@ const setMode = (mode) => {
   currentMode = mode;
   elements.modePanBtn.classList.toggle('active', mode === 'pan');
   elements.modePinBtn.classList.toggle('active', mode === 'pin');
+  elements.modePingBtn.classList.toggle('active', mode === 'ping'); // JARVIS UPGRADE
   elements.modeRouteBtn.classList.toggle('active', mode === 'route');
   elements.modeRulerBtn.classList.toggle('active', mode === 'ruler');
   
   elements.mapWindow.classList.toggle('pin-mode', mode === 'pin');
+  elements.mapWindow.classList.toggle('ping-mode', mode === 'ping');
   elements.mapWindow.classList.toggle('route-mode', mode === 'route');
   elements.mapWindow.classList.toggle('ruler-mode', mode === 'ruler');
 
@@ -289,7 +366,7 @@ const setMode = (mode) => {
 
   if (mode === 'route') {
     elements.routeTools.classList.remove('is-hidden');
-    showToast("Route Mode: Click map to place nodes. Drag nodes to adjust. Right-click node to delete.", "info");
+    showToast("Route Mode: Click map to place nodes. Drag nodes to adjust.", "info");
   } else {
     elements.routeTools.classList.add('is-hidden');
     if (activeRoutePoints.length > 0 && !confirm('Discard currently unsaved route?')) {
@@ -300,13 +377,13 @@ const setMode = (mode) => {
     renderActiveRoute();
   }
   
-  if (mode === 'ruler') {
-      showToast("Ruler Engaged: Click to set a start point.", "info");
-  }
+  if (mode === 'ruler') showToast("Ruler Engaged: Click to set a start point.", "info");
+  if (mode === 'ping') showToast("Ping Engaged: Click anywhere to transmit radar pulse.", "info");
 };
 
 elements.modePanBtn.addEventListener('click', () => setMode('pan'));
 elements.modePinBtn.addEventListener('click', () => setMode('pin'));
+elements.modePingBtn.addEventListener('click', () => setMode('ping'));
 elements.modeRouteBtn.addEventListener('click', () => setMode('route'));
 elements.modeRulerBtn.addEventListener('click', () => setMode('ruler'));
 
@@ -346,13 +423,11 @@ const renderActiveRoute = () => {
     node.style.left = `${pt.x}%`;
     node.style.top = `${pt.y}%`;
     node.style.transform = `translate(-50%, -50%)`;
-    node.title = `Waypoint ${index + 1}\nDrag to move\nRight-click to delete`;
 
     node.addEventListener('mousedown', (e) => {
         if (e.button !== 0 || currentMode !== 'route') return;
         e.stopPropagation();
         let isDraggingNode = true;
-        
         const onNodeMove = (moveEvent) => {
             if (!isDraggingNode) return;
             const newCoords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
@@ -362,26 +437,22 @@ const renderActiveRoute = () => {
             node.style.left = `${newCoords.x}%`;
             node.style.top = `${newCoords.y}%`;
         };
-
         const onNodeUp = () => {
             isDraggingNode = false;
             window.removeEventListener('mousemove', onNodeMove);
             window.removeEventListener('mouseup', onNodeUp);
             renderActiveRoute(); 
         };
-
         window.addEventListener('mousemove', onNodeMove);
         window.addEventListener('mouseup', onNodeUp);
     });
 
     node.addEventListener('contextmenu', (e) => {
         if (currentMode !== 'route') return;
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         activeRoutePoints.splice(index, 1);
         renderActiveRoute();
     });
-
     elements.pinLayer.appendChild(node);
   });
 };
@@ -389,10 +460,7 @@ const renderActiveRoute = () => {
 const renderRoutes = () => {
   elements.routeList.innerHTML = '';
   const activeId = elements.mapCreatureSelect.value;
-  
-  const filteredRoutes = (localDb.routes || []).filter(r => {
-      return activeId === 'global' || r.creatureId === activeId;
-  });
+  const filteredRoutes = (localDb.routes || []).filter(r => activeId === 'global' || r.creatureId === activeId);
 
   if (filteredRoutes.length === 0) {
     elements.routeList.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No routes logged for this configuration.</p>';
@@ -426,13 +494,8 @@ const renderRoutes = () => {
       e.stopPropagation();
       if (confirm(`Remove tactical route: ${route.name}?`)) {
         localDb.routes = localDb.routes.filter(r => r.id !== route.id);
-        if (activeRoutePoints.length > 0) {
-           activeRoutePoints = [];
-           renderActiveRoute();
-           setMode('pan');
-        }
+        if (activeRoutePoints.length > 0) { activeRoutePoints = []; renderActiveRoute(); setMode('pan'); }
         renderRoutes();
-        showToast('Route deleted.');
         window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Route delete sync failed", err));
       }
     });
@@ -445,11 +508,9 @@ elements.saveRouteBtn.addEventListener('click', () => {
   const routeName = prompt('Enter a name for this tactical route:', 'Migration Path');
   if (!routeName) return;
 
-  const activeId = elements.mapCreatureSelect.value;
-
   localDb.routes.push({ 
       id: generateId(), 
-      creatureId: activeId === 'global' ? null : activeId,
+      creatureId: elements.mapCreatureSelect.value === 'global' ? null : elements.mapCreatureSelect.value,
       name: routeName.trim(), 
       points: [...activeRoutePoints], 
       timestamp: Date.now() 
@@ -459,25 +520,16 @@ elements.saveRouteBtn.addEventListener('click', () => {
   renderActiveRoute();
   renderRoutes();
   setMode('pan');
-  showToast('Route secured to active profile.');
-  
-  window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Route save sync failed", err));
+  window.EAHADataStore.saveData(localDb).catch(err => console.error(err));
 });
 
-elements.cancelRouteBtn.addEventListener('click', () => {
-  activeRoutePoints = [];
-  renderActiveRoute();
-  setMode('pan');
-});
+elements.cancelRouteBtn.addEventListener('click', () => { activeRoutePoints = []; renderActiveRoute(); setMode('pan'); });
 
 elements.mapWindow.addEventListener('contextmenu', (e) => {
   if (currentMode === 'route') {
     e.preventDefault();
     if (e.target.closest('.route-node')) return; 
-    if (activeRoutePoints.length > 0) {
-      activeRoutePoints.pop();
-      renderActiveRoute();
-    }
+    if (activeRoutePoints.length > 0) { activeRoutePoints.pop(); renderActiveRoute(); }
   }
 });
 
@@ -485,27 +537,19 @@ elements.recalibrateBtn.addEventListener('click', () => {
     const coordsText = prompt("GPS CALIBRATION\n\nPlease paste your exact in-game /loc coordinates to begin calibration:");
     if(!coordsText) return;
 
-    const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
-    const match = coordsText.match(coordRegex);
-
-    if(match) {
-        const xUU = parseFloat(match[1]);
-        const yUU = parseFloat(match[2]);
-        const mapRadiusUU = 410000;
-        let rawX = ((xUU / mapRadiusUU) * 50) + 50;
-        let rawY = ((yUU / mapRadiusUU) * 50) + 50;
-
-        pendingRawLocation = { x: rawX, y: rawY };
-
-        let startX = Math.max(0, Math.min(rawX, 100));
-        let startY = Math.max(0, Math.min(rawY, 100));
-        pendingPin = { x: startX, y: startY };
+    const coords = parseRawCoordinates(coordsText);
+    if(coords) {
+        // Find raw map-relative without offset for calibration math
+        const xUU = parseFloat(coordsText.match(/X=([\d.-]+)/i)[1]);
+        const yUU = parseFloat(coordsText.match(/Y=([\d.-]+)/i)[1]);
+        pendingRawLocation = { x: ((xUU / 410000) * 50) + 50, y: ((yUU / 410000) * 50) + 50 };
+        pendingPin = coords;
 
         if (tempCalibrationMarker) tempCalibrationMarker.remove();
         tempCalibrationMarker = document.createElement('div');
         tempCalibrationMarker.className = 'map-pin';
-        tempCalibrationMarker.style.left = `${startX}%`;
-        tempCalibrationMarker.style.top = `${startY}%`;
+        tempCalibrationMarker.style.left = `${coords.x}%`;
+        tempCalibrationMarker.style.top = `${coords.y}%`;
         tempCalibrationMarker.style.zIndex = '50';
         tempCalibrationMarker.innerHTML = `⚙️<div class="pin-label" style="opacity:1; background:var(--warning); color:#000;">Drag to your EXACT visual position</div>`;
         elements.pinLayer.appendChild(tempCalibrationMarker);
@@ -518,17 +562,12 @@ elements.recalibrateBtn.addEventListener('click', () => {
 
             const onMove = (moveEvent) => {
                 if (!isDraggingTemp) return;
-                const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
-                tempCalibrationMarker.style.left = `${coords.x}%`;
-                tempCalibrationMarker.style.top = `${coords.y}%`;
-                pendingPin = coords;
+                const c = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+                tempCalibrationMarker.style.left = `${c.x}%`;
+                tempCalibrationMarker.style.top = `${c.y}%`;
+                pendingPin = c;
             };
-
-            const onUp = () => {
-                isDraggingTemp = false;
-                window.removeEventListener('mousemove', onMove);
-                window.removeEventListener('mouseup', onUp);
-            };
+            const onUp = () => { isDraggingTemp = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
             window.addEventListener('mousemove', onMove);
             window.addEventListener('mouseup', onUp);
         });
@@ -536,9 +575,7 @@ elements.recalibrateBtn.addEventListener('click', () => {
         elements.calibrationTools.classList.remove('is-hidden');
         setMode('pan'); 
         showToast("Calibration Mode: Drag the gear to your visual location.", "warning");
-    } else {
-        showToast("Invalid coordinates format.", "error");
-    }
+    } else { showToast("Invalid coordinates format.", "error"); }
 });
 
 elements.confirmDeployBtn.addEventListener('click', () => {
@@ -550,66 +587,55 @@ elements.confirmDeployBtn.addEventListener('click', () => {
     }
     elements.calibrationTools.classList.add('is-hidden');
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    pendingRawLocation = null;
-    pendingPin = null;
+    pendingRawLocation = null; pendingPin = null;
 });
 
 elements.cancelDeployBtn.addEventListener('click', () => {
     elements.calibrationTools.classList.add('is-hidden');
     if (tempCalibrationMarker) tempCalibrationMarker.remove();
-    pendingRawLocation = null;
-    pendingPin = null;
-    showToast("Calibration aborted.", "info");
+    pendingRawLocation = null; pendingPin = null;
 });
 
 const setSwatchColor = (hexValue) => {
     elements.newPinColor.value = hexValue;
     elements.colorSwatches.forEach(btn => {
-        if (btn.dataset.color === hexValue) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+        if (btn.dataset.color === hexValue) btn.classList.add('active');
+        else btn.classList.remove('active');
     });
 };
 
-elements.colorSwatches.forEach(swatch => {
-    swatch.addEventListener('click', () => {
-        setSwatchColor(swatch.dataset.color);
-    });
-});
+elements.colorSwatches.forEach(swatch => swatch.addEventListener('click', () => setSwatchColor(swatch.dataset.color)));
 
-const processCoordinates = (text) => {
-  const coordRegex = /X=([\d.-]+),\s*Y=([\d.-]+)/i;
-  const match = text.match(coordRegex);
-
-  if (match) {
-    const xUU = parseFloat(match[1]);
-    const yUU = parseFloat(match[2]);
-    const mapRadiusUU = 410000; 
-    let rawX = ((xUU / mapRadiusUU) * 50) + 50;
-    let rawY = ((yUU / mapRadiusUU) * 50) + 50;
-
+const parseRawCoordinates = (text) => {
+    const match = text.match(/X=([\d.-]+),\s*Y=([\d.-]+)/i);
+    if (!match) return null;
+    let rawX = ((parseFloat(match[1]) / 410000) * 50) + 50;
+    let rawY = ((parseFloat(match[2]) / 410000) * 50) + 50;
     if (!localDb.mapOffset) localDb.mapOffset = { x: -1.5, y: -1.5 };
-    let startX = Math.max(0, Math.min(rawX + localDb.mapOffset.x, 100));
-    let startY = Math.max(0, Math.min(rawY + localDb.mapOffset.y, 100));
+    return {
+        x: Math.max(0, Math.min(rawX + localDb.mapOffset.x, 100)),
+        y: Math.max(0, Math.min(rawY + localDb.mapOffset.y, 100))
+    };
+};
 
-    pendingPin = { x: startX, y: startY };
-    
-    elements.modalTitle.textContent = "Deploy Tactical Marker";
-    elements.newPinLabel.value = '';
-    elements.newPinRadius.value = '';
-    setSwatchColor('#ef4444'); 
-    
-    setMode('pin');
-    elements.modal.classList.remove('is-hidden');
-    elements.newPinLabel.focus();
-
-    showToast("Coordinates acquired. Deploying marker.", "info");
-
-  } else {
-      showToast("Could not parse coordinates. Format must be X=... Y=...", "error");
-  }
+const processCoordinates = (text, isPing = false) => {
+  const coords = parseRawCoordinates(text);
+  if (coords) {
+    if (isPing) {
+        sendRadarPing(coords.x, coords.y);
+    } else {
+        pendingPin = coords;
+        elements.modalTitle.textContent = "Deploy Tactical Marker";
+        elements.newPinLabel.value = '';
+        elements.newPinRadius.value = '';
+        elements.broadcastPinToggle.checked = true; 
+        setSwatchColor('#ef4444'); 
+        setMode('pin');
+        elements.modal.classList.remove('is-hidden');
+        elements.newPinLabel.focus();
+        showToast("Coordinates acquired. Deploying marker.", "info");
+    }
+  } else { showToast("Could not parse coordinates. Format must be X=... Y=...", "error"); }
 };
 
 window.addEventListener('paste', (e) => {
@@ -619,7 +645,13 @@ window.addEventListener('paste', (e) => {
 
 if (elements.mobileCoordBtn) {
     elements.mobileCoordBtn.addEventListener('click', () => {
-        if(elements.mobileCoordInput.value) processCoordinates(elements.mobileCoordInput.value);
+        if(elements.mobileCoordInput.value) processCoordinates(elements.mobileCoordInput.value, false);
+        elements.mobileCoordInput.value = '';
+    });
+}
+if (elements.pingCoordBtn) {
+    elements.pingCoordBtn.addEventListener('click', () => {
+        if(elements.mobileCoordInput.value) processCoordinates(elements.mobileCoordInput.value, true);
         elements.mobileCoordInput.value = '';
     });
 }
@@ -630,18 +662,16 @@ const renderPins = () => {
   const activeId = elements.mapCreatureSelect.value;
   
   document.querySelectorAll('.map-pin').forEach(el => {
-      if(el !== tempCalibrationMarker && !el.classList.contains('route-node')) el.remove();
+      if(el !== tempCalibrationMarker && !el.classList.contains('route-node') && !el.classList.contains('map-ping')) el.remove();
   });
   document.querySelectorAll('.danger-zone').forEach(el => el.remove());
   elements.pinList.innerHTML = '';
   
-  // Combine Personal Pins and Live Pack Pins for rendering
   const allPins = [...(localDb.pins || []), ...livePackPins];
 
   const filteredPins = allPins.filter(pin => {
     const matchesSearch = pin.label.toLowerCase().includes(searchTerm);
     const matchesFilter = filterVal === 'all' || pin.type === filterVal;
-    // Live pins bypass the active creature filter since they apply to the pack overall
     const matchesDino = pin.isLive || activeId === 'global' || pin.creatureId === activeId; 
     return matchesSearch && matchesFilter && matchesDino;
   });
@@ -661,7 +691,6 @@ const renderPins = () => {
         zone.style.height = `${radiusPercent * 2}%`;
         zone.style.left = `${pin.x}%`;
         zone.style.top = `${pin.y}%`;
-        
         const pinColor = pin.color || '#ef4444';
         zone.style.borderColor = pinColor; 
         zone.style.backgroundColor = pinColor + '4D'; 
@@ -674,7 +703,6 @@ const renderPins = () => {
     mapMarker.style.top = `${pin.y}%`;
     mapMarker.innerHTML = `${pin.type}<div class="pin-label">${pin.label || 'Marker'}${pin.isLive ? ' (LIVE)' : ''}</div>`;
     
-    // Disable dragging for Live Pack Pins unless you are the author
     if (!pin.isLive || (pin.authorId === auth.currentUser?.uid)) {
         mapMarker.addEventListener('mousedown', (e) => {
           if (e.button !== 0 || currentMode === 'route' || currentMode === 'ruler') return; 
@@ -694,14 +722,9 @@ const renderPins = () => {
             isDraggingPin = false;
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
-            
             if (pin.isLive && localDb.activeGroupId) {
-                // Update Firestore
-                const pinRef = doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id);
-                await setDoc(pinRef, { x: pin.x, y: pin.y }, { merge: true }).catch(e => console.error(e));
-            } else {
-                window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin move sync failed", err));
-            }
+                await setDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id), { x: pin.x, y: pin.y }, { merge: true }).catch(e => console.error(e));
+            } else { window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin move sync failed", err)); }
             renderPins(); 
           };
           window.addEventListener('mousemove', onMouseMove);
@@ -712,12 +735,8 @@ const renderPins = () => {
     mapMarker.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
-        if (pin.isLive && localDb.activeGroupId) {
-            await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
-        } else {
-            localDb.pins = localDb.pins.filter(p => p.id !== pin.id);
-            window.EAHADataStore.saveData(localDb).catch(err => console.error(err));
-        }
+        if (pin.isLive && localDb.activeGroupId) await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
+        else { localDb.pins = localDb.pins.filter(p => p.id !== pin.id); window.EAHADataStore.saveData(localDb).catch(err => console.error(err)); }
         renderPins();
       }
     });
@@ -743,7 +762,7 @@ const renderPins = () => {
           elements.newPinType.value = pin.type;
           elements.newPinLabel.value = pin.label;
           elements.newPinRadius.value = pin.radius || '';
-          elements.broadcastPinToggle.checked = false; // Editing implies local unless re-checked
+          elements.broadcastPinToggle.checked = false; 
           setSwatchColor(pin.color || '#ef4444');
           elements.modal.classList.remove('is-hidden');
         });
@@ -751,12 +770,8 @@ const renderPins = () => {
 
     listItem.querySelector('.delete-pin-btn').addEventListener('click', async () => {
       if(confirm(`Remove marker: ${pin.label}?`)) {
-        if (pin.isLive && localDb.activeGroupId) {
-            await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
-        } else {
-            localDb.pins = localDb.pins.filter(p => p.id !== pin.id);
-            window.EAHADataStore.saveData(localDb).catch(err => console.error(err));
-        }
+        if (pin.isLive && localDb.activeGroupId) await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
+        else { localDb.pins = localDb.pins.filter(p => p.id !== pin.id); window.EAHADataStore.saveData(localDb).catch(err => console.error(err)); }
         renderPins();
       }
     });
@@ -775,11 +790,15 @@ elements.mapWindow.addEventListener('click', (e) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
-    elements.broadcastPinToggle.checked = true; // Default to broadcast if connected
+    elements.broadcastPinToggle.checked = true; 
     setSwatchColor('#ef4444'); 
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
   } 
+  else if (currentMode === 'ping') {
+      sendRadarPing(coords.x, coords.y);
+      setMode('pan'); 
+  }
   else if (currentMode === 'route') {
     activeRoutePoints.push(coords);
     renderActiveRoute();
@@ -801,10 +820,7 @@ elements.mapWindow.addEventListener('click', (e) => {
 
 const closeModal = () => {
   pendingPin = null; editingPinId = null; pendingRawLocation = null;
-  if (tempCalibrationMarker) {
-      tempCalibrationMarker.remove();
-      tempCalibrationMarker = null;
-  }
+  if (tempCalibrationMarker) { tempCalibrationMarker.remove(); tempCalibrationMarker = null; }
   elements.modal.classList.add('is-hidden');
   setMode('pan'); 
 };
@@ -827,29 +843,18 @@ elements.saveBtn.addEventListener('click', async () => {
         pin.radius = safeRadius;
         pin.color = safeColor;
         
-        // If the user checked broadcast on an existing local pin, move it to live
         if (isBroadcast) {
             try {
                 await setDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id), {
                     type: pin.type, label: pin.label, x: pin.x, y: pin.y, radius: pin.radius, color: pin.color, authorId: auth.currentUser?.uid || 'Unknown', timestamp: serverTimestamp()
                 });
-                localDb.pins = localDb.pins.filter(p => p.id !== editingPinId); // remove from local
+                localDb.pins = localDb.pins.filter(p => p.id !== editingPinId); 
             } catch(e) { console.error(e); showToast("Broadcast failed.", "error"); }
         }
     }
   } else {
     if (!pendingPin) return;
-    
-    const newPinObj = {
-        id: generateId(),
-        type: elements.newPinType.value,
-        label: elements.newPinLabel.value.trim() || 'Marker',
-        x: pendingPin.x,
-        y: pendingPin.y,
-        radius: safeRadius,
-        color: safeColor,
-        timestamp: Date.now()
-    };
+    const newPinObj = { id: generateId(), type: elements.newPinType.value, label: elements.newPinLabel.value.trim() || 'Marker', x: pendingPin.x, y: pendingPin.y, radius: safeRadius, color: safeColor, timestamp: Date.now() };
 
     if (isBroadcast) {
         newPinObj.authorId = auth.currentUser?.uid || 'Unknown';
@@ -875,57 +880,11 @@ elements.filter.addEventListener('change', renderPins);
 elements.clearAllBtn.addEventListener('click', () => {
   if (confirm('WARNING: Wipe markers for the CURRENTLY selected filter view?')) { 
       const activeId = elements.mapCreatureSelect.value;
-      if(activeId === 'global') {
-          localDb.pins = []; 
-      } else {
-          localDb.pins = localDb.pins.filter(p => p.creatureId !== activeId);
-      }
+      if(activeId === 'global') localDb.pins = []; 
+      else localDb.pins = localDb.pins.filter(p => p.creatureId !== activeId);
       renderPins(); 
       window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
   }
-});
-
-elements.exportReconBtn.addEventListener('click', () => {
-    const payload = JSON.stringify({ pins: localDb.pins || [], routes: localDb.routes || [] });
-    const encodedData = btoa(encodeURIComponent(payload));
-    
-    navigator.clipboard.writeText(`EAHA-RECON:${encodedData}`).then(() => {
-        showToast('Tactical Data Encrypted & Copied. Ready to paste in Discord.', 'info');
-    }).catch(err => {
-        showToast('Clipboard permission denied.', 'error');
-    });
-});
-
-elements.importReconBtn.addEventListener('click', () => {
-    const importString = prompt("Paste the EAHA-RECON data string from your packmate:");
-    if (!importString) return;
-    
-    if (!importString.startsWith('EAHA-RECON:')) {
-        return showToast("Invalid Recon Data format.", "error");
-    }
-
-    try {
-        const decodedString = decodeURIComponent(atob(importString.replace('EAHA-RECON:', '')));
-        const incomingData = JSON.parse(decodedString);
-
-        if (confirm("Signal acquired. Do you want to merge this recon data with your existing map?")) {
-            if (incomingData.pins && incomingData.pins.length > 0) {
-                const newPins = incomingData.pins.map(p => ({...p, id: generateId(), timestamp: Date.now()}));
-                localDb.pins = [...(localDb.pins || []), ...newPins];
-            }
-            if (incomingData.routes && incomingData.routes.length > 0) {
-                const newRoutes = incomingData.routes.map(r => ({...r, id: generateId(), timestamp: Date.now()}));
-                localDb.routes = [...(localDb.routes || []), ...newRoutes];
-            }
-            
-            window.EAHADataStore.saveData(localDb).catch(e => console.error(e));
-            renderPins();
-            renderRoutes();
-            showToast("Tactical Data Synced Successfully.");
-        }
-    } catch (e) {
-        showToast("Decryption Failed. The data string may be corrupted.", "error");
-    }
 });
 
 const init = async () => {
@@ -933,7 +892,7 @@ const init = async () => {
   if (!localDb.pins) localDb.pins = []; if (!localDb.routes) localDb.routes = []; if (!localDb.mapOffset) localDb.mapOffset = {x: -1.5, y: -1.5};
   
   populateCreatureDropdown(); 
-  startMapTelemetry(); // Start listening to live pack map events
+  startMapTelemetry(); 
   renderPins(); 
   renderRoutes(); 
   updateTransform(); 
