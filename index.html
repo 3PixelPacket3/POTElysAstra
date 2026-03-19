@@ -53,6 +53,13 @@
       width: 100%;
       margin-top: 0;
     }
+
+    /* JARVIS UPGRADE: Widget Customization Menu CSS */
+    .widget-menu { position: absolute; right: 0; top: 40px; background: var(--bg-alt); border: 1px solid var(--border); padding: 15px; border-radius: 8px; z-index: 100; min-width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.8); }
+    .widget-menu label { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; color: var(--text); font-weight: 500; }
+    .widget-menu label:last-child { margin-bottom: 0; }
+    .widget-menu input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+    .widget-container { transition: all 0.3s ease; }
   </style>
 </head>
 <body>
@@ -93,6 +100,73 @@
           <span id="homeTime" style="font-weight: 800; font-size: 1.4em; color: var(--primary);">--:--</span>
           <span id="homeDate" class="muted" style="font-size: 0.9em; font-weight: 500;">Loading date...</span>
         </div>
+      </div>
+    </section>
+
+    <section style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 15px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
+          <h2 style="color: var(--text); margin: 0; font-size: 1.5em;">Quick Views</h2>
+          <div style="position: relative;">
+              <button class="btn btn-ghost btn-sm" id="widgetToggleBtn" style="border-color: var(--border);">⚙️ Customize Widgets</button>
+              <div id="widgetMenu" class="widget-menu is-hidden">
+                  <label><input type="checkbox" class="widget-check" value="widget-roster"> Active Roster</label>
+                  <label><input type="checkbox" class="widget-check" value="widget-encounters"> Recent Encounters</label>
+                  <label><input type="checkbox" class="widget-check" value="widget-telemetry"> Live Pack Telemetry</label>
+                  <label><input type="checkbox" class="widget-check" value="widget-timers"> Tactical Chronograph</label>
+              </div>
+          </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;" id="dashboardWidgetGrid">
+          
+          <div class="card widget-container" id="widget-timers" style="border-top: 5px solid #eab308; box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h2 style="color: #eab308; margin: 0; font-size: 1.2em;">⏱️ Tactical Chronograph</h2>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                  <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border); text-align: center; padding: 10px;">
+                      <strong style="color: var(--info); font-size: 0.8em;">Waystone</strong>
+                      <div id="timerWaystone" style="font-size: 1.5em; font-weight: 900; color: var(--text); margin: 5px 0; font-family: monospace;">00:00</div>
+                      <button class="btn btn-sm" id="startWaystoneBtn" style="background: var(--info); width: 100%; font-size: 0.7em; border-color: var(--info);">Start</button>
+                  </div>
+                  <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border); text-align: center; padding: 10px;">
+                      <strong style="color: var(--success); font-size: 0.8em;">Trophy</strong>
+                      <div id="timerTrophy" style="font-size: 1.5em; font-weight: 900; color: var(--text); margin: 5px 0; font-family: monospace;">00:00</div>
+                      <button class="btn btn-sm" id="startTrophyBtn" style="background: var(--success); width: 100%; font-size: 0.7em; border-color: var(--success);">Start</button>
+                  </div>
+                  <div class="stat-card" style="background: var(--bg); border: 1px solid var(--border); text-align: center; padding: 10px;">
+                      <strong style="color: var(--accent); font-size: 0.8em;">Growth</strong>
+                      <div id="timerGrowth" style="font-size: 1.5em; font-weight: 900; color: var(--text); margin: 5px 0; font-family: monospace;">00:00</div>
+                      <button class="btn btn-sm" id="startGrowthBtn" style="background: var(--accent); color: #000; width: 100%; font-size: 0.7em; border-color: var(--accent);">Start</button>
+                  </div>
+              </div>
+          </div>
+
+          <div class="card widget-container" id="widget-telemetry" style="border-top: 5px solid var(--success); box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h2 style="color: var(--success); margin: 0; font-size: 1.2em;">📡 Live Pack Telemetry</h2>
+                  <a href="lineage.html" class="muted" style="font-size: 0.85em; text-decoration: none;">Lineage Hub ↗</a>
+              </div>
+              <div id="packTelemetryGrid" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                  <p class="muted" style="text-align:center; padding: 10px;">Establishing secure connection...</p>
+              </div>
+          </div>
+
+          <div class="card widget-container" id="widget-roster" style="border-top: 5px solid var(--primary); box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h2 style="color: var(--primary); margin: 0; font-size: 1.2em;">🦖 Active Roster</h2>
+                  <a href="stats.html" class="muted" style="font-size: 0.85em; text-decoration: none;">View All ↗</a>
+              </div>
+              <div id="quickRoster" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; padding-right: 5px;"></div>
+          </div>
+
+          <div class="card widget-container" id="widget-encounters" style="border-top: 5px solid var(--danger); box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h2 style="color: var(--danger); margin: 0; font-size: 1.2em;">⚔️ Recent Encounters</h2>
+                  <a href="combat.html" class="muted" style="font-size: 0.85em; text-decoration: none;">Combat Log ↗</a>
+              </div>
+              <div id="quickEncounters" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; padding-right: 5px;"></div>
+          </div>
       </div>
     </section>
 
@@ -141,7 +215,7 @@
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn btn-sm" id="logWinBtn" style="flex: 1; background: var(--success); border-color: var(--success); font-size: 1.05em; padding: 15px 10px;">👑 Log Kill</button>
             <button class="btn btn-sm" id="logLossBtn" style="flex: 1; background: var(--danger); border-color: var(--danger); font-size: 1.05em; padding: 15px 10px;">💀 Log Death</button>
-            <button class="btn btn-sm btn-ghost" id="logStarveBtn" style="flex: 1; font-size: 1.05em; padding: 15px 10px;">🍂 Env Death</button>
+            <button class="btn btn-sm btn-ghost" id="logStarveBtn" style="flex: 1; font-size: 1.05em; padding: 15px 10px;">⛰️ Env Death</button>
           </div>
       </div>
     </section>
