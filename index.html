@@ -113,6 +113,7 @@
                   <label><input type="checkbox" class="widget-check" value="widget-encounters"> Recent Encounters</label>
                   <label><input type="checkbox" class="widget-check" value="widget-telemetry"> Live Pack Telemetry</label>
                   <label><input type="checkbox" class="widget-check" value="widget-timers"> Tactical Chronograph</label>
+                  <label><input type="checkbox" class="widget-check" value="widget-pack-chart"> Pack Composition Chart</label>
               </div>
           </div>
       </div>
@@ -150,6 +151,17 @@
               <div id="packTelemetryGrid" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
                   <p class="muted" style="text-align:center; padding: 10px;">Establishing secure connection...</p>
               </div>
+          </div>
+
+          <div class="card widget-container" id="widget-pack-chart" style="border-top: 5px solid #a855f7; box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <h2 style="color: #a855f7; margin: 0; font-size: 1.2em;">📊 Pack Composition</h2>
+                  <a href="lineage.html" class="muted" style="font-size: 0.85em; text-decoration: none;">Manage Pack ↗</a>
+              </div>
+              <div class="chart-container" style="height: 180px; position: relative; width: 100%;">
+                  <canvas id="packCompositionChart"></canvas>
+              </div>
+              <p id="packChartStatus" class="muted" style="text-align: center; margin-top: 10px; font-size: 0.85em;">Awaiting pack telemetry...</p>
           </div>
 
           <div class="card widget-container" id="widget-roster" style="border-top: 5px solid var(--primary); box-shadow: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 0;">
