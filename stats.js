@@ -596,12 +596,17 @@ const runSimulation = () => {
   elements.speedComparison.innerHTML = enduranceHtml;
 };
 
-// JARVIS UPGRADE: Pack Telemetry Receptor
+// JARVIS UPGRADE: Pack Telemetry Receptor - Properly handles empty states now
 let activeTelemetryListener = null;
 const startTelemetry = () => {
-    if (!localDb.activeGroupId || !elements.packTelemetryCard) return;
+    if (!elements.packTelemetryCard) return;
     
-    elements.packTelemetryCard.style.display = 'block';
+    // JARVIS FIX: Properly render the placeholder if offline
+    if (!localDb.activeGroupId) {
+        elements.packTelemetryGrid.innerHTML = '<div style="padding: 15px; text-align: center; width: 100%;"><span class="muted">Not connected to a Live Pack. Join via Lineage tab to activate telemetry.</span></div>';
+        return;
+    }
+    
     const membersRef = collection(firestoreDb, "groups", localDb.activeGroupId, "members");
     
     activeTelemetryListener = onSnapshot(membersRef, (snap) => {
