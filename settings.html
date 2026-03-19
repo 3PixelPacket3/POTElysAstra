@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>EAHA | Settings & Security</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -122,26 +123,29 @@
                         <input type="number" id="adminRebirths" min="0" value="3">
                     </label>
                 </div>
-                
-                <h4 style="margin-top: 15px; margin-bottom: 5px; color: var(--text); font-size: 0.95em;">Tactical Chronograph Base Defaults (in Seconds)</h4>
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <label class="field" style="flex: 1; min-width: 100px;">
-                        <span>Waystone</span>
-                        <input type="number" id="adminTimerWaystone" min="1" value="1800">
-                    </label>
-                    <label class="field" style="flex: 1; min-width: 100px;">
-                        <span>Trophy</span>
-                        <input type="number" id="adminTimerTrophy" min="1" value="600">
-                    </label>
-                    <label class="field" style="flex: 1; min-width: 100px;">
-                        <span>Growth</span>
-                        <input type="number" id="adminTimerGrowth" min="1" value="2700">
-                    </label>
-                </div>
-
-                <button class="btn full-width" id="saveSystemConfigBtn" style="background: var(--accent); border-color: var(--accent); margin-top: 10px;">📡 Broadcast Configuration Update</button>
             </div>
         </div>
+
+        <div style="margin-bottom: 25px; padding: 20px; background: color-mix(in srgb, #eab308 10%, transparent); border-radius: 12px; border: 2px solid #eab308; box-shadow: 0 0 15px rgba(234, 179, 8, 0.15);">
+            <h3 style="color: #eab308; margin-bottom: 10px; font-size: 1.3em;">⏱️ Global Tactical Chronograph Defaults</h3>
+            <p class="muted" style="margin-bottom: 15px; font-size: 0.9em;">Set the global baseline duration (in seconds) for the dashboard timers.</p>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <label class="field" style="flex: 1; min-width: 100px;">
+                    <span style="color: var(--text);">Waystone (s)</span>
+                    <input type="number" id="adminTimerWaystone" min="1" value="1800">
+                </label>
+                <label class="field" style="flex: 1; min-width: 100px;">
+                    <span style="color: var(--text);">Trophy (s)</span>
+                    <input type="number" id="adminTimerTrophy" min="1" value="600">
+                </label>
+                <label class="field" style="flex: 1; min-width: 100px;">
+                    <span style="color: var(--text);">Growth (s)</span>
+                    <input type="number" id="adminTimerGrowth" min="1" value="2700">
+                </label>
+            </div>
+        </div>
+
+        <button class="btn full-width" id="saveSystemConfigBtn" style="background: var(--accent); border-color: var(--accent); margin-bottom: 25px; padding: 15px; font-size: 1.1em;">📡 Broadcast Configuration & Timers to Cloud</button>
 
         <div style="margin-bottom: 25px; padding: 20px; background: color-mix(in srgb, var(--danger) 10%, transparent); border-radius: 12px; border: 1px solid var(--danger);">
             <h3 style="color: var(--danger); margin-bottom: 10px;">Advanced Modifiers Matrix</h3>
