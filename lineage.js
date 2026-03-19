@@ -1,11 +1,14 @@
 // lineage.js
-import { auth } from './data-store.js';
+import { auth, db } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], lineage: [] };
+// JARVIS FIX: Renamed local state variable from 'db' to 'localDb' to prevent collision with Firestore 'db' import.
+let localDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], lineage: [], activeGroupId: null };
 let currentLineageId = null;
 let activeTab = 'tree'; 
+let liveMessages = []; // Cache for real-time board messages
 
 // Temporary State for Modals
 let editingMemberId = null; 
@@ -63,7 +66,24 @@ const elements = {
   deathCauseInput: document.getElementById('deathCauseInput'),
   deathLocInput: document.getElementById('deathLocInput'),
   confirmDeathBtn: document.getElementById('confirmDeathBtn'),
-  cancelDeathBtn: document.getElementById('cancelDeathBtn')
+  cancelDeathBtn: document.getElementById('cancelDeathBtn'),
+
+  // JARVIS UPGRADE: Live Hub DOM Elements
+  boardContainer: document.getElementById('boardContainer'),
+  addNoteBtn: document.getElementById('addNoteBtn'),
+  boardMessages: document.getElementById('boardMessages'),
+  inviteCodeDisplay: document.getElementById('inviteCodeDisplay'),
+  inviteCodeText: document.getElementById('inviteCodeText'),
+  joinPackBtn: document.getElementById('joinPackBtn'),
+  broadcastToggle: document.getElementById('broadcastToggle'),
+  joinPackModal: document.getElementById('joinPackModal'),
+  joinCodeInput: document.getElementById('joinCodeInput'),
+  cancelJoinBtn: document.getElementById('cancelJoinBtn'),
+  confirmJoinBtn: document.getElementById('confirmJoinBtn'),
+  noteModal: document.getElementById('noteModal'),
+  noteContentInput: document.getElementById('noteContentInput'),
+  cancelNoteBtn: document.getElementById('cancelNoteBtn'),
+  postNoteBtn: document.getElementById('postNoteBtn')
 };
 
 // --- Utilities ---
@@ -77,15 +97,21 @@ const showToast = (message, type = 'success') => {
 };
 
 const generateId = () => 'lin_' + Math.random().toString(36).substr(2, 9);
+const generateInviteCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+};
 
 // --- Roster Management ---
 const renderList = () => {
   const searchTerm = elements.search.value.toLowerCase();
   elements.list.innerHTML = '';
   
-  if (!db.lineage) db.lineage = [];
+  if (!localDb.lineage) localDb.lineage = [];
 
-  const filtered = db.lineage.filter(l => l.packName.toLowerCase().includes(searchTerm) || l.species.toLowerCase().includes(searchTerm));
+  const filtered = localDb.lineage.filter(l => l.packName.toLowerCase().includes(searchTerm) || l.species.toLowerCase().includes(searchTerm));
 
   if (filtered.length === 0) {
     elements.list.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No bloodlines recorded.</p>';
@@ -100,9 +126,15 @@ const renderList = () => {
     
     const aliveCount = pack.members.filter(m => m.status === 'Alive').length;
     
+    // Highlight if this is the active live multiplayer group
+    const isLiveGroup = localDb.activeGroupId === pack.id;
+    const liveBadge = isLiveGroup ? `<span style="font-size: 0.7em; background: var(--success); color: #fff; padding: 2px 4px; border-radius: 3px; margin-left: 5px;">LIVE</span>` : '';
+
     item.innerHTML = `
       <div style="display: flex; flex-direction: column; width: 100%; pointer-events: none;">
-        <strong style="font-size: 1.1em; color: ${currentLineageId === pack.id ? 'var(--primary)' : 'var(--text)'};">${pack.packName}</strong>
+        <strong style="font-size: 1.1em; color: ${currentLineageId === pack.id ? 'var(--primary)' : 'var(--text)'};">
+            ${pack.packName} ${liveBadge}
+        </strong>
         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
           <span class="muted" style="font-size: 0.85em;">${pack.species}</span>
           <span style="font-size: 0.85em; color: ${aliveCount > 0 ? 'var(--success)' : 'var(--danger)'};">${aliveCount} Alive</span>
@@ -112,6 +144,10 @@ const renderList = () => {
     
     item.addEventListener('click', () => {
       currentLineageId = pack.id;
+      // If they click on their live group, ensure we are connected
+      if (localDb.activeGroupId === currentLineageId && (!window.EAHADataStore.currentGroupData || window.EAHADataStore.currentGroupData.id !== currentLineageId)) {
+          window.EAHADataStore.connectToGroup(currentLineageId);
+      }
       renderList(); 
       renderWorkspace();
     });
@@ -120,18 +156,17 @@ const renderList = () => {
   });
 };
 
-// --- JARVIS UPGRADE: Advanced Visual Node Tree Engine ---
+// --- Visual Node Tree Engine ---
 const drawConnections = () => {
     const svg = elements.treeLines;
     svg.innerHTML = '';
     
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     if (!pack || activeTab !== 'tree') return;
 
     const container = elements.treeNodes;
     const containerRect = container.getBoundingClientRect();
     
-    // Scale SVG to match the full scrollable area
     svg.style.width = container.scrollWidth + 'px';
     svg.style.height = container.scrollHeight + 'px';
 
@@ -142,7 +177,6 @@ const drawConnections = () => {
         if (!childNode) return;
         const childRect = childNode.getBoundingClientRect();
         
-        // Calculate absolute position within the scrollable container
         const childX = (childRect.left - containerRect.left) + container.scrollLeft + (childRect.width / 2);
         const childY = (childRect.top - containerRect.top) + container.scrollTop;
 
@@ -155,7 +189,6 @@ const drawConnections = () => {
             const parentX = (parentRect.left - containerRect.left) + container.scrollLeft + (parentRect.width / 2);
             const parentY = (parentRect.bottom - containerRect.top) + container.scrollTop;
 
-            // Draw a curved bezier line 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const d = `M ${parentX} ${parentY} C ${parentX} ${parentY + 30}, ${childX} ${childY - 30}, ${childX} ${childY}`;
             
@@ -168,8 +201,35 @@ const drawConnections = () => {
             svg.appendChild(path);
         };
 
-        drawLineToParent(member.sireId, '#3b82f6'); // Blue for Sire
-        drawLineToParent(member.damId, '#ec4899');  // Pink for Dam
+        drawLineToParent(member.sireId, '#3b82f6'); 
+        drawLineToParent(member.damId, '#ec4899');  
+    });
+};
+
+// --- Roar Board Render ---
+const renderBoardMessages = () => {
+    if (!elements.boardMessages) return;
+    elements.boardMessages.innerHTML = '';
+    
+    if (!liveMessages || liveMessages.length === 0) {
+        elements.boardMessages.innerHTML = '<p class="muted" style="text-align:center; padding: 20px;">No tactical intelligence posted yet.</p>';
+        return;
+    }
+    
+    liveMessages.forEach(msg => {
+        const dateStr = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleString() : 'Just now';
+        const div = document.createElement('div');
+        div.style.background = 'var(--bg-lighter)';
+        div.style.padding = '10px 15px';
+        div.style.borderRadius = '6px';
+        div.style.borderLeft = '4px solid var(--primary)';
+        div.innerHTML = `
+            <div style="font-size: 0.8em; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between;">
+                <strong>${msg.author}</strong> <span>${dateStr}</span>
+            </div>
+            <div style="color: var(--text); font-size: 0.95em; white-space: pre-wrap;">${msg.content}</div>
+        `;
+        elements.boardMessages.appendChild(div);
     });
 };
 
@@ -181,7 +241,7 @@ const renderWorkspace = () => {
     return;
   }
 
-  const pack = db.lineage.find(l => l.id === currentLineageId);
+  const pack = localDb.lineage.find(l => l.id === currentLineageId);
   if (!pack) return;
 
   elements.placeholder.classList.add('is-hidden');
@@ -190,6 +250,17 @@ const renderWorkspace = () => {
 
   elements.packNameDisplay.textContent = pack.packName;
   elements.speciesDisplay.textContent = pack.species;
+
+  // Sync Live Group UI
+  const liveGroup = window.EAHADataStore.currentGroupData;
+  if (liveGroup && liveGroup.id === currentLineageId) {
+      if (elements.inviteCodeDisplay) elements.inviteCodeDisplay.style.display = 'inline-block';
+      if (elements.inviteCodeText) elements.inviteCodeText.textContent = liveGroup.inviteCode || 'N/A';
+      if (elements.joinPackBtn) elements.joinPackBtn.style.display = 'none';
+  } else {
+      if (elements.inviteCodeDisplay) elements.inviteCodeDisplay.style.display = 'none';
+      if (elements.joinPackBtn) elements.joinPackBtn.style.display = 'inline-block';
+  }
 
   const total = pack.members.length;
   const aliveMembers = pack.members.filter(m => m.status === 'Alive');
@@ -201,6 +272,7 @@ const renderWorkspace = () => {
 
   if (activeTab === 'tree') {
       elements.memorialContainer.classList.add('is-hidden');
+      if (elements.boardContainer) elements.boardContainer.classList.add('is-hidden');
       elements.treeContainer.classList.remove('is-hidden');
       elements.treeNodes.innerHTML = '';
       elements.treeLines.innerHTML = '';
@@ -210,7 +282,6 @@ const renderWorkspace = () => {
         return;
       }
 
-      // Group by generation
       const generations = {};
       aliveMembers.forEach(m => {
         const gen = m.generation || 1;
@@ -218,7 +289,6 @@ const renderWorkspace = () => {
         generations[gen].push(m);
       });
 
-      // Sort Alpha to top of generation
       Object.keys(generations).forEach(gen => {
           generations[gen].sort((a, b) => {
               if (a.packRole === 'Alpha' && b.packRole !== 'Alpha') return -1;
@@ -243,7 +313,6 @@ const renderWorkspace = () => {
           let trophiesHtml = (member.titles || []).map(t => `<span class="trophy-chip">${t}</span>`).join('');
           if (isAlpha) trophiesHtml = `<span class="trophy-chip alpha-badge">👑 Alpha</span>` + trophiesHtml;
 
-          // Expanded Suite of Card Actions
           card.innerHTML = `
             <div class="card-actions">
                 <button class="action-btn" title="Edit Details" onclick="window.EAHA_EditMember('${member.id}')">✎</button>
@@ -262,12 +331,17 @@ const renderWorkspace = () => {
         elements.treeNodes.appendChild(row);
       });
 
-      // Draw lines after layout recalculates
       setTimeout(drawConnections, 50);
 
-  } else {
-      // Memorial Hall Render
+  } else if (activeTab === 'board' && elements.boardContainer) {
       elements.treeContainer.classList.add('is-hidden');
+      elements.memorialContainer.classList.add('is-hidden');
+      elements.boardContainer.classList.remove('is-hidden');
+      renderBoardMessages();
+      
+  } else {
+      elements.treeContainer.classList.add('is-hidden');
+      if (elements.boardContainer) elements.boardContainer.classList.add('is-hidden');
       elements.memorialContainer.classList.remove('is-hidden');
       elements.memorialContainer.innerHTML = '';
 
@@ -305,7 +379,16 @@ const renderWorkspace = () => {
 };
 
 window.addEventListener('resize', drawConnections);
-elements.treeContainer.addEventListener('scroll', drawConnections); // Ensure lines stay attached while scrolling
+elements.treeContainer.addEventListener('scroll', drawConnections); 
+
+// Live Subscriptions
+window.addEventListener('eaha-board-updated', (e) => {
+    liveMessages = e.detail;
+    if (activeTab === 'board') renderBoardMessages();
+});
+window.addEventListener('eaha-group-updated', () => {
+    renderWorkspace();
+});
 
 // Tab Listeners
 elements.tabs.forEach(tab => {
@@ -330,8 +413,8 @@ const populateSpeciesDropdown = () => {
     "Thalassodromeus", "Tyrannosaurus", "Triceratops"
   ];
   const speciesSet = new Set(defaultSpecies);
-  if (db.creatures && db.creatures.length > 0) {
-    db.creatures.forEach(c => { if (c.name) speciesSet.add(c.name); });
+  if (localDb.creatures && localDb.creatures.length > 0) {
+    localDb.creatures.forEach(c => { if (c.name) speciesSet.add(c.name); });
   }
   Array.from(speciesSet).sort((a, b) => a.localeCompare(b)).forEach(speciesName => {
     elements.packSpeciesInput.appendChild(new Option(speciesName, speciesName));
@@ -359,26 +442,133 @@ elements.createBtn.addEventListener('click', () => {
   elements.packModal.classList.remove('is-hidden');
 });
 elements.cancelPackBtn.addEventListener('click', () => elements.packModal.classList.add('is-hidden'));
+
 elements.savePackBtn.addEventListener('click', async () => {
   const name = elements.packNameInput.value.trim();
   const species = elements.packSpeciesInput.value.trim();
   if (!name) return showToast('Pack name is required.', 'error');
 
-  const newPack = { id: generateId(), packName: name, species: species, members: [], timestamp: Date.now() };
-  if (!db.lineage) db.lineage = [];
-  db.lineage.push(newPack);
+  const newId = generateId();
+  const inviteCode = generateInviteCode();
+  const newPack = { id: newId, packName: name, species: species, members: [], timestamp: Date.now() };
   
-  await window.EAHADataStore.saveData(db);
-  currentLineageId = newPack.id;
+  if (!localDb.lineage) localDb.lineage = [];
+  localDb.lineage.push(newPack);
+  
+  // Connect to Live Firestore Hub
+  try {
+      const groupRef = doc(db, "groups", newId);
+      await setDoc(groupRef, {
+          packName: name,
+          species: species,
+          inviteCode: inviteCode,
+          alphaId: auth.currentUser ? auth.currentUser.uid : 'unknown',
+          createdAt: serverTimestamp()
+      });
+      
+      localDb.activeGroupId = newId;
+      await window.EAHADataStore.saveData(localDb);
+      await window.EAHADataStore.connectToGroup(newId);
+      showToast('Live Bloodline established. Code generated.');
+  } catch (err) {
+      console.error(err);
+      await window.EAHADataStore.saveData(localDb);
+      showToast('Offline Bloodline established. (Cloud error)', 'error');
+  }
+  
+  currentLineageId = newId;
   elements.packModal.classList.add('is-hidden');
   renderList();
   renderWorkspace();
-  showToast('New Bloodline established.');
 });
 
-// Add / Edit Member
+// Join Pack Logic
+if (elements.joinPackBtn) {
+    elements.joinPackBtn.addEventListener('click', () => {
+        elements.joinCodeInput.value = '';
+        elements.joinPackModal.classList.remove('is-hidden');
+        elements.joinCodeInput.focus();
+    });
+    elements.cancelJoinBtn.addEventListener('click', () => elements.joinPackModal.classList.add('is-hidden'));
+    
+    elements.confirmJoinBtn.addEventListener('click', async () => {
+        const code = elements.joinCodeInput.value.trim().toUpperCase();
+        if(!code) return showToast('Please enter a 6-character code.', 'error');
+        
+        try {
+            const q = query(collection(db, "groups"), where("inviteCode", "==", code));
+            const snap = await getDocs(q);
+            
+            if(snap.empty) return showToast('Invalid or expired invite code.', 'error');
+            
+            const groupDoc = snap.docs[0];
+            const groupData = groupDoc.data();
+            const groupId = groupDoc.id;
+            
+            localDb.activeGroupId = groupId;
+            
+            if (!localDb.lineage) localDb.lineage = [];
+            if (!localDb.lineage.find(l => l.id === groupId)) {
+                localDb.lineage.push({
+                    id: groupId,
+                    packName: groupData.packName,
+                    species: groupData.species,
+                    members: [], 
+                    timestamp: Date.now()
+                });
+            }
+            
+            await window.EAHADataStore.saveData(localDb);
+            await window.EAHADataStore.connectToGroup(groupId);
+            
+            elements.joinPackModal.classList.add('is-hidden');
+            currentLineageId = groupId;
+            
+            renderList();
+            renderWorkspace();
+            showToast(`Connected to Live Pack: ${groupData.packName}`);
+        } catch (error) {
+            console.error(error);
+            showToast('Connection error. Try again.', 'error');
+        }
+    });
+}
+
+// Tactical Note Logic
+if (elements.addNoteBtn) {
+    elements.addNoteBtn.addEventListener('click', () => {
+        if (!window.EAHADataStore.currentGroupData) return showToast('Must be connected to a live pack.', 'error');
+        elements.noteContentInput.value = '';
+        elements.noteModal.classList.remove('is-hidden');
+        elements.noteContentInput.focus();
+    });
+    elements.cancelNoteBtn.addEventListener('click', () => elements.noteModal.classList.add('is-hidden'));
+    
+    elements.postNoteBtn.addEventListener('click', async () => {
+        const content = elements.noteContentInput.value.trim();
+        if(!content) return;
+        
+        const liveGroup = window.EAHADataStore.currentGroupData;
+        if(!liveGroup) return showToast('Not connected to a live pack.', 'error');
+        
+        try {
+            await addDoc(collection(db, "groups", liveGroup.id, "board"), {
+                 author: auth.currentUser ? auth.currentUser.displayName || "Pack Member" : "Unknown Scout",
+                 content: content,
+                 timestamp: serverTimestamp()
+            });
+            elements.noteModal.classList.add('is-hidden');
+            showToast('Note broadcasted.');
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to post note.', 'error');
+        }
+    });
+}
+
+// Member Management
 document.getElementById('addMemberBtn').addEventListener('click', () => {
-  const pack = db.lineage.find(l => l.id === currentLineageId);
+  const pack = localDb.lineage.find(l => l.id === currentLineageId);
   editingMemberId = null;
   populateParentDropdowns(pack);
   
@@ -396,14 +586,13 @@ document.getElementById('addMemberBtn').addEventListener('click', () => {
   elements.memberNameInput.focus();
 });
 
-// Editor Initialization
 window.EAHA_EditMember = (memberId) => {
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     const member = pack?.members.find(m => m.id === memberId);
     if(!member) return;
 
     editingMemberId = memberId;
-    populateParentDropdowns(pack, memberId); // Exclude self from parent options
+    populateParentDropdowns(pack, memberId); 
     
     elements.memberModalTitle.textContent = 'Edit Member Profile';
     elements.saveMemberBtn.textContent = 'Update Record';
@@ -424,14 +613,13 @@ elements.cancelMemberBtn.addEventListener('click', () => {
 });
 
 elements.saveMemberBtn.addEventListener('click', async () => {
-  const pack = db.lineage.find(l => l.id === currentLineageId);
+  const pack = localDb.lineage.find(l => l.id === currentLineageId);
   if (!pack) return;
 
   const name = elements.memberNameInput.value.trim();
   if (!name) return showToast('Member name is required.', 'error');
 
   if (editingMemberId) {
-      // Update Mode
       const member = pack.members.find(m => m.id === editingMemberId);
       if(member) {
           member.name = name;
@@ -443,7 +631,6 @@ elements.saveMemberBtn.addEventListener('click', async () => {
       }
       showToast(`${name}'s profile updated.`);
   } else {
-      // Create Mode
       pack.members.push({
         id: generateId(),
         name: name,
@@ -459,35 +646,32 @@ elements.saveMemberBtn.addEventListener('click', async () => {
       showToast(`${name} added to the family tree.`);
   }
 
-  await window.EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(localDb);
   elements.memberModal.classList.add('is-hidden');
   editingMemberId = null;
   renderWorkspace();
   renderList();
 });
 
-// Total Deletion Logic
 window.EAHA_DeleteMember = async (memberId) => {
     if(!confirm("WARNING: This will completely erase this member from the database, not archive them. Proceed?")) return;
     
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     if(pack) {
         pack.members = pack.members.filter(m => m.id !== memberId);
         
-        // Remove this member as a parent from any offspring to prevent corrupt lines
         pack.members.forEach(m => {
             if (m.sireId === memberId) m.sireId = null;
             if (m.damId === memberId) m.damId = null;
         });
 
-        await window.EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(localDb);
         renderWorkspace();
         renderList();
         showToast('Member data purged.', 'error');
     }
 };
 
-// Trophy Modal Logic
 window.EAHA_TriggerTrophy = (memberId) => {
     trophyMemberId = memberId;
     elements.newTrophyName.value = '';
@@ -496,21 +680,20 @@ window.EAHA_TriggerTrophy = (memberId) => {
 };
 elements.cancelTrophyBtn.addEventListener('click', () => elements.trophyModal.classList.add('is-hidden'));
 elements.saveTrophyBtn.addEventListener('click', async () => {
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     const member = pack?.members.find(m => m.id === trophyMemberId);
     const trophy = elements.newTrophyName.value.trim();
     
     if (member && trophy) {
         if (!member.titles) member.titles = [];
         member.titles.push(trophy);
-        await window.EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(localDb);
         renderWorkspace();
         showToast(`Milestone Awarded: ${trophy}`);
     }
     elements.trophyModal.classList.add('is-hidden');
 });
 
-// Death Archive Logic
 window.EAHA_TriggerDeath = (memberId) => {
     dyingMemberId = memberId;
     elements.deathCauseInput.value = '';
@@ -520,7 +703,7 @@ window.EAHA_TriggerDeath = (memberId) => {
 };
 elements.cancelDeathBtn.addEventListener('click', () => elements.deathModal.classList.add('is-hidden'));
 elements.confirmDeathBtn.addEventListener('click', async () => {
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     const member = pack?.members.find(m => m.id === dyingMemberId);
     
     if (member) {
@@ -528,25 +711,24 @@ elements.confirmDeathBtn.addEventListener('click', async () => {
         member.deathCause = elements.deathCauseInput.value.trim() || 'Unknown Causes';
         member.deathLocation = elements.deathLocInput.value.trim() || 'Unknown Location';
         member.deathDate = Date.now();
-        await window.EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(localDb);
         renderWorkspace();
         renderList();
-        showToast(`${member.name} has been archived to the Memorial Hall.`, 'error');
+        showToast(`${member.name} has been archived.`, 'error');
     }
     elements.deathModal.classList.add('is-hidden');
 });
 
-// Revive Logic (Correcting mistakes)
 window.EAHA_Revive = async (memberId) => {
     if(!confirm("Revive this member and return them to the active tree?")) return;
-    const pack = db.lineage.find(l => l.id === currentLineageId);
+    const pack = localDb.lineage.find(l => l.id === currentLineageId);
     const member = pack?.members.find(m => m.id === memberId);
     if(member) {
         member.status = 'Alive';
         member.deathCause = null;
         member.deathLocation = null;
         member.deathDate = null;
-        await window.EAHADataStore.saveData(db);
+        await window.EAHADataStore.saveData(localDb);
         renderWorkspace();
         renderList();
         showToast(`${member.name} has returned to the pack.`);
@@ -555,10 +737,14 @@ window.EAHA_Revive = async (memberId) => {
 
 elements.deleteBtn.addEventListener('click', async () => {
   if (!currentLineageId) return;
-  const pack = db.lineage.find(l => l.id === currentLineageId);
+  const pack = localDb.lineage.find(l => l.id === currentLineageId);
   if (confirm(`WARNING: Are you sure you want to completely erase the ${pack.packName} bloodline?`)) {
-    db.lineage = db.lineage.filter(l => l.id !== currentLineageId);
-    await window.EAHADataStore.saveData(db);
+    localDb.lineage = localDb.lineage.filter(l => l.id !== currentLineageId);
+    if (localDb.activeGroupId === currentLineageId) {
+        localDb.activeGroupId = null;
+        window.EAHADataStore.disconnectGroup();
+    }
+    await window.EAHADataStore.saveData(localDb);
     currentLineageId = null;
     renderList();
     renderWorkspace();
@@ -568,12 +754,22 @@ elements.deleteBtn.addEventListener('click', async () => {
 
 elements.search.addEventListener('input', renderList);
 
-window.addEventListener('eaha-sync-complete', () => { showToast('Bloodline Sync Confirmed.', 'success'); });
+window.addEventListener('eaha-sync-complete', () => { 
+    const isSilenced = window.EAHADataStore.isSyncing; // Checking flag state
+    if(!isSilenced) showToast('Bloodline Sync Confirmed.', 'success'); 
+});
 
 // --- Initialization ---
 const init = async () => {
-  if (typeof window.EAHADataStore !== 'undefined') { db = await window.EAHADataStore.getData(); }
-  if (!db.lineage) db.lineage = [];
+  if (typeof window.EAHADataStore !== 'undefined') { localDb = await window.EAHADataStore.getData(); }
+  if (!localDb.lineage) localDb.lineage = [];
+  
+  if (localDb.activeGroupId) {
+      currentLineageId = localDb.activeGroupId;
+  } else if (localDb.lineage.length > 0) {
+      currentLineageId = localDb.lineage[0].id;
+  }
+  
   renderList();
   renderWorkspace();
 };
