@@ -1,5 +1,6 @@
 // home.js
 import { auth, db as firestoreDb } from './data-store.js'; 
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
 
 // --- Persistent Storage Keys ---
