@@ -96,16 +96,14 @@ window.EAHADataStore = {
   STORE_NAME: 'eaha_store',
   MASTER_KEY: 'eaha_master_db',
   
-  // JARVIS UPGRADE: Track sync state with an expiration override
   isSyncing: false,
   _syncFallbackTimer: null,
 
-  // JARVIS UPGRADE: Real-Time Pack Hub Infrastructure
+  // Real-Time Pack Hub Infrastructure
   activeGroupListener: null,
   activeBoardListener: null,
   currentGroupData: null,
   
-  // Detaches existing live connections to prevent memory leaks
   disconnectGroup() {
       if (this.activeGroupListener) {
           this.activeGroupListener();
@@ -119,34 +117,30 @@ window.EAHADataStore = {
       window.dispatchEvent(new CustomEvent('eaha-group-disconnected'));
   },
 
-  // Initializes a live connection to a specific group
   async connectToGroup(groupId) {
-      this.disconnectGroup(); // Clear any previous connections
+      this.disconnectGroup(); 
       
       const groupRef = doc(db, "groups", groupId);
       const boardRef = collection(db, "groups", groupId, "board");
 
-      // 1. Listen to Group Core Data & Member States
       this.activeGroupListener = onSnapshot(groupRef, (docSnap) => {
           if (docSnap.exists()) {
               this.currentGroupData = docSnap.data();
               this.currentGroupData.id = docSnap.id;
               window.dispatchEvent(new CustomEvent('eaha-group-updated', { detail: this.currentGroupData }));
           } else {
-              this.disconnectGroup(); // Group was deleted
+              this.disconnectGroup(); 
           }
       }, (error) => {
           console.error("Group Sync Error:", error);
       });
 
-      // 2. Listen to the Tactical Board (Message Feed)
       const boardQuery = query(boardRef);
       this.activeBoardListener = onSnapshot(boardQuery, (querySnapshot) => {
           const messages = [];
           querySnapshot.forEach((doc) => {
               messages.push({ id: doc.id, ...doc.data() });
           });
-          // Sort by newest first
           messages.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
           window.dispatchEvent(new CustomEvent('eaha-board-updated', { detail: messages }));
       });
@@ -205,12 +199,10 @@ window.EAHADataStore = {
       userData.routes = userData.routes || [];
       userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
 
-      // JARVIS UPGRADE: Reconnect to active group on load if one exists
       if (userData.activeGroupId) {
           this.connectToGroup(userData.activeGroupId);
       }
 
-      // Parallel Fetch Execution 
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
       const userColPromises = subCollections.map(async (colName) => {
           const colRef = collection(db, "users", user.uid, colName);
@@ -223,7 +215,6 @@ window.EAHADataStore = {
       const adminRulesRef = collection(db, "system", "admin_baseline", "rules");
       const adminCreaRef = collection(db, "system", "admin_baseline", "creatures");
 
-      // Await all fetch pipelines simultaneously
       const [adminSnap, adminRulesSnap, adminCreaSnap] = await Promise.all([
           getDoc(adminRef),
           getDocs(adminRulesRef),
@@ -272,21 +263,24 @@ window.EAHADataStore = {
     if (!user) return false;
 
     try {
+      // JARVIS UPGRADE: Capture the old state for local diffing before overwriting
+      const oldDataObj = await this.getIndexedData(this.MASTER_KEY) || this.getEmptyDB();
       const cleanData = JSON.parse(JSON.stringify(dataObj));
+      
+      // Save locally (Instant)
       await this.setIndexedData(this.MASTER_KEY, cleanData);
 
-      // JARVIS UPGRADE: Apply sync lock with auto-expiration
+      // Apply sync lock
       this.isSyncing = true;
       clearTimeout(this._syncFallbackTimer);
-      
-      // Force unlock after 2.5 seconds regardless of cloud response
       this._syncFallbackTimer = setTimeout(() => {
           this.isSyncing = false;
       }, 2500);
 
       window.dispatchEvent(new CustomEvent('eaha-sync-start'));
 
-      this._executeCloudSync(user, cleanData)
+      // JARVIS UPGRADE: Fire and forget the sync, passing oldData for lightning-fast comparisons
+      this._executeCloudSync(user, cleanData, oldDataObj)
         .then(() => {
           this.isSyncing = false;
           window.dispatchEvent(new CustomEvent('eaha-sync-complete'));
@@ -305,64 +299,65 @@ window.EAHADataStore = {
     }
   },
 
-  async _executeCloudSync(user, cleanData) {
+  async _executeCloudSync(user, cleanData, oldData) {
       const isAppAdmin = true; 
 
       const userRef = doc(db, "users", user.uid);
-      await setDoc(userRef, { 
+      
+      // Initialize the top-level document update
+      const topLevelPromise = setDoc(userRef, { 
           system_settings: cleanData.system_settings || {},
           stats: cleanData.stats || [],
           customPresets: cleanData.customPresets || {},
           pins: cleanData.pins || [],
           routes: cleanData.routes || [],
           mapOffset: cleanData.mapOffset || {x: -1.5, y: -1.5},
-          activeGroupId: cleanData.activeGroupId || null // Store the active group status
+          activeGroupId: cleanData.activeGroupId || null 
       }, { merge: true }); 
 
-      const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
-          const colRef = collection(db, ...basePath, colName);
-          const existingSnap = await getDocs(colRef);
-          const existingMap = new Map();
-          existingSnap.forEach(d => existingMap.set(d.id, d.data()));
-
+      // JARVIS UPGRADE: Local Diffing Engine (Zero Cloud Reads)
+      const syncCollection = async (colName, newItems, oldItems, basePath = ["users", user.uid]) => {
           const batch = writeBatch(db);
           let operations = 0;
 
-          items.forEach(item => {
+          // Map the old data
+          const oldMap = new Map();
+          (oldItems || []).forEach(d => oldMap.set(d.id, d));
+
+          newItems.forEach(item => {
               if(!item.id) item.id = 'gen_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
               const docRef = doc(db, ...basePath, colName, item.id);
               
-              const existingData = existingMap.get(item.id);
+              const existingData = oldMap.get(item.id);
+              // Only write if it's new or the data has actively changed
               if (!existingData || JSON.stringify(existingData) !== JSON.stringify(item)) {
                   batch.set(docRef, item);
                   operations++;
               }
-              existingMap.delete(item.id);
+              oldMap.delete(item.id); // Remove matched items
           });
 
-          existingMap.forEach((_, id) => {
+          // Anything left in the oldMap was deleted locally; wipe it from the cloud
+          oldMap.forEach((_, id) => {
               const docRef = doc(db, ...basePath, colName, id);
               batch.delete(docRef);
               operations++;
           });
 
           if (operations > 0) {
-              await batch.commit();
+              return batch.commit(); // Queue the batch promise
           }
+          return Promise.resolve();
       };
 
-      const safeSync = async (colName, items, basePath) => {
-          try {
-              await syncCollection(colName, items, basePath);
-          } catch (err) {
-              console.error(`Failed to sync ${colName}:`, err);
-          }
-      };
-
-      await safeSync('rules', cleanData.rules || []);
-      await safeSync('creatures', cleanData.creatures || []);
-      await safeSync('encounters', cleanData.encounters || []);
-      await safeSync('lineage', cleanData.lineage || []);
+      // JARVIS UPGRADE: Parallel Execution Array
+      const syncTasks = [
+          topLevelPromise,
+          syncCollection('rules', cleanData.rules || [], oldData.rules || []),
+          syncCollection('creatures', cleanData.creatures || [], oldData.creatures || []),
+          syncCollection('encounters', cleanData.encounters || [], oldData.encounters || []),
+          syncCollection('lineage', cleanData.lineage || [], oldData.lineage || [])
+      ];
       
       if (isAppAdmin) {
         const adminRef = doc(db, "system", "admin_baseline");
@@ -370,11 +365,13 @@ window.EAHADataStore = {
         if (!currentSystemSettings.modifiers) {
             currentSystemSettings.modifiers = window.EAHAModifiers;
         }
-        await setDoc(adminRef, { system_settings: currentSystemSettings }, { merge: true }); 
-
-        await safeSync('rules', cleanData.rules || [], ["system", "admin_baseline"]);
-        await safeSync('creatures', cleanData.creatures || [], ["system", "admin_baseline"]);
+        syncTasks.push(setDoc(adminRef, { system_settings: currentSystemSettings }, { merge: true })); 
+        syncTasks.push(syncCollection('rules', cleanData.rules || [], oldData.rules || [], ["system", "admin_baseline"]));
+        syncTasks.push(syncCollection('creatures', cleanData.creatures || [], oldData.creatures || [], ["system", "admin_baseline"]));
       }
+
+      // Execute all network operations simultaneously
+      await Promise.all(syncTasks);
   },
 
   async syncCloudData() {
@@ -398,7 +395,7 @@ window.EAHADataStore = {
   getEmptyDB() {
     return { 
         creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [],
-        activeGroupId: null, // JARVIS UPGRADE: Tracks the user's current pack
+        activeGroupId: null, 
         system_settings: {
             releaseNotes: "Welcome to EAHA Cloud Synchronization. Awaiting Admin Release Notes...",
             maxMigrations: 1,
@@ -409,7 +406,6 @@ window.EAHADataStore = {
   }
 };
 
-// JARVIS UPGRADE: The safety net will now respect the 2.5-second auto-expiration 
 window.addEventListener('beforeunload', (e) => {
   if (window.EAHADataStore && window.EAHADataStore.isSyncing) {
     e.preventDefault();
