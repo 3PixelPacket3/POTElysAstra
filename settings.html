@@ -122,6 +122,23 @@
                         <input type="number" id="adminRebirths" min="0" value="3">
                     </label>
                 </div>
+                
+                <h4 style="margin-top: 15px; margin-bottom: 5px; color: var(--text); font-size: 0.95em;">Tactical Chronograph Base Defaults (in Seconds)</h4>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <label class="field" style="flex: 1; min-width: 100px;">
+                        <span>Waystone</span>
+                        <input type="number" id="adminTimerWaystone" min="1" value="1800">
+                    </label>
+                    <label class="field" style="flex: 1; min-width: 100px;">
+                        <span>Trophy</span>
+                        <input type="number" id="adminTimerTrophy" min="1" value="600">
+                    </label>
+                    <label class="field" style="flex: 1; min-width: 100px;">
+                        <span>Growth</span>
+                        <input type="number" id="adminTimerGrowth" min="1" value="2700">
+                    </label>
+                </div>
+
                 <button class="btn full-width" id="saveSystemConfigBtn" style="background: var(--accent); border-color: var(--accent); margin-top: 10px;">📡 Broadcast Configuration Update</button>
             </div>
         </div>
