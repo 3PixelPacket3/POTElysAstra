@@ -297,6 +297,7 @@ a:hover {
     letter-spacing: 0.5px; 
 }
 
+/* JARVIS FIX: Prevent zooming on mobile inputs by using 16px font-size minimum */
 input[type="text"], input[type="number"], input[type="email"], input[type="password"], select, textarea {
   width: 100%; 
   padding: 12px 16px; 
@@ -305,6 +306,7 @@ input[type="text"], input[type="number"], input[type="email"], input[type="passw
   color: var(--text); 
   border-radius: 12px; 
   font-family: inherit; 
+  font-size: 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
   max-width: 100%;
 }
@@ -537,7 +539,7 @@ table, .stat-matrix, .table-wrapper {
 #mapContainer, .map-window { 
     width: 100%; 
     max-width: 100%; 
-    aspect-ratio: 1 / 1; /* JARVIS FIX: Restored perfectly square ratio so map pins do not drift */
+    aspect-ratio: 1 / 1; 
     height: auto; 
     box-sizing: border-box; 
     margin: 0 auto; 
@@ -594,6 +596,48 @@ table, .stat-matrix, .table-wrapper {
       width: 100%; 
       flex: 0 0 auto; 
       max-width: 100%; 
+  }
+
+  /* JARVIS FIX: Dashboard Quick Widgets Mobile Clamp */
+  #dashboardWidgetGrid {
+      grid-template-columns: 1fr !important; 
+  }
+
+  /* JARVIS FIX: Threat Simulator Mobile Override */
+  .threat-sim-grid {
+      grid-template-columns: 1fr 1fr !important; 
+  }
+
+  .widget-menu {
+      right: 0;
+      left: auto;
+      width: calc(100vw - 40px);
+      max-width: 300px;
+  }
+
+  /* JARVIS FIX: Ensure lineage & tabs scroll horizontally */
+  .lineage-tabs {
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 5px;
+      margin-bottom: 15px;
+  }
+  
+  .lineage-tab {
+      flex: 0 0 auto;
+  }
+
+  .tree-workspace {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 10px;
+  }
+
+  .modal-overlay .card {
+      margin: 15px;
+      max-height: 85vh;
+      overflow-y: auto;
   }
   
   .hero { 
