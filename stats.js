@@ -1,9 +1,11 @@
 // stats.js
-import { auth } from './data-store.js';
+import { auth, db as firestoreDb } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- Global State ---
-let db = { creatures: [], rules: [], stats: [], customPresets: {} };
+// JARVIS FIX: Renamed local state variable to prevent collision with Firestore 'db' import.
+let localDb = { creatures: [], rules: [], stats: [], customPresets: {} };
 let currentCreatureId = null;
 let currentMode = 'view';
 
@@ -49,6 +51,10 @@ const elements = {
   calcResetBtn: document.getElementById('resetCalcBtn'),
   calcResult: document.getElementById('calcResultDisplay'),
   calcFormula: document.getElementById('calcFormulaDisplay'),
+
+  // Telemetry Dashboard
+  packTelemetryCard: document.getElementById('packTelemetryCard'),
+  packTelemetryGrid: document.getElementById('packTelemetryGrid'),
 
   // Threat Assessment Simulator - Core Elements
   fighterA: document.getElementById('fighterASelect'),
@@ -102,7 +108,6 @@ const getAdultStat = (valStr) => {
 
 // --- Modifiers Initialization ---
 const populateModifiersDropdowns = () => {
-  // JARVIS FIX: Ensure the live window object is accessed safely
   if (!window.EAHAModifiers || !elements.fighterARole) return;
 
   const roles = Object.keys(window.EAHAModifiers.roles || {});
@@ -293,10 +298,10 @@ const setView = (creature) => {
 
 const saveStats = async () => {
   if (!currentCreatureId) return;
-  const creatureIndex = db.creatures.findIndex(c => c.id === currentCreatureId);
+  const creatureIndex = localDb.creatures.findIndex(c => c.id === currentCreatureId);
   if (creatureIndex === -1) return;
 
-  const creature = db.creatures[creatureIndex];
+  const creature = localDb.creatures[creatureIndex];
   if (!creature.stats) creature.stats = { base: {}, custom: [] };
 
   creature.stats.base = {
@@ -316,8 +321,7 @@ const saveStats = async () => {
   });
   creature.stats.custom = customStats;
 
-  // JARVIS FIX: Ensure explicit global object hook
-  await window.EAHADataStore.saveData(db);
+  await window.EAHADataStore.saveData(localDb);
   showToast('Stats Updated Successfully.');
   
   setView(creature);
@@ -338,7 +342,7 @@ const resetCalculator = () => {
 const applyCalculation = () => {
   if (!currentCreatureId) return showToast('Please select a creature first.', 'error');
 
-  const creature = db.creatures.find(c => c.id === currentCreatureId);
+  const creature = localDb.creatures.find(c => c.id === currentCreatureId);
   const targetKey = elements.calcTarget.value;
   const modifierValue = parseFloat(elements.calcMod.value);
 
@@ -384,7 +388,7 @@ const populateDropdowns = () => {
   elements.fighterA.appendChild(defaultOptionA);
   elements.fighterB.appendChild(defaultOptionB);
 
-  const sortedCreatures = [...db.creatures].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedCreatures = [...localDb.creatures].sort((a, b) => a.name.localeCompare(b.name));
 
   sortedCreatures.forEach(c => {
     elements.fighterA.appendChild(new Option(c.name, c.id));
@@ -394,12 +398,11 @@ const populateDropdowns = () => {
   const activeId = localStorage.getItem('eahaActiveCreature');
   
   if (currentA && currentA !== 'none') elements.fighterA.value = currentA;
-  else if (activeId && db.creatures.find(c => c.id === activeId)) elements.fighterA.value = activeId;
+  else if (activeId && localDb.creatures.find(c => c.id === activeId)) elements.fighterA.value = activeId;
 
   if (currentB && currentB !== 'none') elements.fighterB.value = currentB;
 };
 
-// JARVIS UPGRADE: Integrates Rebirth Stage parsing directly into math engine
 const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elderStage, rebirthStage) => {
   const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {}, rebirths: {} };
   
@@ -490,6 +493,51 @@ const generateBadges = (dino, stageIndex) => {
   return b;
 };
 
+// JARVIS UPGRADE: Pack Telemetry Broadcaster
+let broadcastTimeout = null;
+const broadcastVitals = (finalA) => {
+    if (!localDb.activeGroupId || !auth.currentUser) return;
+    
+    // Honor the privacy toggle set in the Lineage module
+    if (localStorage.getItem('eahaBroadcastOptOut') === 'true') return;
+
+    clearTimeout(broadcastTimeout);
+    broadcastTimeout = setTimeout(async () => {
+        const idA = elements.fighterA.value;
+        if (!idA || idA === 'none') return;
+
+        const dinoA = localDb.creatures.find(c => c.id === idA);
+        if (!dinoA) return;
+
+        const stageAIndex = elements.fighterAStage ? parseInt(elements.fighterAStage.value, 10) : 4;
+        const roleA = elements.fighterARole.value;
+        const mutA = elements.fighterAMutation.value;
+        const elderA = elements.fighterAElder.value;
+
+        const stages = ["Hatchling", "Baby", "Adolescent", "Sub-Adult", "Adult"];
+        const elders = ["Pre-Elder", "Young Elder", "Inexp. Elder", "Exp. Elder", "Withering"];
+
+        const payload = {
+            displayName: auth.currentUser.displayName || "Pack Member",
+            dinoName: dinoA.name,
+            stage: stages[stageAIndex] || "Unknown",
+            elder: elders[parseInt(elderA, 10)] || "Pre-Elder",
+            role: roleA,
+            mutation: mutA,
+            combatWeight: Math.round(finalA.weight),
+            health: Math.round(finalA.health),
+            timestamp: Date.now()
+        };
+
+        try {
+            const memberRef = doc(firestoreDb, "groups", localDb.activeGroupId, "members", auth.currentUser.uid);
+            await setDoc(memberRef, payload, { merge: true });
+        } catch(e) { 
+            console.error("Telemetry Broadcast failed", e); 
+        }
+    }, 1500); // 1.5 second debounce to prevent spamming the database while scrolling through dropdowns
+};
+
 const runSimulation = () => {
   if (!elements.fighterA || !elements.fighterB) return;
 
@@ -505,8 +553,8 @@ const runSimulation = () => {
     return;
   }
 
-  const dinoA = db.creatures.find(c => c.id === idA);
-  const dinoB = db.creatures.find(c => c.id === idB);
+  const dinoA = localDb.creatures.find(c => c.id === idA);
+  const dinoB = localDb.creatures.find(c => c.id === idB);
 
   const stageAIndex = elements.fighterAStage ? parseInt(elements.fighterAStage.value, 10) : 4;
   const stageBIndex = elements.fighterBStage ? parseInt(elements.fighterBStage.value, 10) : 4;
@@ -515,13 +563,13 @@ const runSimulation = () => {
   const mutA = elements.fighterAMutation.value;
   const genA = Array.from(elements.fighterAGenetics).map(sel => sel.value);
   const elderA = parseInt(elements.fighterAElder.value, 10);
-  const rebirthA = elements.fighterARebirth ? parseInt(elements.fighterARebirth.value, 10) : 0; // JARVIS: Extracted A
+  const rebirthA = elements.fighterARebirth ? parseInt(elements.fighterARebirth.value, 10) : 0; 
 
   const roleB = elements.fighterBRole.value;
   const mutB = elements.fighterBMutation.value;
   const genB = Array.from(elements.fighterBGenetics).map(sel => sel.value);
   const elderB = parseInt(elements.fighterBElder.value, 10);
-  const rebirthB = elements.fighterBRebirth ? parseInt(elements.fighterBRebirth.value, 10) : 0; // JARVIS: Extracted B
+  const rebirthB = elements.fighterBRebirth ? parseInt(elements.fighterBRebirth.value, 10) : 0; 
 
   const rawBaseA = {
     weight: getStatArray(dinoA.stats?.base?.combatWeight)[stageAIndex] || 1,
@@ -541,9 +589,11 @@ const runSimulation = () => {
     turn: getCustomStageStat(dinoB, 'TurnRadiusMultiplier', stageBIndex) || 1
   };
 
-  // JARVIS: Execute Engine with Rebirth parameters
   const finalA = applyModifiersToStats(rawBaseA, roleA, mutA, genA, elderA, rebirthA);
   const finalB = applyModifiersToStats(rawBaseB, roleB, mutB, genB, elderB, rebirthB);
+
+  // JARVIS UPGRADE: Triggers the background transmission of your calculated stats
+  broadcastVitals(finalA);
 
   const multiplierA = finalB.weight > 0 ? (finalA.weight / finalB.weight) / finalB.armor : 1;
   const multiplierB = finalA.weight > 0 ? (finalB.weight / finalA.weight) / finalA.armor : 1;
@@ -666,11 +716,66 @@ const runSimulation = () => {
   elements.speedComparison.innerHTML = enduranceHtml;
 };
 
+// JARVIS UPGRADE: Pack Telemetry Receptor (Listening to Pack Mates)
+let activeTelemetryListener = null;
+const startTelemetry = () => {
+    if (!localDb.activeGroupId || !elements.packTelemetryCard) return;
+    
+    elements.packTelemetryCard.style.display = 'block';
+    const membersRef = collection(firestoreDb, "groups", localDb.activeGroupId, "members");
+    
+    activeTelemetryListener = onSnapshot(membersRef, (snap) => {
+        elements.packTelemetryGrid.innerHTML = '';
+        if(snap.empty) {
+            elements.packTelemetryGrid.innerHTML = '<span class="muted">No telemetry data from pack mates yet.</span>';
+            return;
+        }
+
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
+            const isSelf = docSnap.id === auth.currentUser?.uid;
+            
+            const card = document.createElement('div');
+            card.className = 'stat-card';
+            card.style.background = isSelf ? 'color-mix(in srgb, var(--success) 10%, var(--bg))' : 'var(--bg)';
+            card.style.borderColor = isSelf ? 'var(--success)' : 'var(--border)';
+
+            // Basic signal check to see if the user has been active recently
+            const timeDiff = Math.floor((Date.now() - (data.timestamp || Date.now())) / 60000);
+            let timeStr = `<span style="color:var(--success)">Live</span>`;
+            if (timeDiff > 10) timeStr = `<span style="color:var(--danger)">Offline (${timeDiff}m ago)</span>`;
+            else if (timeDiff > 2) timeStr = `<span style="color:var(--info)">Away (${timeDiff}m ago)</span>`;
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                    <strong style="color: ${isSelf ? 'var(--success)' : 'var(--primary)'}; font-size: 1.1em;">
+                        ${data.displayName} ${isSelf ? '(You)' : ''}
+                    </strong>
+                    <div style="font-size: 0.7em;">${timeStr}</div>
+                </div>
+                <div style="font-size: 0.9em; margin-bottom: 3px;"><strong>${data.dinoName}</strong></div>
+                <div style="font-size: 0.8em; color: var(--muted); margin-bottom: 8px;">${data.stage} • ${data.elder}</div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.8em; margin-bottom: 8px; border-top: 1px solid var(--border); padding-top: 5px;">
+                    <span title="Calculated Max Health"><span style="color: var(--danger);">♥</span> ${data.health || '?'} HP</span>
+                    <span title="Calculated Combat Weight"><span style="color: var(--info);">⚖</span> ${data.combatWeight || '?'} CW</span>
+                </div>
+
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    ${data.role && data.role !== 'None' ? `<span class="badge" style="background: var(--accent); color: #000; font-size: 0.7em;">${data.role}</span>` : ''}
+                    ${data.mutation && data.mutation !== 'None' ? `<span class="badge" style="background: var(--info); color: #fff; font-size: 0.7em;">${data.mutation}</span>` : ''}
+                </div>
+            `;
+            elements.packTelemetryGrid.appendChild(card);
+        });
+    });
+};
+
 // --- Roster Logic ---
 const updateTierOptions = () => {
   const tiers = new Set(['All Tiers']);
-  if (db.creatures) {
-    db.creatures.forEach((c) => { if (c.tier) tiers.add(c.tier); });
+  if (localDb.creatures) {
+    localDb.creatures.forEach((c) => { if (c.tier) tiers.add(c.tier); });
   }
   
   elements.tierFilter.innerHTML = '';
@@ -685,9 +790,9 @@ const renderList = () => {
   
   elements.list.innerHTML = '';
   
-  if (!db.creatures) return;
+  if (!localDb.creatures) return;
 
-  const filtered = db.creatures.filter(c => {
+  const filtered = localDb.creatures.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm);
     const matchesTier = tierFilter === 'all' || c.tier === tierFilter;
     return matchesSearch && matchesTier;
@@ -723,16 +828,16 @@ const renderList = () => {
 
 // --- Initialization ---
 const init = async () => {
-  // JARVIS FIX: Ensure the init block correctly awaits the global data store hook
   if (typeof window.EAHADataStore !== 'undefined') {
-    db = await window.EAHADataStore.getData();
-  } else {
-    console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
+    localDb = await window.EAHADataStore.getData();
   }
 
   populateModifiersDropdowns();
   updateTierOptions();
   renderList();
+  
+  // JARVIS UPGRADE: Kick off the live receiver
+  startTelemetry();
 
   elements.search.addEventListener('input', renderList);
   elements.tierFilter.addEventListener('change', renderList);
@@ -754,7 +859,6 @@ const init = async () => {
   if(elements.fighterA) {
     populateDropdowns();
     
-    // Bind all the new modifiers so the simulator updates the math instantly when toggled
     const bindSim = (el) => { if(el) el.addEventListener('change', runSimulation); };
     
     bindSim(elements.fighterA); bindSim(elements.fighterB);
@@ -763,7 +867,6 @@ const init = async () => {
     bindSim(elements.fighterARole); bindSim(elements.fighterBRole);
     bindSim(elements.fighterAMutation); bindSim(elements.fighterBMutation);
     bindSim(elements.fighterAElder); bindSim(elements.fighterBElder);
-    // JARVIS: Bind Rebirth selects
     bindSim(elements.fighterARebirth); bindSim(elements.fighterBRebirth); 
     
     elements.fighterAGenetics.forEach(bindSim);
@@ -775,7 +878,6 @@ const init = async () => {
   setView(null); 
 };
 
-// JARVIS UPGRADE: The Auth Guard Pipeline
 let hasInitialized = false;
 onAuthStateChanged(auth, async (user) => {
     if (user && !hasInitialized) {
