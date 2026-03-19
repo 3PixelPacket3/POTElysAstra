@@ -2,7 +2,11 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    getFirestore, doc, getDoc, setDoc, collection, getDocs, 
+    deleteDoc, writeBatch, onSnapshot, query, where, 
+    arrayUnion, arrayRemove, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // --- FIREBASE CLOUD CONFIGURATION ---
 const firebaseConfig = {
@@ -96,6 +100,58 @@ window.EAHADataStore = {
   isSyncing: false,
   _syncFallbackTimer: null,
 
+  // JARVIS UPGRADE: Real-Time Pack Hub Infrastructure
+  activeGroupListener: null,
+  activeBoardListener: null,
+  currentGroupData: null,
+  
+  // Detaches existing live connections to prevent memory leaks
+  disconnectGroup() {
+      if (this.activeGroupListener) {
+          this.activeGroupListener();
+          this.activeGroupListener = null;
+      }
+      if (this.activeBoardListener) {
+          this.activeBoardListener();
+          this.activeBoardListener = null;
+      }
+      this.currentGroupData = null;
+      window.dispatchEvent(new CustomEvent('eaha-group-disconnected'));
+  },
+
+  // Initializes a live connection to a specific group
+  async connectToGroup(groupId) {
+      this.disconnectGroup(); // Clear any previous connections
+      
+      const groupRef = doc(db, "groups", groupId);
+      const boardRef = collection(db, "groups", groupId, "board");
+
+      // 1. Listen to Group Core Data & Member States
+      this.activeGroupListener = onSnapshot(groupRef, (docSnap) => {
+          if (docSnap.exists()) {
+              this.currentGroupData = docSnap.data();
+              this.currentGroupData.id = docSnap.id;
+              window.dispatchEvent(new CustomEvent('eaha-group-updated', { detail: this.currentGroupData }));
+          } else {
+              this.disconnectGroup(); // Group was deleted
+          }
+      }, (error) => {
+          console.error("Group Sync Error:", error);
+      });
+
+      // 2. Listen to the Tactical Board (Message Feed)
+      const boardQuery = query(boardRef);
+      this.activeBoardListener = onSnapshot(boardQuery, (querySnapshot) => {
+          const messages = [];
+          querySnapshot.forEach((doc) => {
+              messages.push({ id: doc.id, ...doc.data() });
+          });
+          // Sort by newest first
+          messages.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+          window.dispatchEvent(new CustomEvent('eaha-board-updated', { detail: messages }));
+      });
+  },
+
   async initDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, 1);
@@ -148,6 +204,11 @@ window.EAHADataStore = {
       userData.pins = userData.pins || [];
       userData.routes = userData.routes || [];
       userData.mapOffset = userData.mapOffset || {x: -1.5, y: -1.5};
+
+      // JARVIS UPGRADE: Reconnect to active group on load if one exists
+      if (userData.activeGroupId) {
+          this.connectToGroup(userData.activeGroupId);
+      }
 
       // Parallel Fetch Execution 
       const subCollections = ['rules', 'creatures', 'encounters', 'lineage'];
@@ -254,7 +315,8 @@ window.EAHADataStore = {
           customPresets: cleanData.customPresets || {},
           pins: cleanData.pins || [],
           routes: cleanData.routes || [],
-          mapOffset: cleanData.mapOffset || {x: -1.5, y: -1.5}
+          mapOffset: cleanData.mapOffset || {x: -1.5, y: -1.5},
+          activeGroupId: cleanData.activeGroupId || null // Store the active group status
       }, { merge: true }); 
 
       const syncCollection = async (colName, items, basePath = ["users", user.uid]) => {
@@ -336,6 +398,7 @@ window.EAHADataStore = {
   getEmptyDB() {
     return { 
         creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], lineage: [], routes: [],
+        activeGroupId: null, // JARVIS UPGRADE: Tracks the user's current pack
         system_settings: {
             releaseNotes: "Welcome to EAHA Cloud Synchronization. Awaiting Admin Release Notes...",
             maxMigrations: 1,
