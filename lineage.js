@@ -3,19 +3,15 @@ import { auth, db } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { doc, setDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// --- Global State ---
-// JARVIS FIX: Renamed local state variable from 'db' to 'localDb' to prevent collision with Firestore 'db' import.
 let localDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], lineage: [], activeGroupId: null };
 let currentLineageId = null;
 let activeTab = 'tree'; 
-let liveMessages = []; // Cache for real-time board messages
+let liveMessages = []; 
 
-// Temporary State for Modals
 let editingMemberId = null; 
 let dyingMemberId = null; 
 let trophyMemberId = null; 
 
-// --- DOM Elements ---
 const elements = {
   list: document.getElementById('lineageList'),
   search: document.getElementById('lineageSearch'),
@@ -36,14 +32,12 @@ const elements = {
   treeLines: document.getElementById('treeLines'),
   memorialContainer: document.getElementById('memorialContainer'),
   
-  // Pack Modal
   packModal: document.getElementById('packModal'),
   packNameInput: document.getElementById('newPackName'),
   packSpeciesInput: document.getElementById('newPackSpecies'),
   savePackBtn: document.getElementById('savePackBtn'),
   cancelPackBtn: document.getElementById('cancelPackBtn'),
 
-  // Member Modal
   memberModal: document.getElementById('memberModal'),
   memberModalTitle: document.getElementById('memberModalTitle'),
   memberNameInput: document.getElementById('newMemberName'),
@@ -55,26 +49,24 @@ const elements = {
   saveMemberBtn: document.getElementById('saveMemberBtn'),
   cancelMemberBtn: document.getElementById('cancelMemberBtn'),
 
-  // Trophy Modal
   trophyModal: document.getElementById('trophyModal'),
   newTrophyName: document.getElementById('newTrophyName'),
   saveTrophyBtn: document.getElementById('saveTrophyBtn'),
   cancelTrophyBtn: document.getElementById('cancelTrophyBtn'),
 
-  // Death Modal
   deathModal: document.getElementById('deathModal'),
   deathCauseInput: document.getElementById('deathCauseInput'),
   deathLocInput: document.getElementById('deathLocInput'),
   confirmDeathBtn: document.getElementById('confirmDeathBtn'),
   cancelDeathBtn: document.getElementById('cancelDeathBtn'),
 
-  // JARVIS UPGRADE: Live Hub DOM Elements
   boardContainer: document.getElementById('boardContainer'),
   addNoteBtn: document.getElementById('addNoteBtn'),
   boardMessages: document.getElementById('boardMessages'),
   inviteCodeDisplay: document.getElementById('inviteCodeDisplay'),
   inviteCodeText: document.getElementById('inviteCodeText'),
   joinPackBtn: document.getElementById('joinPackBtn'),
+  makeLiveBtn: document.getElementById('makeLiveBtn'), // JARVIS UPGRADE
   broadcastToggle: document.getElementById('broadcastToggle'),
   joinPackModal: document.getElementById('joinPackModal'),
   joinCodeInput: document.getElementById('joinCodeInput'),
@@ -86,7 +78,6 @@ const elements = {
   postNoteBtn: document.getElementById('postNoteBtn')
 };
 
-// --- Utilities ---
 const showToast = (message, type = 'success') => {
   const toast = document.getElementById('toast');
   toast.textContent = message;
@@ -104,7 +95,6 @@ const generateInviteCode = () => {
     return code;
 };
 
-// --- Roster Management ---
 const renderList = () => {
   const searchTerm = elements.search.value.toLowerCase();
   elements.list.innerHTML = '';
@@ -125,8 +115,6 @@ const renderList = () => {
     item.style.userSelect = 'none';
     
     const aliveCount = pack.members.filter(m => m.status === 'Alive').length;
-    
-    // Highlight if this is the active live multiplayer group
     const isLiveGroup = localDb.activeGroupId === pack.id;
     const liveBadge = isLiveGroup ? `<span style="font-size: 0.7em; background: var(--success); color: #fff; padding: 2px 4px; border-radius: 3px; margin-left: 5px;">LIVE</span>` : '';
 
@@ -144,7 +132,6 @@ const renderList = () => {
     
     item.addEventListener('click', () => {
       currentLineageId = pack.id;
-      // If they click on their live group, ensure we are connected
       if (localDb.activeGroupId === currentLineageId && (!window.EAHADataStore.currentGroupData || window.EAHADataStore.currentGroupData.id !== currentLineageId)) {
           window.EAHADataStore.connectToGroup(currentLineageId);
       }
@@ -156,7 +143,6 @@ const renderList = () => {
   });
 };
 
-// --- Visual Node Tree Engine ---
 const drawConnections = () => {
     const svg = elements.treeLines;
     svg.innerHTML = '';
@@ -206,7 +192,6 @@ const drawConnections = () => {
     });
 };
 
-// --- Roar Board Render ---
 const renderBoardMessages = () => {
     if (!elements.boardMessages) return;
     elements.boardMessages.innerHTML = '';
@@ -251,15 +236,21 @@ const renderWorkspace = () => {
   elements.packNameDisplay.textContent = pack.packName;
   elements.speciesDisplay.textContent = pack.species;
 
-  // Sync Live Group UI
+  // JARVIS UPGRADE: Robust Code Checking
   const liveGroup = window.EAHADataStore.currentGroupData;
-  if (liveGroup && liveGroup.id === currentLineageId) {
+  const isLiveConnected = liveGroup && liveGroup.id === currentLineageId;
+  const displayCode = isLiveConnected ? liveGroup.inviteCode : pack.inviteCode;
+
+  if (displayCode) {
       if (elements.inviteCodeDisplay) elements.inviteCodeDisplay.style.display = 'inline-block';
-      if (elements.inviteCodeText) elements.inviteCodeText.textContent = liveGroup.inviteCode || 'N/A';
+      if (elements.inviteCodeText) elements.inviteCodeText.textContent = displayCode;
       if (elements.joinPackBtn) elements.joinPackBtn.style.display = 'none';
+      if (elements.makeLiveBtn) elements.makeLiveBtn.style.display = 'none';
   } else {
       if (elements.inviteCodeDisplay) elements.inviteCodeDisplay.style.display = 'none';
       if (elements.joinPackBtn) elements.joinPackBtn.style.display = 'inline-block';
+      // If the pack has no code, but you own it locally, let you generate one
+      if (elements.makeLiveBtn) elements.makeLiveBtn.style.display = 'inline-block';
   }
 
   const total = pack.members.length;
@@ -381,7 +372,6 @@ const renderWorkspace = () => {
 window.addEventListener('resize', drawConnections);
 elements.treeContainer.addEventListener('scroll', drawConnections); 
 
-// Live Subscriptions
 window.addEventListener('eaha-board-updated', (e) => {
     liveMessages = e.detail;
     if (activeTab === 'board') renderBoardMessages();
@@ -390,7 +380,6 @@ window.addEventListener('eaha-group-updated', () => {
     renderWorkspace();
 });
 
-// Tab Listeners
 elements.tabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
         elements.tabs.forEach(t => t.classList.remove('active'));
@@ -400,7 +389,6 @@ elements.tabs.forEach(tab => {
     });
 });
 
-// Dropdowns
 const populateSpeciesDropdown = () => {
   elements.packSpeciesInput.innerHTML = '<option value="Unknown">Select Species...</option>';
   const defaultSpecies = [
@@ -434,7 +422,6 @@ const populateParentDropdowns = (pack, excludeId = null) => {
     });
 };
 
-// --- Modals & Data Entry ---
 elements.createBtn.addEventListener('click', () => {
   elements.packNameInput.value = '';
   populateSpeciesDropdown();
@@ -450,12 +437,13 @@ elements.savePackBtn.addEventListener('click', async () => {
 
   const newId = generateId();
   const inviteCode = generateInviteCode();
-  const newPack = { id: newId, packName: name, species: species, members: [], timestamp: Date.now() };
+  
+  // JARVIS UPGRADE: Ensure inviteCode is pinned to local memory immediately
+  const newPack = { id: newId, packName: name, species: species, members: [], timestamp: Date.now(), inviteCode: inviteCode };
   
   if (!localDb.lineage) localDb.lineage = [];
   localDb.lineage.push(newPack);
   
-  // Connect to Live Firestore Hub
   try {
       const groupRef = doc(db, "groups", newId);
       await setDoc(groupRef, {
@@ -482,7 +470,39 @@ elements.savePackBtn.addEventListener('click', async () => {
   renderWorkspace();
 });
 
-// Join Pack Logic
+// JARVIS UPGRADE: The "Make Live" Button Listener
+if (elements.makeLiveBtn) {
+    elements.makeLiveBtn.addEventListener('click', async () => {
+        const pack = localDb.lineage.find(l => l.id === currentLineageId);
+        if (!pack) return;
+
+        const inviteCode = generateInviteCode();
+        pack.inviteCode = inviteCode; // Pin to local
+
+        try {
+            const groupRef = doc(db, "groups", pack.id);
+            await setDoc(groupRef, {
+                packName: pack.packName,
+                species: pack.species,
+                inviteCode: inviteCode,
+                alphaId: auth.currentUser ? auth.currentUser.uid : 'unknown',
+                createdAt: serverTimestamp()
+            }, { merge: true });
+
+            localDb.activeGroupId = pack.id;
+            await window.EAHADataStore.saveData(localDb);
+            await window.EAHADataStore.connectToGroup(pack.id);
+
+            showToast('Pack successfully upgraded to Live Multiplayer! Code generated.');
+            renderWorkspace();
+            renderList();
+        } catch (err) {
+            console.error(err);
+            showToast('Cloud connection failed. Could not make pack live.', 'error');
+        }
+    });
+}
+
 if (elements.joinPackBtn) {
     elements.joinPackBtn.addEventListener('click', () => {
         elements.joinCodeInput.value = '';
@@ -514,7 +534,8 @@ if (elements.joinPackBtn) {
                     packName: groupData.packName,
                     species: groupData.species,
                     members: [], 
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    inviteCode: code // Save locally so you don't lose it
                 });
             }
             
@@ -534,7 +555,6 @@ if (elements.joinPackBtn) {
     });
 }
 
-// Tactical Note Logic
 if (elements.addNoteBtn) {
     elements.addNoteBtn.addEventListener('click', () => {
         if (!window.EAHADataStore.currentGroupData) return showToast('Must be connected to a live pack.', 'error');
@@ -566,7 +586,6 @@ if (elements.addNoteBtn) {
     });
 }
 
-// Member Management
 document.getElementById('addMemberBtn').addEventListener('click', () => {
   const pack = localDb.lineage.find(l => l.id === currentLineageId);
   editingMemberId = null;
@@ -759,7 +778,6 @@ window.addEventListener('eaha-sync-complete', () => {
     if(!isSilenced) showToast('Bloodline Sync Confirmed.', 'success'); 
 });
 
-// --- Initialization ---
 const init = async () => {
   if (typeof window.EAHADataStore !== 'undefined') { localDb = await window.EAHADataStore.getData(); }
   if (!localDb.lineage) localDb.lineage = [];
@@ -773,7 +791,6 @@ const init = async () => {
   renderList();
   renderWorkspace();
 
-  // JARVIS UPGRADE: Initialize Privacy Toggle State
   const bToggle = document.getElementById('broadcastToggle');
   if (bToggle) {
       bToggle.checked = localStorage.getItem('eahaBroadcastOptOut') !== 'true';
