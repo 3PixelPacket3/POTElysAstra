@@ -1,8 +1,10 @@
 // map.js
-import { auth } from './data-store.js';
+import { auth, db as firestoreDb } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-let db = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5} };
+// JARVIS FIX: Prevent namespace collision
+let localDb = { creatures: [], rules: [], stats: [], customPresets: {}, encounters: [], pins: [], routes: [], mapOffset: {x: -1.5, y: -1.5}, activeGroupId: null };
 let pendingPin = null; 
 let editingPinId = null; 
 let pendingRawLocation = null;
@@ -16,8 +18,11 @@ let startDragX = 0;
 let startDragY = 0;
 let currentMode = 'pan'; 
 let activeRoutePoints = [];
-
 let rulerStartPoint = null;
+
+// JARVIS UPGRADE: Live Map State
+let livePackPins = [];
+let activeMapListener = null;
 
 const elements = {
   mapWindow: document.getElementById('mapWindow'),
@@ -35,6 +40,12 @@ const elements = {
   modePinBtn: document.getElementById('modePinBtn'),
   modeRouteBtn: document.getElementById('modeRouteBtn'), 
   modeRulerBtn: document.getElementById('modeRulerBtn'), 
+  
+  // Live Pack Elements
+  sosDistressBtn: document.getElementById('sosDistressBtn'),
+  broadcastPinWrapper: document.getElementById('broadcastPinWrapper'),
+  broadcastPinToggle: document.getElementById('broadcastPinToggle'),
+
   zoomInBtn: document.getElementById('zoomInBtn'),
   zoomOutBtn: document.getElementById('zoomOutBtn'),
   resetZoomBtn: document.getElementById('resetZoomBtn'),
@@ -58,24 +69,84 @@ const elements = {
   exportReconBtn: document.getElementById('exportReconBtn'), 
   importReconBtn: document.getElementById('importReconBtn'),
   colorSwatches: document.querySelectorAll('.color-swatch'),
-  
-  // JARVIS UPGRADE: The Active Operator Bridge
   mapCreatureSelect: document.getElementById('mapCreatureSelect')
 };
+
+// --- Live Telemetry Setup ---
+const startMapTelemetry = () => {
+    if (activeMapListener) activeMapListener(); // Clear old listener
+    
+    if (localDb.activeGroupId) {
+        elements.sosDistressBtn.style.display = 'inline-block';
+        elements.broadcastPinWrapper.classList.remove('is-hidden');
+        
+        const pinsRef = collection(firestoreDb, "groups", localDb.activeGroupId, "map_pins");
+        activeMapListener = onSnapshot(pinsRef, (snap) => {
+            livePackPins = [];
+            snap.forEach(docSnap => {
+                livePackPins.push({ ...docSnap.data(), id: docSnap.id, isLive: true });
+            });
+            renderPins();
+        });
+    } else {
+        elements.sosDistressBtn.style.display = 'none';
+        elements.broadcastPinWrapper.classList.add('is-hidden');
+        livePackPins = [];
+        renderPins();
+    }
+};
+
+window.addEventListener('eaha-group-updated', () => startMapTelemetry());
+window.addEventListener('eaha-group-disconnected', () => {
+    if (activeMapListener) activeMapListener();
+    livePackPins = [];
+    elements.sosDistressBtn.style.display = 'none';
+    elements.broadcastPinWrapper.classList.add('is-hidden');
+    renderPins();
+});
+
+// SOS Distress Logic
+elements.sosDistressBtn.addEventListener('click', async () => {
+    if (!localDb.activeGroupId || !auth.currentUser) return showToast('Not connected to a Live Pack.', 'error');
+    
+    // Calculate the center of the current screen map view
+    const mapRect = elements.mapWindow.getBoundingClientRect();
+    const centerX = mapRect.width / 2;
+    const centerY = mapRect.height / 2;
+    const centerCoords = getMapCoordinates(centerX + mapRect.left, centerY + mapRect.top);
+
+    const sosId = generateId();
+    try {
+        await setDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", sosId), {
+            type: "☠️",
+            label: `SOS: ${auth.currentUser.displayName || "Pack Mate"}`,
+            x: centerCoords.x,
+            y: centerCoords.y,
+            radius: 800,
+            color: "#ef4444",
+            authorId: auth.currentUser.uid,
+            timestamp: serverTimestamp()
+        });
+        showToast('Distress Signal Broadcasted.', 'error');
+    } catch(e) {
+        console.error("SOS Error:", e);
+        showToast('Failed to send signal.', 'error');
+    }
+});
 
 // --- Per-Dino Integration ---
 const populateCreatureDropdown = () => {
     elements.mapCreatureSelect.innerHTML = '<option value="global">🌍 Global Roster (All Data)</option>';
     
-    if (db.creatures && db.creatures.length > 0) {
-        const sorted = [...db.creatures].sort((a,b) => a.name.localeCompare(b.name));
+    if (localDb.creatures && localDb.creatures.length > 0) {
+        const sorted = [...localDb.creatures].sort((a,b) => a.name.localeCompare(b.name));
         sorted.forEach(c => {
             elements.mapCreatureSelect.appendChild(new Option(c.name, c.id));
         });
     }
 
     const savedActive = localStorage.getItem('eahaActiveCreature');
-    if (savedActive && savedActive !== 'none' && db.creatures.find(c => c.id === savedActive)) {
+    if (savedActive && savedActive !== 'none' && localDb.creatures.find(c => c.id === savedActive)) {
         elements.mapCreatureSelect.value = savedActive;
     } else {
         elements.mapCreatureSelect.value = 'global';
@@ -188,7 +259,7 @@ elements.mapWindow.addEventListener('mousemove', (e) => {
         return;
     }
 
-    const offset = db.mapOffset || {x: -1.5, y: -1.5};
+    const offset = localDb.mapOffset || {x: -1.5, y: -1.5};
     const rawX = coords.x - offset.x;
     const rawY = coords.y - offset.y;
     const xUU = Math.round(((rawX - 50) / 50) * 410000);
@@ -319,8 +390,7 @@ const renderRoutes = () => {
   elements.routeList.innerHTML = '';
   const activeId = elements.mapCreatureSelect.value;
   
-  // Filter logic: Show global if selected, otherwise show only dinos specific routes
-  const filteredRoutes = (db.routes || []).filter(r => {
+  const filteredRoutes = (localDb.routes || []).filter(r => {
       return activeId === 'global' || r.creatureId === activeId;
   });
 
@@ -355,7 +425,7 @@ const renderRoutes = () => {
     item.querySelector('.delete-route-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       if (confirm(`Remove tactical route: ${route.name}?`)) {
-        db.routes = db.routes.filter(r => r.id !== route.id);
+        localDb.routes = localDb.routes.filter(r => r.id !== route.id);
         if (activeRoutePoints.length > 0) {
            activeRoutePoints = [];
            renderActiveRoute();
@@ -363,7 +433,7 @@ const renderRoutes = () => {
         }
         renderRoutes();
         showToast('Route deleted.');
-        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route delete sync failed", err));
+        window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Route delete sync failed", err));
       }
     });
     elements.routeList.appendChild(item);
@@ -377,7 +447,7 @@ elements.saveRouteBtn.addEventListener('click', () => {
 
   const activeId = elements.mapCreatureSelect.value;
 
-  db.routes.push({ 
+  localDb.routes.push({ 
       id: generateId(), 
       creatureId: activeId === 'global' ? null : activeId,
       name: routeName.trim(), 
@@ -391,7 +461,7 @@ elements.saveRouteBtn.addEventListener('click', () => {
   setMode('pan');
   showToast('Route secured to active profile.');
   
-  window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Route save sync failed", err));
+  window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Route save sync failed", err));
 });
 
 elements.cancelRouteBtn.addEventListener('click', () => {
@@ -473,9 +543,9 @@ elements.recalibrateBtn.addEventListener('click', () => {
 
 elements.confirmDeployBtn.addEventListener('click', () => {
     if(pendingRawLocation && pendingPin) {
-        db.mapOffset.x = pendingPin.x - pendingRawLocation.x;
-        db.mapOffset.y = pendingPin.y - pendingRawLocation.y;
-        window.EAHADataStore.saveData(db).catch(e => console.error("Jarvis: Offset Sync Error", e));
+        localDb.mapOffset.x = pendingPin.x - pendingRawLocation.x;
+        localDb.mapOffset.y = pendingPin.y - pendingRawLocation.y;
+        window.EAHADataStore.saveData(localDb).catch(e => console.error("Jarvis: Offset Sync Error", e));
         showToast("Global GPS offset recalibrated securely.", "success");
     }
     elements.calibrationTools.classList.add('is-hidden');
@@ -520,9 +590,9 @@ const processCoordinates = (text) => {
     let rawX = ((xUU / mapRadiusUU) * 50) + 50;
     let rawY = ((yUU / mapRadiusUU) * 50) + 50;
 
-    if (!db.mapOffset) db.mapOffset = { x: -1.5, y: -1.5 };
-    let startX = Math.max(0, Math.min(rawX + db.mapOffset.x, 100));
-    let startY = Math.max(0, Math.min(rawY + db.mapOffset.y, 100));
+    if (!localDb.mapOffset) localDb.mapOffset = { x: -1.5, y: -1.5 };
+    let startX = Math.max(0, Math.min(rawX + localDb.mapOffset.x, 100));
+    let startY = Math.max(0, Math.min(rawY + localDb.mapOffset.y, 100));
 
     pendingPin = { x: startX, y: startY };
     
@@ -565,10 +635,14 @@ const renderPins = () => {
   document.querySelectorAll('.danger-zone').forEach(el => el.remove());
   elements.pinList.innerHTML = '';
   
-  const filteredPins = (db.pins || []).filter(pin => {
+  // Combine Personal Pins and Live Pack Pins for rendering
+  const allPins = [...(localDb.pins || []), ...livePackPins];
+
+  const filteredPins = allPins.filter(pin => {
     const matchesSearch = pin.label.toLowerCase().includes(searchTerm);
     const matchesFilter = filterVal === 'all' || pin.type === filterVal;
-    const matchesDino = activeId === 'global' || pin.creatureId === activeId;
+    // Live pins bypass the active creature filter since they apply to the pack overall
+    const matchesDino = pin.isLive || activeId === 'global' || pin.creatureId === activeId; 
     return matchesSearch && matchesFilter && matchesDino;
   });
 
@@ -591,47 +665,60 @@ const renderPins = () => {
         const pinColor = pin.color || '#ef4444';
         zone.style.borderColor = pinColor; 
         zone.style.backgroundColor = pinColor + '4D'; 
-
         elements.pinLayer.appendChild(zone);
     }
 
     const mapMarker = document.createElement('div');
-    mapMarker.className = 'map-pin';
+    mapMarker.className = `map-pin ${pin.isLive ? 'live-pin' : ''}`;
     mapMarker.style.left = `${pin.x}%`;
     mapMarker.style.top = `${pin.y}%`;
-    mapMarker.innerHTML = `${pin.type}<div class="pin-label">${pin.label || 'Marker'}</div>`;
+    mapMarker.innerHTML = `${pin.type}<div class="pin-label">${pin.label || 'Marker'}${pin.isLive ? ' (LIVE)' : ''}</div>`;
     
-    mapMarker.addEventListener('mousedown', (e) => {
-      if (e.button !== 0 || currentMode === 'route' || currentMode === 'ruler') return; 
-      e.stopPropagation(); 
-      let isDraggingPin = true;
+    // Disable dragging for Live Pack Pins unless you are the author
+    if (!pin.isLive || (pin.authorId === auth.currentUser?.uid)) {
+        mapMarker.addEventListener('mousedown', (e) => {
+          if (e.button !== 0 || currentMode === 'route' || currentMode === 'ruler') return; 
+          e.stopPropagation(); 
+          let isDraggingPin = true;
 
-      const onMouseMove = (moveEvent) => {
-        if (!isDraggingPin) return;
-        const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
-        mapMarker.style.left = `${coords.x}%`;
-        mapMarker.style.top = `${coords.y}%`;
-        pin.x = coords.x;
-        pin.y = coords.y;
-      };
+          const onMouseMove = (moveEvent) => {
+            if (!isDraggingPin) return;
+            const coords = getMapCoordinates(moveEvent.clientX, moveEvent.clientY);
+            mapMarker.style.left = `${coords.x}%`;
+            mapMarker.style.top = `${coords.y}%`;
+            pin.x = coords.x;
+            pin.y = coords.y;
+          };
 
-      const onMouseUp = () => {
-        isDraggingPin = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin move sync failed", err));
-        renderPins(); 
-      };
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
+          const onMouseUp = async () => {
+            isDraggingPin = false;
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            
+            if (pin.isLive && localDb.activeGroupId) {
+                // Update Firestore
+                const pinRef = doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id);
+                await setDoc(pinRef, { x: pin.x, y: pin.y }, { merge: true }).catch(e => console.error(e));
+            } else {
+                window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin move sync failed", err));
+            }
+            renderPins(); 
+          };
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', onMouseUp);
+        });
+    }
 
-    mapMarker.addEventListener('contextmenu', (e) => {
+    mapMarker.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       if(confirm(`Remove marker: ${pin.label}?`)) {
-        db.pins = db.pins.filter(p => p.id !== pin.id);
+        if (pin.isLive && localDb.activeGroupId) {
+            await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
+        } else {
+            localDb.pins = localDb.pins.filter(p => p.id !== pin.id);
+            window.EAHADataStore.saveData(localDb).catch(err => console.error(err));
+        }
         renderPins();
-        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin delete sync failed", err));
       }
     });
 
@@ -641,29 +728,36 @@ const renderPins = () => {
     listItem.className = 'list-item';
     listItem.innerHTML = `
       <div style="display: flex; justify-content: space-between; width: 100%;">
-        <strong>${pin.type} ${pin.label}</strong>
+        <strong>${pin.isLive ? '<span style="color:var(--success)">[LIVE]</span> ' : ''}${pin.type} ${pin.label}</strong>
         <div>
-          <button class="btn btn-ghost btn-sm edit-pin-btn">✎</button>
+          ${!pin.isLive ? `<button class="btn btn-ghost btn-sm edit-pin-btn">✎</button>` : ''}
           <button class="btn btn-ghost btn-sm delete-pin-btn" style="color: var(--danger);">✕</button>
         </div>
       </div>
     `;
     
-    listItem.querySelector('.edit-pin-btn').addEventListener('click', () => {
-      editingPinId = pin.id;
-      elements.modalTitle.textContent = "Edit Tactical Marker";
-      elements.newPinType.value = pin.type;
-      elements.newPinLabel.value = pin.label;
-      elements.newPinRadius.value = pin.radius || '';
-      setSwatchColor(pin.color || '#ef4444');
-      elements.modal.classList.remove('is-hidden');
-    });
+    if (!pin.isLive) {
+        listItem.querySelector('.edit-pin-btn').addEventListener('click', () => {
+          editingPinId = pin.id;
+          elements.modalTitle.textContent = "Edit Tactical Marker";
+          elements.newPinType.value = pin.type;
+          elements.newPinLabel.value = pin.label;
+          elements.newPinRadius.value = pin.radius || '';
+          elements.broadcastPinToggle.checked = false; // Editing implies local unless re-checked
+          setSwatchColor(pin.color || '#ef4444');
+          elements.modal.classList.remove('is-hidden');
+        });
+    }
 
-    listItem.querySelector('.delete-pin-btn').addEventListener('click', () => {
+    listItem.querySelector('.delete-pin-btn').addEventListener('click', async () => {
       if(confirm(`Remove marker: ${pin.label}?`)) {
-        db.pins = db.pins.filter(p => p.id !== pin.id);
+        if (pin.isLive && localDb.activeGroupId) {
+            await deleteDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id));
+        } else {
+            localDb.pins = localDb.pins.filter(p => p.id !== pin.id);
+            window.EAHADataStore.saveData(localDb).catch(err => console.error(err));
+        }
         renderPins();
-        window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin delete sync failed", err));
       }
     });
     elements.pinList.appendChild(listItem);
@@ -681,6 +775,7 @@ elements.mapWindow.addEventListener('click', (e) => {
     elements.modalTitle.textContent = "Deploy Tactical Marker";
     elements.newPinLabel.value = '';
     elements.newPinRadius.value = '';
+    elements.broadcastPinToggle.checked = true; // Default to broadcast if connected
     setSwatchColor('#ef4444'); 
     elements.modal.classList.remove('is-hidden');
     elements.newPinLabel.focus();
@@ -716,38 +811,61 @@ const closeModal = () => {
 
 elements.cancelBtn.addEventListener('click', closeModal);
 
-elements.saveBtn.addEventListener('click', () => {
-  if (!db.pins) db.pins = [];
+elements.saveBtn.addEventListener('click', async () => {
+  if (!localDb.pins) localDb.pins = [];
 
   const safeRadius = parseInt(elements.newPinRadius.value, 10) || 0;
   const safeColor = elements.newPinColor.value || '#ef4444';
   const activeId = elements.mapCreatureSelect.value;
+  const isBroadcast = elements.broadcastPinToggle.checked && localDb.activeGroupId;
 
   if (editingPinId) {
-    const pin = db.pins.find(p => p.id === editingPinId);
+    const pin = localDb.pins.find(p => p.id === editingPinId);
     if (pin) { 
         pin.type = elements.newPinType.value; 
         pin.label = elements.newPinLabel.value.trim() || 'Marker'; 
         pin.radius = safeRadius;
         pin.color = safeColor;
-        // Do not override original creatureId on edit to maintain data integrity
+        
+        // If the user checked broadcast on an existing local pin, move it to live
+        if (isBroadcast) {
+            try {
+                await setDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", pin.id), {
+                    type: pin.type, label: pin.label, x: pin.x, y: pin.y, radius: pin.radius, color: pin.color, authorId: auth.currentUser?.uid || 'Unknown', timestamp: serverTimestamp()
+                });
+                localDb.pins = localDb.pins.filter(p => p.id !== editingPinId); // remove from local
+            } catch(e) { console.error(e); showToast("Broadcast failed.", "error"); }
+        }
     }
   } else {
     if (!pendingPin) return;
-    db.pins.push({ 
-        id: generateId(), 
-        creatureId: activeId === 'global' ? null : activeId, // JARVIS UPGRADE: Attach Pin to Active Dino
-        type: elements.newPinType.value, 
-        label: elements.newPinLabel.value.trim() || 'Marker', 
-        x: pendingPin.x, y: pendingPin.y, 
-        radius: safeRadius, color: safeColor,
-        timestamp: Date.now() 
-    });
+    
+    const newPinObj = {
+        id: generateId(),
+        type: elements.newPinType.value,
+        label: elements.newPinLabel.value.trim() || 'Marker',
+        x: pendingPin.x,
+        y: pendingPin.y,
+        radius: safeRadius,
+        color: safeColor,
+        timestamp: Date.now()
+    };
+
+    if (isBroadcast) {
+        newPinObj.authorId = auth.currentUser?.uid || 'Unknown';
+        try {
+            await setDoc(doc(firestoreDb, "groups", localDb.activeGroupId, "map_pins", newPinObj.id), newPinObj);
+            showToast('Marker Broadcasted to Live Pack.');
+        } catch(e) { console.error(e); showToast('Broadcast failed.', 'error'); }
+    } else {
+        newPinObj.creatureId = activeId === 'global' ? null : activeId;
+        localDb.pins.push(newPinObj);
+    }
   }
   
   closeModal(); 
   renderPins();
-  window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin save sync failed", err));
+  window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin save sync failed", err));
 });
 
 elements.newPinLabel.addEventListener('keypress', (e) => { if (e.key === 'Enter') elements.saveBtn.click(); });
@@ -758,17 +876,17 @@ elements.clearAllBtn.addEventListener('click', () => {
   if (confirm('WARNING: Wipe markers for the CURRENTLY selected filter view?')) { 
       const activeId = elements.mapCreatureSelect.value;
       if(activeId === 'global') {
-          db.pins = []; 
+          localDb.pins = []; 
       } else {
-          db.pins = db.pins.filter(p => p.creatureId !== activeId);
+          localDb.pins = localDb.pins.filter(p => p.creatureId !== activeId);
       }
       renderPins(); 
-      window.EAHADataStore.saveData(db).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
+      window.EAHADataStore.saveData(localDb).catch(err => console.error("Jarvis: Pin wipe sync failed", err));
   }
 });
 
 elements.exportReconBtn.addEventListener('click', () => {
-    const payload = JSON.stringify({ pins: db.pins || [], routes: db.routes || [] });
+    const payload = JSON.stringify({ pins: localDb.pins || [], routes: localDb.routes || [] });
     const encodedData = btoa(encodeURIComponent(payload));
     
     navigator.clipboard.writeText(`EAHA-RECON:${encodedData}`).then(() => {
@@ -793,14 +911,14 @@ elements.importReconBtn.addEventListener('click', () => {
         if (confirm("Signal acquired. Do you want to merge this recon data with your existing map?")) {
             if (incomingData.pins && incomingData.pins.length > 0) {
                 const newPins = incomingData.pins.map(p => ({...p, id: generateId(), timestamp: Date.now()}));
-                db.pins = [...(db.pins || []), ...newPins];
+                localDb.pins = [...(localDb.pins || []), ...newPins];
             }
             if (incomingData.routes && incomingData.routes.length > 0) {
                 const newRoutes = incomingData.routes.map(r => ({...r, id: generateId(), timestamp: Date.now()}));
-                db.routes = [...(db.routes || []), ...newRoutes];
+                localDb.routes = [...(localDb.routes || []), ...newRoutes];
             }
             
-            window.EAHADataStore.saveData(db).catch(e => console.error(e));
+            window.EAHADataStore.saveData(localDb).catch(e => console.error(e));
             renderPins();
             renderRoutes();
             showToast("Tactical Data Synced Successfully.");
@@ -811,10 +929,11 @@ elements.importReconBtn.addEventListener('click', () => {
 });
 
 const init = async () => {
-  if (typeof window.EAHADataStore !== 'undefined') db = await window.EAHADataStore.getData();
-  if (!db.pins) db.pins = []; if (!db.routes) db.routes = []; if (!db.mapOffset) db.mapOffset = {x: -1.5, y: -1.5};
+  if (typeof window.EAHADataStore !== 'undefined') localDb = await window.EAHADataStore.getData();
+  if (!localDb.pins) localDb.pins = []; if (!localDb.routes) localDb.routes = []; if (!localDb.mapOffset) localDb.mapOffset = {x: -1.5, y: -1.5};
   
-  populateCreatureDropdown(); // JARVIS UPGRADE: Initialize the Operator Dropdown
+  populateCreatureDropdown(); 
+  startMapTelemetry(); // Start listening to live pack map events
   renderPins(); 
   renderRoutes(); 
   updateTransform(); 
