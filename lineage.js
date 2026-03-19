@@ -755,7 +755,7 @@ elements.deleteBtn.addEventListener('click', async () => {
 elements.search.addEventListener('input', renderList);
 
 window.addEventListener('eaha-sync-complete', () => { 
-    const isSilenced = window.EAHADataStore.isSyncing; // Checking flag state
+    const isSilenced = window.EAHADataStore.isSyncing; 
     if(!isSilenced) showToast('Bloodline Sync Confirmed.', 'success'); 
 });
 
@@ -772,6 +772,13 @@ const init = async () => {
   
   renderList();
   renderWorkspace();
+
+  // JARVIS UPGRADE: Initialize Privacy Toggle State
+  const bToggle = document.getElementById('broadcastToggle');
+  if (bToggle) {
+      bToggle.checked = localStorage.getItem('eahaBroadcastOptOut') !== 'true';
+      bToggle.addEventListener('change', (e) => localStorage.setItem('eahaBroadcastOptOut', String(!e.target.checked)));
+  }
 };
 
 let hasInitialized = false;
