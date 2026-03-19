@@ -20,6 +20,10 @@
     .map-pin { position: absolute; transform: translate(-50%, -100%); font-size: calc(24px / var(--map-scale, 1)); text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: auto; cursor: pointer; z-index: 10; transition: transform 0.1s; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.6)); }
     .map-pin:hover { transform: translate(-50%, -110%) scale(1.2); z-index: 20; filter: drop-shadow(0px 6px 10px rgba(16,185,129,0.8)); }
     
+    /* JARVIS UPGRADE: Live Pulse Effect for Pack Markers */
+    .map-pin.live-pin { animation: pulseLive 2s infinite; filter: drop-shadow(0px 0px 8px rgba(16, 185, 129, 0.8)); }
+    @keyframes pulseLive { 0% { transform: translate(-50%, -100%) scale(1); } 50% { transform: translate(-50%, -100%) scale(1.15); filter: drop-shadow(0px 0px 12px rgba(16, 185, 129, 1)); } 100% { transform: translate(-50%, -100%) scale(1); } }
+
     .pin-label { position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); border: 1px solid var(--primary); padding: 4px 10px; border-radius: 6px; font-size: calc(12px / var(--map-scale, 1)); font-weight: bold; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s, bottom 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); color: #fff; }
     .map-pin:hover .pin-label { opacity: 1; bottom: 130%; }
     
@@ -129,6 +133,7 @@
                 <button class="chip" id="modePinBtn">📍 Deploy Marker</button>
                 <button class="chip" id="modeRouteBtn">🛤️ Draw Route</button>
                 <button class="chip" id="modeRulerBtn">📏 Measure</button>
+                <button class="chip" id="sosDistressBtn" style="background: var(--danger); color: white; border-color: var(--danger); display: none; font-weight: bold; animation: pulseLive 2s infinite;">🚨 SOS</button>
             </div>
         </div>
 
@@ -179,7 +184,7 @@
   </main>
 
   <div id="pinModal" class="modal-overlay is-hidden">
-    <div class="card" style="width: 100%; max-width: 400px; margin: 20px; position: relative;">
+    <div class="card" style="width: 100%; max-width: 400px; margin: 20px; position: relative; border-top: 5px solid var(--primary);">
         <h2 id="pinModalTitle" style="color: var(--primary); margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px;">Deploy Tactical Marker</h2>
         <div class="form-grid">
             <label class="field">
@@ -215,6 +220,12 @@
                     <button type="button" class="color-swatch" data-color="#f8fafc" style="background: #f8fafc;" title="White"></button>
                 </div>
                 <input type="hidden" id="newPinColor" value="#ef4444">
+            </label>
+
+            <label class="field is-hidden" id="broadcastPinWrapper" style="margin-top: 10px; padding: 10px; background: color-mix(in srgb, var(--success) 10%, transparent); border: 1px solid var(--success); border-radius: 8px;">
+                <span style="color: var(--success); font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="broadcastPinToggle" style="transform: scale(1.2);"> Broadcast to Live Pack
+                </span>
             </label>
 
             <div style="display: flex; gap: 10px; margin-top: 15px;">
