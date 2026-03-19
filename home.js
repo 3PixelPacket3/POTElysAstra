@@ -1,17 +1,16 @@
 // home.js
-import { auth, db as firestoreDb } from './data-store.js'; // JARVIS UPGRADE: Added firestoreDb
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; // JARVIS UPGRADE
+import { auth, db as firestoreDb } from './data-store.js'; 
+import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
 
 // --- Persistent Storage Keys ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
 const COMMANDS_KEY = 'eahaCommands';
 const LIFELINES_KEY = 'eahaLifelines'; 
 const ACTIVE_CREA_KEY = 'eahaActiveCreature';
-const WIDGET_PREFS_KEY = 'eaha_widgets'; // JARVIS UPGRADE
+const WIDGET_PREFS_KEY = 'eaha_widgets'; 
 
 // --- Global State ---
-let db = { creatures: [], encounters: [], system_settings: {}, activeGroupId: null }; // JARVIS UPGRADE: Added system_settings & activeGroupId
+let db = { creatures: [], encounters: [], system_settings: {}, activeGroupId: null }; 
 let activeCreatureId = null;
 let isEditMode = false;
 
@@ -21,8 +20,9 @@ let decayEndTime = null;
 let exactVitals = { comfort: null, hygiene: null, satiation: null };
 let drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
 
-// JARVIS UPGRADE: Live Telemetry State
+// Live Telemetry State
 let activeTelemetryListener = null;
+let deathCauseChartInstance = null;
 
 // Default Quick Commands
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
@@ -36,7 +36,6 @@ const generateDefaultLifeline = () => ({
 });
 
 let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
-let deathCauseChartInstance = null;
 
 // --- Utilities ---
 const showToast = (message, type = 'success') => {
@@ -793,12 +792,61 @@ const renderDeathChart = (causesData) => {
   });
 };
 
+// --- JARVIS UPGRADE: Pack Composition Chart Engine ---
+const renderPackChart = (packData) => {
+    const ctx = document.getElementById('packCompositionChart');
+    const statusEl = document.getElementById('packChartStatus');
+    if (!ctx) return;
+
+    const labels = Object.keys(packData);
+    const data = Object.values(packData);
+
+    if (labels.length === 0) {
+        ctx.style.display = 'none';
+        if(statusEl) statusEl.textContent = "Awaiting pack telemetry...";
+        return;
+    }
+
+    ctx.style.display = 'block';
+    if(statusEl) statusEl.textContent = `Total Pack Members: ${data.reduce((a,b)=>a+b, 0)}`;
+
+    if (window.EAHA_PackChartInstance) {
+        window.EAHA_PackChartInstance.destroy();
+    }
+
+    // Dynamic tactical colors
+    const colors = ['#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4899', '#8b5cf6'];
+
+    window.EAHA_PackChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 1,
+                borderColor: '#0f172a'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    position: 'right', 
+                    labels: { color: '#f8fafc', font: { family: 'Courier New', size: 11 } } 
+                }
+            }
+        }
+    });
+};
+
 // --- JARVIS UPGRADE: Widget Management & Telemetry Logic ---
 const applyWidgetPreferences = () => {
     let activeWidgets = JSON.parse(localStorage.getItem(WIDGET_PREFS_KEY));
     if (!activeWidgets) {
         // Defaults if user hasn't touched the settings yet
-        activeWidgets = ['widget-timers', 'widget-telemetry', 'widget-roster', 'widget-encounters'];
+        activeWidgets = ['widget-timers', 'widget-telemetry', 'widget-pack-chart', 'widget-roster', 'widget-encounters'];
         localStorage.setItem(WIDGET_PREFS_KEY, JSON.stringify(activeWidgets));
     }
 
@@ -923,13 +971,21 @@ const renderDashboardWidgets = () => {
             const membersRef = collection(firestoreDb, "groups", db.activeGroupId, "members");
             activeTelemetryListener = onSnapshot(membersRef, (snap) => {
                 telemetryGrid.innerHTML = '';
+                const packCounts = {}; // JARVIS UPGRADE: Aggregating pack data for chart
+                
                 if(snap.empty) {
                     telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No pack signals detected.</p>';
+                    renderPackChart({});
                     return;
                 }
                 snap.forEach(docSnap => {
                     const data = docSnap.data();
                     const isSelf = docSnap.id === auth.currentUser?.uid;
+                    const dinoName = data.dinoName || 'Unknown';
+                    
+                    // Increment chart data
+                    packCounts[dinoName] = (packCounts[dinoName] || 0) + 1;
+                    
                     const timeDiff = Math.floor((Date.now() - (data.timestamp || Date.now())) / 60000);
                     let timeStr = `<span style="color:var(--success)">Live</span>`;
                     if (timeDiff > 10) timeStr = `<span style="color:var(--danger)">Offline</span>`;
@@ -942,15 +998,17 @@ const renderDashboardWidgets = () => {
                                 <span style="font-size: 0.7em;">${timeStr}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; font-size: 0.8em; color: var(--muted);">
-                                <span>${data.dinoName}</span>
+                                <span>${dinoName}</span>
                                 <span><span style="color: var(--danger);">♥</span> ${data.health || '?'} | <span style="color: var(--info);">⚖</span> ${data.combatWeight || '?'}</span>
                             </div>
                         </div>
                     `;
                 });
+                renderPackChart(packCounts); // Feed the aggregated data to the chart
             });
         } else {
             telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">Not connected to a Live Pack. Join via Lineage tab.</p>';
+            renderPackChart({});
         }
     }
 };
@@ -962,7 +1020,7 @@ const init = async () => {
     console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
-  // JARVIS UPGRADE: Apply user's widget preferences
+  // Apply user's widget preferences
   applyWidgetPreferences();
   setupWidgetCustomizer();
 
