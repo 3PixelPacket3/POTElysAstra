@@ -510,6 +510,41 @@ document.getElementById('resetTimerBtn').addEventListener('click', () => {
   showToast("Decay timer aborted and reset.");
 });
 
+// JARVIS UPGRADE: Robust Fallback Clipboard Engine
+const copyToClipboard = async (text) => {
+    // Attempt modern API first
+    if (navigator.clipboard && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.warn("Clipboard API failed, attempting fallback...", err);
+        }
+    }
+    
+    // Fallback for Mobile/Discord Embedded Browsers
+    try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        
+        // Prevent scrolling to bottom of page in MS Edge / Mobile
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        return false;
+    }
+};
+
 const renderCommands = () => {
   const grid = document.getElementById('commandGrid');
   grid.innerHTML = '';
@@ -529,13 +564,16 @@ const renderCommands = () => {
       });
     } else {
       btn.textContent = command;
+      // JARVIS FIX: Implement the robust copy function here
       btn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(command);
-          document.getElementById('commandStatus').textContent = `Copied: ${command}`;
-          document.getElementById('commandStatus').style.color = 'var(--success)';
-        } catch (error) {
-          document.getElementById('commandStatus').textContent = 'Clipboard access failed.';
+        const success = await copyToClipboard(command);
+        const statusEl = document.getElementById('commandStatus');
+        if (success) {
+            statusEl.textContent = `Copied: ${command}`;
+            statusEl.style.color = 'var(--success)';
+        } else {
+            statusEl.textContent = 'Clipboard access failed. Check browser permissions.';
+            statusEl.style.color = 'var(--danger)';
         }
       });
     }
