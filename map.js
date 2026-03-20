@@ -229,15 +229,21 @@ const populateCreatureDropdown = () => {
         const sorted = [...localDb.creatures].sort((a,b) => a.name.localeCompare(b.name));
         sorted.forEach(c => elements.mapCreatureSelect.appendChild(new Option(c.name, c.id)));
     }
-    const savedActive = localStorage.getItem('eahaActiveCreature');
+    
+    // JARVIS FIX: Dynamically construct storage key using UID for universal synchronization
+    const uid = auth.currentUser ? auth.currentUser.uid : 'guest';
+    const activeKey = `eahaActiveCreature_${uid}`;
+    const savedActive = localStorage.getItem(activeKey);
+    
     if (savedActive && savedActive !== 'none' && localDb.creatures.find(c => c.id === savedActive)) {
         elements.mapCreatureSelect.value = savedActive;
     } else {
         elements.mapCreatureSelect.value = 'global';
     }
+    
     elements.mapCreatureSelect.addEventListener('change', (e) => {
         const val = e.target.value;
-        if (val !== 'global') localStorage.setItem('eahaActiveCreature', val);
+        if (val !== 'global') localStorage.setItem(activeKey, val);
         renderPins();
         renderRoutes();
     });
