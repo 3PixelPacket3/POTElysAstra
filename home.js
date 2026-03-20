@@ -3,12 +3,12 @@ import { auth, db as firestoreDb } from './data-store.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
 
-// --- Persistent Storage Keys ---
+// --- Persistent Storage Keys (Dynamically scoped per user) ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
-const COMMANDS_KEY = 'eahaCommands';
-const LIFELINES_KEY = 'eahaLifelines'; 
-const ACTIVE_CREA_KEY = 'eahaActiveCreature';
-const WIDGET_PREFS_KEY = 'eaha_widgets'; 
+let COMMANDS_KEY = '';
+let LIFELINES_KEY = ''; 
+let ACTIVE_CREA_KEY = '';
+let WIDGET_PREFS_KEY = ''; 
 
 // --- Global State ---
 let db = { creatures: [], encounters: [], system_settings: {}, activeGroupId: null }; 
@@ -25,18 +25,16 @@ let drainRates = { comfort: 0, hygiene: 0, satiation: 0 };
 let activeTelemetryListener = null;
 let deathCauseChartInstance = null;
 
-// Default Quick Commands
+// Default Quick Commands & Lifelines
 const defaultCommands = ['!sleep', '!clean', '!bless', '!tasty', '!migrationbuff', '!migrationgrowth', '!info', '!sniff', '!tp'];
-let commands = JSON.parse(localStorage.getItem(COMMANDS_KEY)) || defaultCommands;
+let commands = [];
+let lifelines = {};
 
-// Default Lifeline Template
 const generateDefaultLifeline = () => ({
   comfort: 100, hygiene: 100, satiation: 100,
   migrations: 0,
   rebirths: { 1: 'none', 2: 'none', 3: 'none' }
 });
-
-let lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
 
 // --- Utilities ---
 const showToast = (message, type = 'success') => {
@@ -512,7 +510,6 @@ document.getElementById('resetTimerBtn').addEventListener('click', () => {
 
 // JARVIS UPGRADE: Robust Fallback Clipboard Engine
 const copyToClipboard = async (text) => {
-    // Attempt modern API first
     if (navigator.clipboard && window.isSecureContext) {
         try {
             await navigator.clipboard.writeText(text);
@@ -521,21 +518,15 @@ const copyToClipboard = async (text) => {
             console.warn("Clipboard API failed, attempting fallback...", err);
         }
     }
-    
-    // Fallback for Mobile/Discord Embedded Browsers
     try {
         const textArea = document.createElement("textarea");
         textArea.value = text;
-        
-        // Prevent scrolling to bottom of page in MS Edge / Mobile
         textArea.style.top = "0";
         textArea.style.left = "0";
         textArea.style.position = "fixed";
-        
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
         return successful;
@@ -564,7 +555,6 @@ const renderCommands = () => {
       });
     } else {
       btn.textContent = command;
-      // JARVIS FIX: Implement the robust copy function here
       btn.addEventListener('click', async () => {
         const success = await copyToClipboard(command);
         const statusEl = document.getElementById('commandStatus');
@@ -671,8 +661,6 @@ const saveEncounter = async (type) => {
   await window.EAHADataStore.saveData(db);
   showToast(`${outcomeText} logged successfully against ${oppName}.`);
   updateCombatAnalytics(); 
-  
-  // JARVIS UPGRADE: Re-render the new widgets if they are active
   renderDashboardWidgets();
 
   if (targetSelect) {
@@ -831,7 +819,6 @@ const renderDeathChart = (causesData) => {
   });
 };
 
-// --- JARVIS UPGRADE: Pack Composition Chart Engine ---
 const renderPackChart = (packData) => {
     const ctx = document.getElementById('packCompositionChart');
     const statusEl = document.getElementById('packChartStatus');
@@ -853,7 +840,6 @@ const renderPackChart = (packData) => {
         window.EAHA_PackChartInstance.destroy();
     }
 
-    // Dynamic tactical colors
     const colors = ['#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4899', '#8b5cf6'];
 
     window.EAHA_PackChartInstance = new Chart(ctx, {
@@ -880,11 +866,9 @@ const renderPackChart = (packData) => {
     });
 };
 
-// --- JARVIS UPGRADE: Widget Management & Telemetry Logic ---
 const applyWidgetPreferences = () => {
     let activeWidgets = JSON.parse(localStorage.getItem(WIDGET_PREFS_KEY));
     if (!activeWidgets) {
-        // Defaults if user hasn't touched the settings yet
         activeWidgets = ['widget-timers', 'widget-telemetry', 'widget-pack-chart', 'widget-roster', 'widget-encounters'];
         localStorage.setItem(WIDGET_PREFS_KEY, JSON.stringify(activeWidgets));
     }
@@ -1010,7 +994,7 @@ const renderDashboardWidgets = () => {
             const membersRef = collection(firestoreDb, "groups", db.activeGroupId, "members");
             activeTelemetryListener = onSnapshot(membersRef, (snap) => {
                 telemetryGrid.innerHTML = '';
-                const packCounts = {}; // JARVIS UPGRADE: Aggregating pack data for chart
+                const packCounts = {}; 
                 
                 if(snap.empty) {
                     telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">No pack signals detected.</p>';
@@ -1022,7 +1006,6 @@ const renderDashboardWidgets = () => {
                     const isSelf = docSnap.id === auth.currentUser?.uid;
                     const dinoName = data.dinoName || 'Unknown';
                     
-                    // Increment chart data
                     packCounts[dinoName] = (packCounts[dinoName] || 0) + 1;
                     
                     const timeDiff = Math.floor((Date.now() - (data.timestamp || Date.now())) / 60000);
@@ -1043,7 +1026,7 @@ const renderDashboardWidgets = () => {
                         </div>
                     `;
                 });
-                renderPackChart(packCounts); // Feed the aggregated data to the chart
+                renderPackChart(packCounts); 
             });
         } else {
             telemetryGrid.innerHTML = '<p class="muted" style="text-align:center; padding: 10px;">Not connected to a Live Pack. Join via Lineage tab.</p>';
@@ -1053,13 +1036,23 @@ const renderDashboardWidgets = () => {
 };
 
 const init = async () => {
+  // JARVIS FIX: Dynamically construct storage keys using the Account UID to enforce isolation
+  const uid = auth.currentUser ? auth.currentUser.uid : 'guest';
+  COMMANDS_KEY = `eahaCommands_${uid}`;
+  LIFELINES_KEY = `eahaLifelines_${uid}`;
+  ACTIVE_CREA_KEY = `eahaActiveCreature_${uid}`;
+  WIDGET_PREFS_KEY = `eaha_widgets_${uid}`;
+
+  // Load the newly isolated data
+  commands = JSON.parse(localStorage.getItem(COMMANDS_KEY)) || [...defaultCommands];
+  lifelines = JSON.parse(localStorage.getItem(LIFELINES_KEY)) || {};
+
   if (typeof window.EAHADataStore !== 'undefined') {
     db = await window.EAHADataStore.getData();
   } else {
     console.error("Jarvis Alert: data-store.js is missing or restricted by module scope.");
   }
 
-  // Apply user's widget preferences
   applyWidgetPreferences();
   setupWidgetCustomizer();
 
@@ -1074,7 +1067,6 @@ const init = async () => {
   if (logLossBtn) logLossBtn.addEventListener('click', () => saveEncounter('loss'));
   if (logStarveBtn) logStarveBtn.addEventListener('click', () => saveEncounter('starved'));
 
-  // JARVIS UPGRADE: Load Timers from system settings
   const tSet = db.system_settings?.timers || { waystone: 1800, trophy: 600, growth: 2700 };
   
   const startWaystoneBtn = document.getElementById('startWaystoneBtn');
