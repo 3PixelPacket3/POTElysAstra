@@ -396,6 +396,31 @@ const populateDropdowns = () => {
   if (currentB && currentB !== 'none') elements.fighterB.value = currentB;
 };
 
+// JARVIS UPGRADE: Auto-load creature's saved modifiers when selected in simulation dropdown
+const handleFighterSelectionChange = (selectElement, roleEl, mutEl, genEls) => {
+    const dinoId = selectElement.value;
+    if (dinoId === 'none') return;
+
+    const dino = localDb.creatures.find(c => c.id === dinoId);
+    if (!dino) return;
+
+    if (dino.role) roleEl.value = dino.role;
+    if (dino.mutation) mutEl.value = dino.mutation;
+    
+    if (dino.genetics && Array.isArray(dino.genetics)) {
+        genEls.forEach((el, index) => {
+            if (dino.genetics[index]) el.value = dino.genetics[index];
+            else el.value = 'None';
+        });
+    } else if (dino.genetic) {
+        // Fallback for older profiles that only saved one genetic
+        genEls[0].value = dino.genetic;
+        for (let i = 1; i < genEls.length; i++) genEls[i].value = 'None';
+    }
+
+    runSimulation();
+};
+
 const applyModifiersToStats = (baseStatMap, role, mutation, geneticsArray, elderStage, rebirthStage) => {
   const modData = window.EAHAModifiers || { roles: {}, mutations: {}, genetics: {}, eldering: {}, rebirths: {} };
   
@@ -703,15 +728,30 @@ const init = async () => {
 
   if(elements.fighterA) {
     populateDropdowns();
+
+    // JARVIS FIX: Added custom change handlers to pull creature profile data upon selection
+    elements.fighterA.addEventListener('change', () => {
+        handleFighterSelectionChange(elements.fighterA, elements.fighterARole, elements.fighterAMutation, elements.fighterAGenetics);
+    });
+    
+    elements.fighterB.addEventListener('change', () => {
+        handleFighterSelectionChange(elements.fighterB, elements.fighterBRole, elements.fighterBMutation, elements.fighterBGenetics);
+    });
+
     const bindSim = (el) => { if(el) el.addEventListener('change', runSimulation); };
-    bindSim(elements.fighterA); bindSim(elements.fighterB);
     bindSim(elements.fighterAStage); bindSim(elements.fighterBStage);
     bindSim(elements.fighterARole); bindSim(elements.fighterBRole);
     bindSim(elements.fighterAMutation); bindSim(elements.fighterBMutation);
     bindSim(elements.fighterAElder); bindSim(elements.fighterBElder);
     bindSim(elements.fighterARebirth); bindSim(elements.fighterBRebirth); 
     elements.fighterAGenetics.forEach(bindSim); elements.fighterBGenetics.forEach(bindSim);
-    runSimulation();
+    
+    // Auto-run if a creature is pre-loaded
+    if (elements.fighterA.value !== 'none') {
+        handleFighterSelectionChange(elements.fighterA, elements.fighterARole, elements.fighterAMutation, elements.fighterAGenetics);
+    } else {
+        runSimulation();
+    }
   }
   setView(null); 
 };
