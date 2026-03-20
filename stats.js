@@ -388,7 +388,9 @@ const populateDropdowns = () => {
     elements.fighterB.appendChild(new Option(c.name, c.id));
   });
   
-  const activeId = localStorage.getItem('eahaActiveCreature');
+  // JARVIS FIX: Dynamically construct key using User Account UID
+  const uid = auth.currentUser ? auth.currentUser.uid : 'guest';
+  const activeId = localStorage.getItem(`eahaActiveCreature_${uid}`);
   
   if (currentA && currentA !== 'none') elements.fighterA.value = currentA;
   else if (activeId && localDb.creatures.find(c => c.id === activeId)) elements.fighterA.value = activeId;
