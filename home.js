@@ -1,7 +1,7 @@
 // home.js
 import { auth, db as firestoreDb } from './data-store.js'; 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
+import { collection, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; 
 
 // --- Persistent Storage Keys (Dynamically scoped per user) ---
 const TIME_ZONE_KEY = 'eahaTimeZone';
@@ -206,7 +206,7 @@ const populateCreatureDropdown = () => {
   updateCombatAnalytics(); 
   runQuickThreat(); 
   
-  select.addEventListener('change', (e) => {
+  select.addEventListener('change', async (e) => {
     activeCreatureId = e.target.value;
     localStorage.setItem(ACTIVE_CREA_KEY, activeCreatureId);
     updateBriefingPanel();
@@ -215,8 +215,26 @@ const populateCreatureDropdown = () => {
     syncExactVitals(); 
     updateCombatAnalytics(); 
     runQuickThreat();
+    
     if(activeCreatureId !== 'none') {
       showToast(`Lifeline Sync Engaged: Tracking ${select.options[select.selectedIndex].text}`);
+      
+      // JARVIS UPGRADE: Broadcast active dino selection to live pack telemetry directly from Dashboard
+      if (db.activeGroupId && auth.currentUser) {
+          const crea = db.creatures.find(c => c.id === activeCreatureId);
+          if (crea) {
+              const health = parseFloat(getAdultStat(crea.stats?.base?.health)) || 0;
+              const weight = parseFloat(getAdultStat(crea.stats?.base?.combatWeight)) || 0;
+              try {
+                  await setDoc(doc(firestoreDb, "groups", db.activeGroupId, "members", auth.currentUser.uid), {
+                      dinoName: crea.name,
+                      health: Math.round(health),
+                      combatWeight: Math.round(weight),
+                      timestamp: Date.now()
+                  }, { merge: true });
+              } catch(err) { console.error("Failed to broadcast telemetry update", err); }
+          }
+      }
     }
   });
 
@@ -1069,13 +1087,13 @@ const init = async () => {
 
   const tSet = db.system_settings?.timers || { waystone: 1800, trophy: 600, growth: 2700 };
   
-  const startWaystoneBtn = document.getElementById('startWaystoneBtn');
+  const startMigrationBtn = document.getElementById('startMigrationBtn');
   const startTrophyBtn = document.getElementById('startTrophyBtn');
   const startGrowthBtn = document.getElementById('startGrowthBtn');
   
-  if(startWaystoneBtn) {
-      startWaystoneBtn.textContent = `Start ${Math.round(tSet.waystone/60)}m`;
-      startWaystoneBtn.addEventListener('click', () => startTacticalTimer('timerWaystone', tSet.waystone));
+  if(startMigrationBtn) {
+      startMigrationBtn.textContent = `Start ${Math.round(tSet.waystone/60)}m`;
+      startMigrationBtn.addEventListener('click', () => startTacticalTimer('timerMigration', tSet.waystone));
   }
   if(startTrophyBtn) {
       startTrophyBtn.textContent = `Start ${Math.round(tSet.trophy/60)}m`;
